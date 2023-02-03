@@ -1,0 +1,3 @@
+[DEFAULT]
+disable=too-many-function-args, fixme, missing-function-docstring
+jobs=0
