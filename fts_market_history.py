@@ -19,22 +19,11 @@ from fts_utils import (
     get_df_datetime_index,
 )
 
+from fts_market_metrics import get_init_relevant_assets
+
 
 def drop_dict_na_values(record):
     return {key: record[key] for key in record if not pd.isna(record[key])}
-
-
-def add_pct_change_cols(assets_history_asset, inplace=True):
-    if inplace:
-        for column in assets_history_asset.columns:
-            assets_history_asset.loc[:, f"{column}_pct"] = assets_history_asset[column].pct_change() + 1
-        return None
-
-    cols_pct_change = {}
-    for column in assets_history_asset.columns:
-        cols_pct_change[f"{column}_pct"] = assets_history_asset.loc[:, column].pct_change() + 1
-
-    return pd.DataFrame(cols_pct_change)
 
 
 def get_pct_change(df_history, as_factor=True):
@@ -207,7 +196,9 @@ class MarketHistory:
                 start = start_time["timestamp"]
                 await self.update(start=start, end=end)
             else:
-                relevant_assets = await self.get_init_relevant_assets(capped=self.config.relevant_assets_cap)
+                relevant_assets = await get_init_relevant_assets(
+                    self.fts_instance, capped=self.config.relevant_assets_cap
+                )
                 self.fts_instance.assets_list_symbols = relevant_assets["assets"]
                 # TODO: Transform into function, already used
                 filtered_assets = [
@@ -327,91 +318,6 @@ class MarketHistory:
         if uniform_cols and len(metrics) == 1:
             df_market_history.columns = get_col_names(df_market_history)
         return df_market_history
-
-    def aggregate_history(self, df_input, agg_timeframe="1h"):
-        amount_five_min_intervals = pd.Timedelta(agg_timeframe).value // 10**9 // 60 // 5
-        agg_func_map = {
-            "o": lambda row: row[0],
-            "h": np.nanmax,
-            "l": np.nanmin,
-            "c": lambda row: row[-1],
-            "v": np.nansum,
-        }
-        forward_indexer = pd.api.indexers.FixedForwardWindowIndexer(window_size=amount_five_min_intervals)
-        relevant_assets_agg_list = []
-        for candle_type, func in agg_func_map.items():
-            candle_type_cols = [col for col in df_input.columns if col[-1] == candle_type]
-            relevant_assets_agg_list.append(
-                df_input.loc[:, candle_type_cols]
-                .rolling(window=forward_indexer, step=amount_five_min_intervals, min_periods=1)
-                .apply(func, raw=True)
-            )
-        return pd.concat(relevant_assets_agg_list, axis=1)[df_input.columns]
-
-    ###########################
-    # Calculate asset metrics #
-    ###########################
-
-    def get_asset_performance_metrics(self, df_input):
-        assets_volume_usd = self.get_volume_usd(df_input)
-        amount_candles = self.get_amount_candles(df_input)
-        candle_density = self.get_candle_density(df_input)
-        asset_volatility = self.get_asset_volatility(df_input)
-        asset_metrics = pd.DataFrame([assets_volume_usd, amount_candles, candle_density, asset_volatility]).T
-        asset_metrics.columns = ["vol_usd", "amount_candles", "candle_density", "volatility"]
-        return asset_metrics
-
-    async def get_init_relevant_assets(self, capped=-1):
-        # 34 days ~ 10000 candles limit
-        print("[INFO] Analyzing market for relevant assets..")
-        history_candle_time_normalized = await self.fts_instance.market_updater_api.get_history_candle_time_normalized(
-            timespan="34days"
-        )
-        df_relevant_assets_metrics = self.get_asset_performance_metrics(history_candle_time_normalized).query(
-            "amount_candles > 2000 & candle_density < 500"
-        )
-        relevant_asset_symbols = df_relevant_assets_metrics.sort_values("amount_candles", ascending=False).index
-        if capped > 0:
-            relevant_asset_symbols = relevant_asset_symbols[:capped]
-        print("[INFO] Market analysis finished!")
-        return {
-            "assets": list(relevant_asset_symbols),
-            "metrics": df_relevant_assets_metrics,
-            "data": history_candle_time_normalized,
-        }
-
-    def get_volume_usd(self, df_input):
-        volume_usd = {}
-        assets = get_col_names(df_input.columns)
-        for asset in assets:
-            volume_usd[asset] = int(np.sum(df_input[f"{asset}_c"] * df_input[f"{asset}_v"]))
-        return pd.Series(volume_usd).sort_values()
-
-    def get_amount_candles(self, df_input):
-        candles_vol = get_col_names(df_input.columns, specific_col="v")
-        amount_candles = df_input[candles_vol].count()
-        amount_candles.index = get_col_names(amount_candles.index)
-        return amount_candles.sort_values()
-
-    def get_candle_density(self, df_input):
-        candles_vol = get_col_names(df_input.columns, specific_col="v")
-        df_vol = df_input[candles_vol]
-        df_candle_density = {}
-        for col in df_vol.columns:
-            asset_index_not_nan = df_vol[col][pd.notna(df_vol[col])].index
-            asset_index_not_nan /= 1000
-            df_candle_density[col] = int(np.diff(asset_index_not_nan).mean())
-        series_candle_density = pd.Series(df_candle_density)
-        series_candle_density.index = get_col_names(series_candle_density.index)
-        return series_candle_density
-
-    def get_asset_volatility(self, df_input):
-        candles_open = get_col_names(df_input.columns, specific_col="o")
-        assets_agg_open = self.aggregate_history(df_input, agg_timeframe="1h").loc[:, candles_open]
-        assets_agg_open_pct = add_pct_change_cols(assets_agg_open, inplace=False)
-        return pd.Series(
-            np.nanstd(assets_agg_open_pct, axis=0), index=get_col_names(assets_agg_open_pct.columns)
-        ).sort_values()
 
     ##################
     # DB interaction #
