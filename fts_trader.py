@@ -32,8 +32,8 @@ class Trader:
         self.config = fts_instance.config
 
         self.config.backend = self.config.backend
-        self.backend_client = self.fts_instance.market_history.get_backend_client()
-        self.backend_db = self.fts_instance.market_history.get_backend_db()
+        self.backend_client = self.fts_instance.backend.get_backend_client()
+        self.backend_db = self.fts_instance.backend.get_backend_db()
 
         self.wallets = {}
         self.open_orders = []

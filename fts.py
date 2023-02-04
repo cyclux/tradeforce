@@ -4,6 +4,7 @@ pip install numpy pandas pyarrow pymongo bitfinex-api-py websockets tensorflow-p
 import asyncio
 from fts_utils import connect_api
 from fts_config import Config
+from fts_backend import Backend
 from fts_market_history import MarketHistory
 from fts_market_updater import MarketUpdater
 from fts_exchange_api import ExchangeAPI
@@ -17,6 +18,7 @@ class FastTradingSimulator:
     def __init__(self, user_config, assets=None):
         self.assets_list_symbols = assets
         self.config = self.register_config(user_config)
+        self.backend = self.register_backend()
         self.market_history = self.register_market_history()
         self.market_updater_api = self.register_updater()
         self.api = self.connect_api()
@@ -27,6 +29,10 @@ class FastTradingSimulator:
     def register_config(self, user_config):
         config = Config(user_config)
         return config
+
+    def register_backend(self):
+        backend = Backend(fts_instance=self)
+        return backend
 
     def register_updater(self):
         market_updater_api = MarketUpdater(fts_instance=self)

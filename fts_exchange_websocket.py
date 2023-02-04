@@ -149,8 +149,10 @@ class ExchangeWebsocket:
         self.latest_candle_timestamp = self.fts_instance.market_history.get_local_candle_timestamp(position="latest")
         if self.latest_candle_timestamp == 0:
             print("[DEBUG] latest_candle_timestamp == 0 -> get_latest_remote_candle_timestamp()")
-            self.latest_candle_timestamp = await self.fts_instance.market_history.get_latest_remote_candle_timestamp(
-                minus_delta=self.fts_instance.market_history.history_timeframe
+            self.latest_candle_timestamp = (
+                await self.fts_instance.market_updater_api.get_latest_remote_candle_timestamp(
+                    minus_delta=self.config.history_timeframe
+                )
             )
         # self.timestamp_new_candle_last_mts = pd.Timestamp.now(tz="UTC").value // 10**6
         self.is_set_last_candle_timestamp = False
@@ -260,7 +262,7 @@ class ExchangeWebsocket:
             df_history_update = pd.DataFrame(candles_last_timestamp, index=[self.last_candle_timestamp])
             self.last_candle_timestamp = self.current_candle_timestamp
             df_history_update.index.name = "t"
-            self.fts_instance.market_history.update_db(df_history_update)
+            self.fts_instance.backend.update_db(df_history_update)
             if (
                 not self.history_sync_patch_running
                 and not self.config.is_simulation

@@ -23,7 +23,7 @@ config = {
     "budget": 0,
     # history_config
     "asset_interval": "5min",
-    "history_timeframe": "750days",
+    "history_timeframe": "30days",
     "base_currency": "USD",
     "exchange": "bitfinex",
     "load_history_via": "API",

@@ -48,7 +48,7 @@ class MarketUpdater:
     async def get_history_candle_time_normalized(self, timespan=""):
         latest_remote_candle_timestamp = await self.get_latest_remote_candle_timestamp()
         start_time = get_start_time(timestamp=latest_remote_candle_timestamp, delta=timespan)
-        market_history_recent = await self.get_market_history(start=start_time["timestamp"])
+        market_history_recent = await self.update_market_history(start=start_time["timestamp"])
         return market_history_recent
 
     async def get_latest_remote_candle_timestamp(self, minus_delta=None):
@@ -135,7 +135,7 @@ class MarketUpdater:
         )
         self.df_history_update.set_index("t", inplace=True)
 
-    async def get_market_history(self, start=None, end=None):
+    async def update_market_history(self, start=None, end=None):
         if self.fts_instance.assets_list_symbols is None:
             self.fts_instance.assets_list_symbols = await self.fts_instance.exchange_api.get_active_assets()
 
