@@ -12,7 +12,7 @@ config = {
     # "amount_invest_relative": None,
     "buy_limit_strategy": False,
     "buy_opportunity_factor": 0.16,
-    "buy_opportunity_boundary": 0.16,
+    "buy_opportunity_boundary": 0.01,
     "prefer_performance": "positive",
     "max_buy_per_asset": 1,
     "hold_time_limit": 12000,
@@ -23,7 +23,7 @@ config = {
     "budget": 0,
     # history_config
     "asset_interval": "5min",
-    "history_timeframe": "30days",
+    "history_timeframe": "100days",
     "base_currency": "USD",
     "exchange": "bitfinex",
     "load_history_via": "API",
@@ -35,5 +35,7 @@ config = {
     "run_exchange_api": True,
     "keep_updated": True,
 }
+
+# assets = ["BTC", "ETH", "XMR"]
 
 fts = FastTradingSimulator(config).run()

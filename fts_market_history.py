@@ -90,7 +90,7 @@ class MarketHistory:
                 end = await self.fts_instance.market_updater_api.get_latest_remote_candle_timestamp()
                 start_time = get_start_time(end, delta=self.config.history_timeframe)
                 start = start_time["timestamp"]
-                await self.update(start=start, end=end)
+                # await self.update(start=start, end=end)
             else:
                 relevant_assets = await get_init_relevant_assets(
                     self.fts_instance, capped=self.config.relevant_assets_cap
@@ -122,6 +122,8 @@ class MarketHistory:
                 print(f"{end=}")
                 print(f"{start_time['datetime']=}")
                 print(f"{end_time['datetime']=}")
+
+            await self.update(start=start, end=end)
 
         else:
             sys.exit(
