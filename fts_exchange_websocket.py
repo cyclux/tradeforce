@@ -8,10 +8,6 @@ Returns:
 # WEBSOCKET API #
 #################
 
-# ['chan_id', 'channel_name', 'confirm_subscription', 'confirm_unsubscribe',
-# 'get_key', 'is_subscribed',
-# 'is_subscribed_bool', 'key', 'send_payload', 'socket',
-# 'sub_id', 'subscribe', 'symbol', 'timeframe', 'unsubscribe']
 import traceback
 import numpy as np
 import pandas as pd
@@ -96,14 +92,10 @@ class ExchangeWebsocket:
     def ws_order_confirmed(self, ws_confirmed):
         print("order_confirmed", ws_confirmed)
         order_type = "buy" if ws_confirmed.amount_orig > 0 else "sell"
-
-        # TODO: Is this obsolete once "gid" works?
         if order_type == "sell":
-            # sell_order_id = ws_confirmed.id
             asset_symbol = convert_symbol_str(
                 ws_confirmed.symbol, base_currency=self.config.base_currency, to_exchange=False
             )
-            # buy_order = {"asset": asset_symbol, "price_profit": ws_confirmed.price}
             buy_order = {"asset": asset_symbol, "gid": ws_confirmed.gid}
             open_order = self.fts_instance.trader.get_open_order(asset=buy_order)
             if len(open_order) > 0:
@@ -154,7 +146,6 @@ class ExchangeWebsocket:
                     minus_delta=self.config.history_timeframe
                 )
             )
-        # self.timestamp_new_candle_last_mts = pd.Timestamp.now(tz="UTC").value // 10**6
         self.is_set_last_candle_timestamp = False
 
         if self.ws_init_count > 1:

@@ -104,9 +104,6 @@ class ExchangeAPI:
         # Cannot specify Exception as bfx API does not provide more
         except Exception as exc:  # pylint: disable=broad-except
             print(exc)
-        # else:
-        #     if not update_order and order_type == "buy":
-        #         self.gid_init += 1
         return exchange_result
 
     async def get_active_orders(self, symbol):

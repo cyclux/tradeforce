@@ -13,7 +13,7 @@ from fts_utils import (
     ns_to_ms,
     get_now,
     get_timedelta,
-    get_start_time,
+    get_time_minus_delta,
     get_df_datetime_index,
 )
 
@@ -47,7 +47,7 @@ class MarketUpdater:
 
     async def get_history_candle_time_normalized(self, timespan=""):
         latest_remote_candle_timestamp = await self.get_latest_remote_candle_timestamp()
-        start_time = get_start_time(timestamp=latest_remote_candle_timestamp, delta=timespan)
+        start_time = get_time_minus_delta(timestamp=latest_remote_candle_timestamp, delta=timespan)
         market_history_recent = await self.update_market_history(start=start_time["timestamp"])
         return market_history_recent
 

@@ -124,7 +124,6 @@ class Trader:
             if self.config.prefer_performance == "positive":
                 df_buy_options = df_buy_options.sort_values(by="perf", ascending=False)
             if self.config.prefer_performance == "center":
-                # buy_options = np.absolute(buy_options - self.config.buy_opportunity_factor).sort_values()
                 df_buy_options.loc[:, "perf"] = np.absolute(df_buy_options["perf"] - self.config.buy_opportunity_factor)
                 df_buy_options = df_buy_options.sort_values(by="perf")
 
@@ -229,7 +228,6 @@ class Trader:
                 .update_one({"buy_order_id": order["buy_order_id"]}, {"$set": order})
                 .acknowledged
             )
-            # .update_one({"trader_id": self.config.trader_id}, {"$set": status_updates})
         return db_acknowledged
 
     def new_order(self, order, order_type):
@@ -242,8 +240,6 @@ class Trader:
 
     def edit_order(self, order, order_type):
         order_obj = getattr(self, order_type)
-        # order_to_edit = [o for o in order_obj if o.get("buy_order_id") == order["buy_order_id"]]
-        # order_to_edit[0]["sell_order_id"] = 321
         order_obj[:] = [o for o in order_obj if o.get("buy_order_id") != order["buy_order_id"]]
         order_obj.append(order)
 
@@ -374,8 +370,6 @@ class Trader:
             closed_order["profit_fiat"] = closed_order["sell_volume_fiat"] - closed_order["amount_invest_fiat"]
             self.new_order(closed_order, "closed_orders")
             self.del_order(open_order[0], "open_orders")
-            # new_budget = float(np.round(self.config.budget + closed_order["sell_volume_fiat"], 2))
-            # self.update_status({"budget": new_budget})
         else:
             print(f"[ERROR] Could not find order to sell: {sell_order}")
 
@@ -395,7 +389,6 @@ class Trader:
             buy_volume_fiat, _ = calc_fee(
                 self.config.amount_invest_fiat, self.config.exchange_fee, asset["price"], currency_type="fiat"
             )
-            # print(buy_volume_fiat, buy_fee_fiat)
             buy_amount_crypto = get_significant_digits(buy_volume_fiat / asset["price"], 9)
 
             asset_symbol = asset["asset"]
@@ -485,14 +478,6 @@ class Trader:
             all_closed_orders = pd.DataFrame(self.closed_orders)
         return all_closed_orders
 
-    def get_profit(self):
-        profit_fiat = sum([order["profit_fiat"] for order in self.closed_orders])
-
-        # TODO: Check if generator works:
-        profit_fiat_gen = sum(order["profit_fiat"] for order in self.closed_orders)
-        print(profit_fiat, profit_fiat_gen)
-        return profit_fiat
-
     def set_budget(self, ws_wallet_snapshot):
         for wallet in ws_wallet_snapshot:
             if wallet.currency == self.config.base_currency:
@@ -502,7 +487,6 @@ class Trader:
                 self.update_status({"budget": base_currency_balance})
 
     async def update(self, latest_prices=None, timestamp=None):
-
         sell_options = self.check_sell_options(latest_prices, timestamp)
         if len(sell_options) > 0:
             await self.sell_assets(sell_options)
@@ -511,3 +495,8 @@ class Trader:
         print(buy_options)
         if len(buy_options) > 0:
             await self.buy_assets(buy_options)
+
+    # TODO: Currently not used
+    def get_profit(self):
+        profit_fiat = sum(order["profit_fiat"] for order in self.closed_orders)
+        return profit_fiat

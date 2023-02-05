@@ -6,7 +6,7 @@ import sys
 import os
 from pathlib import Path
 import pandas as pd
-from fts_utils import ms_to_ns, get_col_names, ns_to_ms, get_start_time
+from fts_utils import ms_to_ns, get_col_names, ns_to_ms, get_time_minus_delta
 from fts_market_metrics import get_init_relevant_assets
 
 
@@ -88,41 +88,29 @@ class MarketHistory:
         elif self.config.load_history_via == "api":
             if self.fts_instance.assets_list_symbols is not None:
                 end = await self.fts_instance.market_updater_api.get_latest_remote_candle_timestamp()
-                start_time = get_start_time(end, delta=self.config.history_timeframe)
+                start_time = get_time_minus_delta(end, delta=self.config.history_timeframe)
                 start = start_time["timestamp"]
-                # await self.update(start=start, end=end)
             else:
                 relevant_assets = await get_init_relevant_assets(
                     self.fts_instance, capped=self.config.relevant_assets_cap
                 )
                 self.fts_instance.assets_list_symbols = relevant_assets["assets"]
-                # TODO: Transform into function, already used
                 filtered_assets = [
                     f"{asset}_{metric}" for asset in relevant_assets["assets"] for metric in ["o", "h", "l", "c", "v"]
                 ]
                 await self.update(history_data=relevant_assets["data"][filtered_assets])
 
-                # TODO: Check if "after load" of history is neccessary
-
                 latest_local_candle_timestamp = self.get_local_candle_timestamp(position="latest")
-                start_time = get_start_time(latest_local_candle_timestamp, delta=self.config.history_timeframe)
+                start_time = get_time_minus_delta(latest_local_candle_timestamp, delta=self.config.history_timeframe)
                 start = start_time["timestamp"]
                 first_local_candle_timestamp = self.get_local_candle_timestamp(position="first")
 
-                print(
-                    f"[INFO] Fetching {self.config.history_timeframe} of market history "
-                    + f"from {len(self.fts_instance.assets_list_symbols)} assets"
-                )
-                # TODO: Find better name, not really "start_time" ..
-                end_time = get_start_time(first_local_candle_timestamp, delta=self.config.asset_interval)
+                end_time = get_time_minus_delta(first_local_candle_timestamp, delta=self.config.asset_interval)
                 end = end_time["timestamp"]
-                print(f"{start_time=}")
-                print(f"{end_time=}")
-                print(f"{start=}")
-                print(f"{end=}")
-                print(f"{start_time['datetime']=}")
-                print(f"{end_time['datetime']=}")
-
+            print(
+                f"[INFO] Fetching {self.config.history_timeframe} ({start} - {end}) of market history "
+                + f"from {len(self.fts_instance.assets_list_symbols)} assets"
+            )
             await self.update(start=start, end=end)
 
         else:

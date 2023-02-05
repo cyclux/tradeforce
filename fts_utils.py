@@ -57,7 +57,7 @@ def get_now():
     return {"datetime": now_datetime, "timestamp": now_timestamp}
 
 
-def get_start_time(timestamp=None, delta=""):
+def get_time_minus_delta(timestamp=None, delta=""):
     if timestamp:
         start_time = {"timestamp": timestamp, "datetime": pd.to_datetime(timestamp, unit="ms", utc=True)}
     else:

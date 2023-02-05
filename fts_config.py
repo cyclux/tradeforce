@@ -3,9 +3,7 @@
 
 
 class Config:
-    """_summary_
-    SHIB, LEO, -> Not verified restriction
-    """
+    """_summary_"""
 
     def __init__(self, config_input):
         self.update_history = config_input.get("update_history", False)
@@ -28,7 +26,6 @@ class Config:
         self.relevant_assets_cap = config_input.get("relevant_assets_cap", 100)
 
         self.trader_id = config_input.get("trader_id", 1)
-        # self.gid = config_input.get("gid", 10**9)
         self.window = config_input.get("window", 20) * 60 // 5
         self.budget = float(config_input.get("budget", 0))
         self.buy_opportunity_factor = config_input.get("buy_opportunity_factor", 0.0)
