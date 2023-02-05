@@ -4,12 +4,12 @@
 from fts import FastTradingSimulator
 
 config = {
-    # trading_strategy
-    "trader_id": 2,
+    # trading strategy
+    "trader_id": 1,
     "use_backend": True,
     "is_simulation": False,
     "amount_invest_fiat": 100,
-    # "amount_invest_relative": None,
+    "amount_invest_relative": None,
     "buy_limit_strategy": False,
     "buy_opportunity_factor": 0.16,
     "buy_opportunity_boundary": 0.01,
@@ -21,12 +21,13 @@ config = {
     "window": 160,
     "exchange_fee": 0.20,
     "budget": 0,
-    # history_config
+    # history config
     "asset_interval": "5min",
     "history_timeframe": "100days",
     "base_currency": "USD",
     "exchange": "bitfinex",
     "load_history_via": "API",
+    "dump_to_feather": False,
     "backend": "mongodb",
     "backend_host": "localhost:1234",
     "mongo_collection": "bfx_history_test",
@@ -36,6 +37,5 @@ config = {
     "keep_updated": True,
 }
 
-# assets = ["BTC", "ETH", "XMR"]
-
-fts = FastTradingSimulator(config).run()
+assets = []  # ["BTC", "ETH", "XMR"]
+fts = FastTradingSimulator(config, assets).run()

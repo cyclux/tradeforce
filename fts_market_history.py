@@ -69,9 +69,9 @@ class MarketHistory:
 
         # Set paths
         self.path_current = Path(os.path.dirname(os.path.abspath(__file__))) if path_current is None else path_current
-        path_history_dumps = "data/inputs/market_hist_all" if path_history_dumps is None else path_history_dumps
+        path_history_dumps = "data/inputs" if path_history_dumps is None else path_history_dumps
         self.path_feather = (
-            self.path_current / f"{path_history_dumps}_{self.config.exchange}_{self.config.base_currency}.arrow"
+            self.path_current / path_history_dumps / f"{self.config.exchange}_{self.config.base_currency}.arrow"
         )
 
     async def load_history(self, update=False):
@@ -137,7 +137,8 @@ class MarketHistory:
             pass
 
         if self.config.load_history_via == "api" or self.config.load_history_via == "mongodb":
-            self.dump_to_feather()
+            if self.config.dump_to_feather is True:
+                self.dump_to_feather()
 
         if self.fts_instance.assets_list_symbols is None:
             self.get_asset_symbols(updated=True)
