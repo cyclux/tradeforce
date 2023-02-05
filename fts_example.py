@@ -26,15 +26,16 @@ config = {
     "history_timeframe": "100days",
     "base_currency": "USD",
     "exchange": "bitfinex",
-    "load_history_via": "API",
+    "load_history_via": "mongodb",
+    "check_db_consistency": True,
     "dump_to_feather": False,
     "backend": "mongodb",
     "backend_host": "localhost:1234",
     "mongo_collection": "bfx_history_test",
     "creds_path": "exchange_creds.cfg",
-    "update_history": False,
-    "run_exchange_api": True,
-    "keep_updated": True,
+    "update_history": True,
+    "run_exchange_api": False,
+    "keep_updated": False,
 }
 
 assets = []  # ["BTC", "ETH", "XMR"]

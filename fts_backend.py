@@ -51,6 +51,40 @@ class Backend:
             backend_uri = f"mongodb://{self.config.backend_host}"
         return backend_uri
 
+    def connect_backend(self):
+        backend_client = None
+        if self.config.backend == "mongodb":
+            backend_uri = self.construct_uri()
+            try:
+                backend_client = MongoClient(backend_uri)
+                self.backend_db = backend_client[self.config.mongo_exchange_db]
+                self.mongo_exchange_coll = self.backend_db[self.config.mongo_collection]
+                backend_client.start_session()
+            except (AutoReconnect, ConnectionFailure) as exc:
+                print(
+                    f"[ERROR] Failed connecting to MongoDB ({self.config.backend_host})."
+                    + "Is the MongoDB instance running and reachable?"
+                )
+                print(exc)
+            else:
+                print(f"[INFO] Successfully connected to MongoDB backend ({self.config.backend_host})")
+
+            try:
+                self.backend_db.validate_collection(self.mongo_exchange_coll)
+            except (CollectionInvalid, OperationFailure):
+                self.is_collection_new = True
+            else:
+                self.is_collection_new = False
+                if self.config.load_history_via != "mongodb":
+                    if self.config.load_history_via == "api":
+                        sys.exit(
+                            f"[ERROR] MongoDB history '{self.config.mongo_collection}' already exists. "
+                            + "Cannot load history via API. Choose different history DB name or loading method."
+                        )
+                    self.sync_check_needed = True
+
+        return backend_client
+
     def get_internal_db_index(self):
         return self.fts_instance.market_history.df_market_history.sort_index().index
 
@@ -86,7 +120,7 @@ class Backend:
             internal_db_entries_to_sync = [
                 drop_dict_na_values(record) for record in internal_db_entries.reset_index(drop=False).to_dict("records")
             ]
-            self.db_insert(internal_db_entries_to_sync)
+            self.mongodb_insert(internal_db_entries_to_sync)
             print(
                 f"[INFO] {len(only_exist_in_internal_db)} candles synced from internal to external DB "
                 + f"({min(only_exist_in_internal_db)} to {max(only_exist_in_internal_db)})"
@@ -96,41 +130,7 @@ class Backend:
         if self.config.load_history_via == "feather" and sync_from_external_db_needed:
             self.fts_instance.market_history.dump_to_feather()
 
-    def connect_backend(self):
-        backend_client = None
-        if self.config.backend == "mongodb":
-            backend_uri = self.construct_uri()
-            try:
-                backend_client = MongoClient(backend_uri)
-                self.backend_db = backend_client[self.config.mongo_exchange_db]
-                self.mongo_exchange_coll = self.backend_db[self.config.mongo_collection]
-                backend_client.start_session()
-            except (AutoReconnect, ConnectionFailure) as exc:
-                print(
-                    f"[ERROR] Failed connecting to MongoDB ({self.config.backend_host})."
-                    + "Is the MongoDB instance running and reachable?"
-                )
-                print(exc)
-            else:
-                print(f"[INFO] Successfully connected to MongoDB backend ({self.config.backend_host})")
-
-            try:
-                self.backend_db.validate_collection(self.mongo_exchange_coll)
-            except (CollectionInvalid, OperationFailure):
-                self.is_collection_new = True
-            else:
-                self.is_collection_new = False
-                if self.config.load_history_via != "mongodb":
-                    if self.config.load_history_via == "api":
-                        sys.exit(
-                            f"[ERROR] MongoDB history '{self.config.mongo_collection}' already exists. "
-                            + "Cannot load history via API. Choose different history DB name or loading method."
-                        )
-                    self.sync_check_needed = True
-
-        return backend_client
-
-    def db_insert(self, payload_insert, filter_nan=False):
+    def mongodb_insert(self, payload_insert, filter_nan=False):
         if filter_nan:
             for entry in payload_insert:
                 payload_insert = {items[0]: items[1] for items in entry.items() if pd.notna(items[1])}
@@ -142,7 +142,7 @@ class Backend:
             print("[ERROR] Insert into DB failed!")
         return insert_result
 
-    def db_update(self, payload_update, upsert=False, filter_nan=False):
+    def mongodb_update(self, payload_update, upsert=False, filter_nan=False):
         payload_update_copy = payload_update.copy()
         t_index = payload_update_copy["t"]
         del payload_update_copy["t"]
@@ -158,7 +158,7 @@ class Backend:
             update_result = False
         return update_result
 
-    def update_db(self, df_history_update):
+    def db_add_history(self, df_history_update):
         self.fts_instance.market_history.df_market_history = pd.concat(
             [self.fts_instance.market_history.df_market_history, df_history_update], axis=0
         ).sort_index()
@@ -169,14 +169,14 @@ class Backend:
                 drop_dict_na_values(record) for record in df_history_update.reset_index(drop=False).to_dict("records")
             ]
             if len(payload_update) <= 1:
-                db_result = self.db_update(payload_update[0], upsert=True)
+                db_result = self.mongodb_update(payload_update[0], upsert=True)
             else:
-                db_result = self.db_insert(payload_update)
+                db_result = self.mongodb_insert(payload_update)
             if db_result and self.is_collection_new:
                 self.mongo_exchange_coll.create_index("t", unique=True)
                 self.is_collection_new = False
 
-    def check_db_consistency(self, index=None):
+    def check_db_consistency(self):
         is_consistent = False
         index = self.get_internal_db_index()
         timeframe = {

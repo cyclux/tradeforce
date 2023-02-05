@@ -12,6 +12,7 @@ class Config:
 
         self.exchange = config_input.get("exchange", "bitfinex")
         self.load_history_via = config_input.get("load_history_via", "feather").lower()
+        self.check_db_consistency = config_input.get("check_db_consistency", False)
         self.dump_to_feather = config_input.get("dump_to_feather", False)
         self.asset_interval = config_input.get("asset_interval", "5min")
         self.base_currency = config_input.get("base_currency", "USD")

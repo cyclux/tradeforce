@@ -124,6 +124,9 @@ class MarketHistory:
         except (KeyError, ValueError, TypeError):
             pass
 
+        if self.config.check_db_consistency is True:
+            self.fts_instance.backend.check_db_consistency()
+
         if self.config.load_history_via == "api" or self.config.load_history_via == "mongodb":
             if self.config.dump_to_feather is True:
                 self.dump_to_feather()
@@ -225,7 +228,7 @@ class MarketHistory:
                 df_history_update_list.append(df_history_update_interval)
             df_history_update = pd.concat(df_history_update_list, axis=0)
             df_history_update = df_history_update.iloc[~df_history_update.index.duplicated()]
-        self.fts_instance.backend.update_db(df_history_update)
+        self.fts_instance.backend.db_add_history(df_history_update)
         return assets_status
 
     ###########
