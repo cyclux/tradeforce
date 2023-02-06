@@ -253,7 +253,7 @@ class ExchangeWebsocket:
             df_history_update = pd.DataFrame(candles_last_timestamp, index=[self.last_candle_timestamp])
             self.last_candle_timestamp = self.current_candle_timestamp
             df_history_update.index.name = "t"
-            self.fts_instance.backend.update_db(df_history_update)
+            self.fts_instance.backend.db_add_history(df_history_update)
             if (
                 not self.history_sync_patch_running
                 and not self.config.is_simulation
