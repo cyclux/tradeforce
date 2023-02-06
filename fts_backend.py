@@ -34,11 +34,10 @@ class Backend:
 
         self.fts_instance = fts_instance
         self.config = fts_instance.config
-        self.backend_client = self.connect_backend()
-
         self.sync_check_needed = False
         self.is_collection_new = True
         self.is_filled_na = False
+        self.backend_client = self.connect_backend()
 
     def construct_uri(self):
         if self.config.backend_user and self.config.backend_password:
