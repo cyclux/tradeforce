@@ -10,7 +10,6 @@ from functools import reduce
 import pandas as pd
 
 from fts_utils import (
-    ns_to_ms,
     get_now,
     get_timedelta,
     get_time_minus_delta,
@@ -18,7 +17,7 @@ from fts_utils import (
 )
 
 
-def append_history_update(assets_hist_update, assets_candles, symbol_current):
+def append_market_history_update(assets_hist_update, assets_candles, symbol_current):
     current_asset = assets_hist_update.get(symbol_current, [])
     current_asset.extend(
         [
@@ -42,30 +41,6 @@ class MarketUpdater:
     def __init__(self, fts_instance=None):
         self.fts_instance = fts_instance
         self.config = fts_instance.config
-        self.history_update = {}
-        self.df_history_update = None
-
-    async def get_history_candle_time_normalized(self, timespan=""):
-        latest_remote_candle_timestamp = await self.get_latest_remote_candle_timestamp()
-        start_time = get_time_minus_delta(timestamp=latest_remote_candle_timestamp, delta=timespan)
-        market_history_recent = await self.update_market_history(start=start_time["timestamp"])
-        return market_history_recent
-
-    async def get_latest_remote_candle_timestamp(self, minus_delta=None):
-        indicator_assets = ["BTC", "ETH", "XRP", "ADA", "LTC"]
-
-        latest_candle_timestamp_pool = []
-        for indicator in indicator_assets:
-            latest_exchange_candle = await self.fts_instance.exchange_api.get_public_candles(
-                symbol=indicator, base_currency=self.config.base_currency, candle_type="last"
-            )
-            latest_candle_timestamp_pool.append(int(latest_exchange_candle[0]))
-        latest_candle_timestamp = max(latest_candle_timestamp_pool)
-
-        if minus_delta:
-            latest_candle = pd.Timestamp(latest_candle_timestamp, unit="ms", tz="UTC") - pd.to_timedelta(minus_delta)
-            latest_candle_timestamp = ns_to_ms(latest_candle.value)
-        return latest_candle_timestamp
 
     async def get_timeframe(self, start=None, end=None):
         candle_freq_in_ms = get_timedelta(self.config.asset_interval)["timestamp"]
@@ -75,7 +50,7 @@ class MarketUpdater:
             start if start else self.fts_instance.market_history.get_local_candle_timestamp(position="latest")
         )
         if timeframe["start_timestamp"] == 0:
-            timeframe["start_timestamp"] = await self.get_latest_remote_candle_timestamp(
+            timeframe["start_timestamp"] = await self.fts_instance.exchange_api.get_latest_remote_candle_timestamp(
                 minus_delta=self.fts_instance.market_history.history_timeframe
             )
         elif not start:
@@ -97,7 +72,7 @@ class MarketUpdater:
         return {"timeframe": timeframe, "ms_until_wait_over": ms_until_wait_over}
 
     async def fetch_market_history(self, timeframe):
-        self.history_update = {}
+        market_history_update = {}
         for symbol in self.fts_instance.assets_list_symbols:
             time_start = process_time()
             candle_update = await self.fts_instance.exchange_api.get_public_candles(
@@ -107,18 +82,20 @@ class MarketUpdater:
                 timestamp_end=timeframe["end_timestamp"],
             )
             if len(candle_update) > 0:
-                self.history_update[symbol] = append_history_update(self.history_update, candle_update, symbol)
+                market_history_update[symbol] = append_market_history_update(
+                    market_history_update, candle_update, symbol
+                )
                 print(f"[INFO] Fetched updated history for {symbol} ({len(candle_update)} candles)")
 
             time_elapsed_difference = 1 - (process_time() - time_start)
             if time_elapsed_difference > 0:
                 sleep(time_elapsed_difference)
-        return self.history_update
+        return market_history_update
 
-    def get_df_market_update(self, history_update, timeframe=None):
+    def convert_market_history_to_df(self, history_update, timeframe=None):
         if not history_update:
             print("[WARNING] No market update, cannot create dataframe")
-            return
+            return None
         history_df_list = []
         if timeframe is not None:
             history_df_list.append(get_df_datetime_index(timeframe, freq=self.config.asset_interval))
@@ -129,22 +106,29 @@ class MarketUpdater:
                 df_hist.sort_values("t", inplace=True, ascending=True)
                 history_df_list.append(df_hist)
 
-        self.df_history_update = reduce(
+        df_market_history_update = reduce(
             lambda df_left, df_right: pd.merge_asof(df_left, df_right, on="t", direction="nearest", tolerance=60000),
             history_df_list,
         )
-        self.df_history_update.set_index("t", inplace=True)
+        df_market_history_update.set_index("t", inplace=True)
+        return df_market_history_update
 
-    async def update_market_history(self, start=None, end=None):
+    async def update_market_history(self, start=None, end=None, init_timespan=None):
+        if init_timespan is not None:
+            latest_remote_candle_timestamp = await self.fts_instance.exchange_api.get_latest_remote_candle_timestamp()
+            start = get_time_minus_delta(timestamp=latest_remote_candle_timestamp, delta=init_timespan)["timestamp"]
+
         if self.fts_instance.assets_list_symbols is None:
             self.fts_instance.assets_list_symbols = await self.fts_instance.exchange_api.get_active_assets()
 
         timeframe = await self.get_timeframe(start=start, end=end)
 
         if timeframe["ms_until_wait_over"] > 0:
-            history_update = await self.fetch_market_history(timeframe["timeframe"])
-            if history_update:
-                self.get_df_market_update(history_update, timeframe=timeframe["timeframe"])
+            market_history_update = await self.fetch_market_history(timeframe["timeframe"])
+            if len(market_history_update) > 1:
+                df_market_history_update = self.convert_market_history_to_df(
+                    market_history_update, timeframe=timeframe["timeframe"]
+                )
             else:
                 print(
                     f"[INFO] No market update since {pd.to_timedelta(timeframe['ms_until_wait_over'], unit='ms')}. "
@@ -155,4 +139,10 @@ class MarketUpdater:
                 f"[INFO] Update request too early. Frequency is {self.config.asset_interval}. "
                 + f"Wait at least {int(abs(timeframe['ms_until_wait_over']) / 1000 // 60)} min for next try."
             )
-        return self.df_history_update
+        return df_market_history_update
+
+    # async def update_market_history_synced_by_candle_timestamps(self, timespan=""):
+    #     latest_remote_candle_timestamp = await self.fts_instance.exchange_api.get_latest_remote_candle_timestamp()
+    #     start = get_time_minus_delta(timestamp=latest_remote_candle_timestamp, delta=timespan)["timestamp"]
+    #     market_history_recent = await self.update_market_history(start=start)
+    #     return market_history_recent

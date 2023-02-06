@@ -78,6 +78,11 @@ class MarketHistory:
     async def load_history(self):
         print(f"[INFO] Loading history via {self.config.load_history_via}")
         if self.config.load_history_via == "mongodb":
+            if self.fts_instance.backend.is_collection_new:
+                sys.exit(
+                    f"[ERROR] MongoDB collection '{self.config.mongo_collection}' does not exist. "
+                    + "Choose correct collection or get initial market history via 'API' or local storage 'feather'."
+                )
             cursor = self.fts_instance.backend.mongo_exchange_coll.find({}, sort=[("t", 1)], projection={"_id": False})
             self.df_market_history = pd.DataFrame(list(cursor))
 
@@ -88,7 +93,7 @@ class MarketHistory:
 
         elif self.config.load_history_via == "api":
             if self.fts_instance.assets_list_symbols is not None:
-                end = await self.fts_instance.market_updater_api.get_latest_remote_candle_timestamp()
+                end = await self.fts_instance.exchange_api.get_latest_remote_candle_timestamp()
                 start = get_time_minus_delta(end, delta=self.config.history_timeframe)["timestamp"]
             else:
                 relevant_assets = await get_init_relevant_assets(
@@ -137,7 +142,7 @@ class MarketHistory:
 
         if self.config.update_history is True:
             start = self.get_local_candle_timestamp(position="latest", offset=1)
-            end = await self.fts_instance.market_updater_api.get_latest_remote_candle_timestamp()
+            end = await self.fts_instance.exchange_api.get_latest_remote_candle_timestamp()
             if start < end:
                 await self.update(start=start, end=end)
             else:

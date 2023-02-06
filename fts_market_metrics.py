@@ -61,10 +61,8 @@ def get_asset_performance_metrics(df_input):
 async def get_init_relevant_assets(fts_instance, capped=-1):
     # 34 days ~ 10000 candles limit
     print("[INFO] Analyzing market for relevant assets..")
-    history_candle_time_normalized = await fts_instance.market_updater_api.get_history_candle_time_normalized(
-        timespan="34days"
-    )
-    df_relevant_assets_metrics = get_asset_performance_metrics(history_candle_time_normalized).query(
+    init_market_history = await fts_instance.market_updater_api.update_market_history(init_timespan="34days")
+    df_relevant_assets_metrics = get_asset_performance_metrics(init_market_history).query(
         "amount_candles > 2000 & candle_density < 500"
     )
     relevant_asset_symbols = df_relevant_assets_metrics.sort_values("amount_candles", ascending=False).index
@@ -74,7 +72,7 @@ async def get_init_relevant_assets(fts_instance, capped=-1):
     return {
         "assets": list(relevant_asset_symbols),
         "metrics": df_relevant_assets_metrics,
-        "data": history_candle_time_normalized,
+        "data": init_market_history,
     }
 
 

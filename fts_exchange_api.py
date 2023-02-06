@@ -5,7 +5,8 @@ Returns:
 """
 
 import numpy as np
-from fts_utils import convert_symbol_str
+import pandas as pd
+from fts_utils import convert_symbol_str, ns_to_ms
 
 
 class ExchangeAPI:
@@ -71,6 +72,22 @@ class ExchangeAPI:
             symbol_bfx, start=timestamp_start, end=timestamp_end, section=candle_type, limit=10000, tf="5m", sort=1
         )
         return candles
+
+    async def get_latest_remote_candle_timestamp(self, minus_delta=None):
+        indicator_assets = ["BTC", "ETH", "XRP", "ADA", "LTC"]
+
+        latest_candle_timestamp_pool = []
+        for indicator in indicator_assets:
+            latest_exchange_candle = await self.fts_instance.exchange_api.get_public_candles(
+                symbol=indicator, base_currency=self.config.base_currency, candle_type="last"
+            )
+            latest_candle_timestamp_pool.append(int(latest_exchange_candle[0]))
+        latest_candle_timestamp = max(latest_candle_timestamp_pool)
+
+        if minus_delta:
+            latest_candle = pd.Timestamp(latest_candle_timestamp, unit="ms", tz="UTC") - pd.to_timedelta(minus_delta)
+            latest_candle_timestamp = ns_to_ms(latest_candle.value)
+        return latest_candle_timestamp
 
     ######################
     # REST API - PRIVATE #

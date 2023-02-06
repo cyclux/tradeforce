@@ -140,11 +140,8 @@ class ExchangeWebsocket:
         self.ws_init_count += 1
         self.latest_candle_timestamp = self.fts_instance.market_history.get_local_candle_timestamp(position="latest")
         if self.latest_candle_timestamp == 0:
-            print("[DEBUG] latest_candle_timestamp == 0 -> get_latest_remote_candle_timestamp()")
-            self.latest_candle_timestamp = (
-                await self.fts_instance.market_updater_api.get_latest_remote_candle_timestamp(
-                    minus_delta=self.config.history_timeframe
-                )
+            self.latest_candle_timestamp = await self.fts_instance.exchange_api.get_latest_remote_candle_timestamp(
+                minus_delta=self.config.history_timeframe
             )
         self.is_set_last_candle_timestamp = False
 
