@@ -69,27 +69,27 @@ class MarketHistory:
 
         # Set paths
         self.path_current = Path(os.path.dirname(os.path.abspath(__file__))) if path_current is None else path_current
-        path_history_dumps = "data/inputs" if path_history_dumps is None else path_history_dumps
         self.path_feather = (
-            self.path_current / path_history_dumps / f"{self.config.exchange}_{self.config.base_currency}.arrow"
+            self.path_current / "data/inputs" if path_history_dumps is None else self.path_current / path_history_dumps
         )
+        Path(self.path_feather).mkdir(parents=True, exist_ok=True)
+        self.feather_filename = f"{self.config.exchange}_{self.config.base_currency}.arrow"
 
-    async def load_history(self, update=False):
+    async def load_history(self):
         print(f"[INFO] Loading history via {self.config.load_history_via}")
         if self.config.load_history_via == "mongodb":
             cursor = self.fts_instance.backend.mongo_exchange_coll.find({}, sort=[("t", 1)], projection={"_id": False})
             self.df_market_history = pd.DataFrame(list(cursor))
 
         elif self.config.load_history_via == "feather":
-            self.df_market_history = pd.read_feather(self.path_feather)
+            self.df_market_history = pd.read_feather(self.path_feather / self.feather_filename)
             self.df_market_history.set_index("t", inplace=True)
             self.df_market_history.sort_index(inplace=True)
 
         elif self.config.load_history_via == "api":
             if self.fts_instance.assets_list_symbols is not None:
                 end = await self.fts_instance.market_updater_api.get_latest_remote_candle_timestamp()
-                start_time = get_time_minus_delta(end, delta=self.config.history_timeframe)
-                start = start_time["timestamp"]
+                start = get_time_minus_delta(end, delta=self.config.history_timeframe)["timestamp"]
             else:
                 relevant_assets = await get_init_relevant_assets(
                     self.fts_instance, capped=self.config.relevant_assets_cap
@@ -111,7 +111,8 @@ class MarketHistory:
                 f"[INFO] Fetching {self.config.history_timeframe} ({start} - {end}) of market history "
                 + f"from {len(self.fts_instance.assets_list_symbols)} assets"
             )
-            await self.update(start=start, end=end)
+            if start < end:
+                await self.update(start=start, end=end)
 
         else:
             sys.exit(
@@ -124,29 +125,35 @@ class MarketHistory:
         except (KeyError, ValueError, TypeError):
             pass
 
-        if self.config.check_db_consistency is True:
-            self.fts_instance.backend.check_db_consistency()
-
-        if self.config.load_history_via == "api" or self.config.load_history_via == "mongodb":
+        if self.config.load_history_via in ("api", "mongodb"):
             if self.config.dump_to_feather is True:
                 self.dump_to_feather()
 
         if self.fts_instance.assets_list_symbols is None:
             self.get_asset_symbols(updated=True)
 
-        amount_assets = len(self.fts_instance.assets_list_symbols)
-        print(f"[INFO] {amount_assets} assets from {self.config.exchange} loaded via {self.config.load_history_via}")
-        if update:
-            await self.update()
-
         if self.fts_instance.backend.sync_check_needed:
             self.fts_instance.backend.db_sync_check()
+
+        if self.config.update_history is True:
+            start = self.get_local_candle_timestamp(position="latest", offset=1)
+            end = await self.fts_instance.market_updater_api.get_latest_remote_candle_timestamp()
+            if start < end:
+                await self.update(start=start, end=end)
+            else:
+                print(f"[INFO] Market history is already uptodate ({start})")
+
+        if self.config.check_db_consistency is True:
+            self.fts_instance.backend.check_db_consistency()
+
+        amount_assets = len(self.fts_instance.assets_list_symbols)
+        print(f"[INFO] {amount_assets} assets from {self.config.exchange} loaded via {self.config.load_history_via}")
 
         return self.df_market_history
 
     def dump_to_feather(self):
-        self.df_market_history.reset_index(drop=False).to_feather(self.path_feather)
-        print(f"[INFO] Assets dumped via feather: {self.path_feather}")
+        self.df_market_history.reset_index(drop=False).to_feather(self.path_feather / self.feather_filename)
+        print(f"[INFO] Assets dumped via feather to: {self.path_feather / self.feather_filename}")
 
     def get_market_history(
         self,
@@ -244,7 +251,7 @@ class MarketHistory:
             self.fts_instance.assets_list_symbols = get_col_names(self.df_market_history.columns)
         return self.fts_instance.assets_list_symbols
 
-    def get_local_candle_timestamp(self, position="latest", skip=0):
+    def get_local_candle_timestamp(self, position="latest", skip=0, offset=0):
         idx = (-1 - skip) if position == "latest" else (0 + skip)
         latest_candle_timestamp = 0
         if self.df_market_history is not None:
@@ -253,4 +260,6 @@ class MarketHistory:
             sort_id = -1 if position == "latest" else 1
             cursor = self.fts_instance.backend.mongo_exchange_coll.find({}, sort=[("t", sort_id)], skip=skip, limit=1)
             latest_candle_timestamp = int(cursor[0]["t"])
+
+        latest_candle_timestamp += offset * 300000
         return latest_candle_timestamp

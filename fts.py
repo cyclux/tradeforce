@@ -64,7 +64,7 @@ class FastTradingSimulator:
         return trader
 
     async def init(self):
-        await self.market_history.load_history(update=self.config.update_history)
+        await self.market_history.load_history()
         if self.config.run_exchange_api:
             self.exchange_ws.ws_priv_run()
         return self
@@ -78,7 +78,7 @@ class FastTradingSimulator:
     async def run_in_jupyter(self):
         # TODO: Transform to sync function. Maybe loop = asyncio.get_event_loop()
         # loop = asyncio.new_event_loop() or loop.run_until_complete(self._run_socket())
-        await self.market_history.load_history(update=self.config.update_history)
+        await self.market_history.load_history()
         if self.config.run_exchange_api:
             self.exchange_ws.ws_priv_run()
         if self.config.keep_updated:
