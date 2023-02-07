@@ -454,7 +454,7 @@ class Trader:
                 self.update_status({"budget": new_budget})
             else:
                 # Adapt sell price
-                volatility_buffer = 0.00000002
+                volatility_buffer = 0.00000005
                 sell_order = {
                     "sell_order_id": open_order[0]["sell_order_id"],
                     "gid": open_order[0]["gid"],
