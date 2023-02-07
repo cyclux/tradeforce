@@ -456,13 +456,18 @@ class Trader:
                 # Adapt sell price
                 volatility_buffer = 0.00000002
                 sell_order = {
-                    "buy_order_id": open_order["buy_order_id"],
-                    "gid": open_order["gid"],
-                    "asset": open_order["asset"],
+                    "sell_order_id": open_order[0]["sell_order_id"],
+                    "gid": open_order[0]["gid"],
+                    "asset": open_order[0]["asset"],
                     "price": sell_option["price_sell"],
-                    "amount": open_order["buy_volume_crypto"] - volatility_buffer,
+                    "amount": open_order[0]["buy_volume_crypto"] - volatility_buffer,
                 }
-                await self.fts_instance.exchange_api.order("sell", sell_order, update_order=True)
+                order_result_ok = await self.fts_instance.exchange_api.order("sell", sell_order, update_order=True)
+                if order_result_ok:
+                    print(
+                        f"[INFO] Sell price of {sell_order['asset']} has been changed "
+                        + f"from {open_order[0]['price_buy']} to {sell_order['price']}."
+                    )
 
     def get_all_open_orders(self, raw=False):
         if raw:

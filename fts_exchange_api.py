@@ -104,9 +104,9 @@ class ExchangeAPI:
             order_amount = order_payload["amount"]
         try:
             if update_order:
-                # TODO: buy_order_id -> gid ?
                 exchange_response = await self.bfx_api_priv.rest.submit_update_order(
-                    order_payload["buy_order_id"], price=order_payload["price"], amount=order_amount
+                    order_payload["sell_order_id"],
+                    price=order_payload["price"],  # amount=order_amount
                 )
             else:
                 market_type_current = "EXCHANGE FOK" if order_type == "buy" else "EXCHANGE LIMIT"
