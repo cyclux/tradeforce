@@ -190,6 +190,9 @@ class ExchangeWebsocket:
             self.last_candle_timestamp = self.current_candle_timestamp
             df_history_update.index.name = "t"
             self.fts_instance.backend.db_add_history(df_history_update)
+
+            if self.fts_instance.trader is not None:
+                await self.fts_instance.trader.check_sold_orders()
             if (
                 not self.history_sync_patch_running
                 and not self.config.is_simulation
@@ -198,8 +201,8 @@ class ExchangeWebsocket:
                 await self.fts_instance.trader.update()
 
             self.check_candle_cache_cap()
-            if self.fts_instance.trader is not None:
-                await self.fts_instance.trader.check_sold_orders()
+            print(f"[DEBUG] gid: {self.fts_instance.trader.gid}")
+
             # TODO: Check exceptions
             # health_check_size = 10
             # check_result = self.check_ws_health(health_check_size)
