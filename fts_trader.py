@@ -14,14 +14,13 @@ def get_significant_digits(num, digits):
     return round(num, digits - int(np.floor(np.log10(abs(num)))) - 1)
 
 
-def calc_fee(volume, exchange_fee, price_current, currency_type="crypto"):
-    fee_to_pay = volume / 100 * exchange_fee
-    volume_incl_fee = volume - fee_to_pay
-    if currency_type == "crypto":
-        amount_fee_fiat = np.round(fee_to_pay * price_current, 2)
-    if currency_type == "fiat":
-        amount_fee_fiat = fee_to_pay
-    return volume_incl_fee, amount_fee_fiat
+def calc_fee(volume, price_current, order_type):
+    volume = abs(volume)
+    exchange_fee = 0.20 if order_type == "buy" else 0.10
+    amount_fee_crypto = volume / 100 * exchange_fee
+    volume_incl_fee = volume - amount_fee_crypto
+    amount_fee_fiat = np.round(amount_fee_crypto * price_current, 2)
+    return volume_incl_fee, amount_fee_crypto, amount_fee_fiat
 
 
 class Trader:
@@ -39,6 +38,7 @@ class Trader:
         self.open_orders = []
         self.closed_orders = []
         self.min_order_sizes = {}
+        # TODO: IMPORTANT -> Do not overwrite gid on restart!
         self.gid = 10**9
 
         self.check_run_conditions()
@@ -351,21 +351,21 @@ class Trader:
         if not exchange_result_ok:
             print(f"[ERROR] Sell order execution failed! -> {sell_order}")
 
-    def sell_confirmed(self, sell_order_object):
-        print("sell_order", sell_order_object)
+    def sell_confirmed(self, sell_order):
+        print("sell_order confirmed", sell_order)
         asset_symbol = convert_symbol_str(
-            sell_order_object.symbol, base_currency=self.config.base_currency, to_exchange=False
+            sell_order["symbol"], base_currency=self.config.base_currency, to_exchange=False
         )
-        sell_order = {"asset": asset_symbol, "gid": sell_order_object.gid}
-        open_order = self.get_open_order(asset=sell_order)
+        open_order = self.get_open_order(asset={"asset": asset_symbol, "gid": sell_order["gid"]})
         if len(open_order) > 0:
             closed_order = open_order[0].copy()
-            closed_order["sell_timestamp"] = sell_order_object.mts_update
-            closed_order["price_sell"] = sell_order_object.price
-            closed_order["sell_fee_fiat"] = float(np.round(sell_order_object.fee * sell_order_object.price, 2))
-            closed_order["sell_volume_crypto"] = abs(sell_order_object.amount_orig)
+            closed_order["sell_timestamp"] = sell_order["mts_update"]
+            closed_order["price_sell"] = sell_order["price_avg"]
+            closed_order["sell_volume_crypto"], _, closed_order["sell_fee_fiat"] = calc_fee(
+                abs(sell_order["amount_orig"]), sell_order["price_avg"], order_type="sell"
+            )
             closed_order["sell_volume_fiat"] = float(
-                np.round(abs(sell_order_object.amount_orig) * sell_order_object.price, 2)
+                np.round(abs(sell_order["amount_orig"]) * sell_order["price_avg"] - closed_order["sell_fee_fiat"], 2)
             )
             closed_order["profit_fiat"] = closed_order["sell_volume_fiat"] - closed_order["amount_invest_fiat"]
             self.new_order(closed_order, "closed_orders")
@@ -386,10 +386,10 @@ class Trader:
 
             # Add 1% margin for BUY LIMIT order
             asset["price"] *= 1.015
-            buy_volume_fiat, _ = calc_fee(
-                self.config.amount_invest_fiat, self.config.exchange_fee, asset["price"], currency_type="fiat"
-            )
-            buy_amount_crypto = get_significant_digits(buy_volume_fiat / asset["price"], 9)
+            # buy_volume_fiat, _ = calc_fee(
+            #     self.config.amount_invest_fiat, asset["price"], order_type="buy"
+            # )
+            buy_amount_crypto = get_significant_digits(self.config.amount_invest_fiat / asset["price"], 9)
 
             asset_symbol = asset["asset"]
             min_order_size = self.min_order_sizes.get(asset_symbol, 0)
@@ -437,15 +437,16 @@ class Trader:
             if self.config.is_simulation:
                 closed_order = open_order[0].copy()
                 closed_order["price_sell"] = sell_option["price_sell"]
-                sell_volume_crypto, sell_fee_fiat = calc_fee(
+                sell_volume_crypto, _, sell_fee_fiat = calc_fee(
                     closed_order["buy_volume_crypto"],
-                    self.config.exchange_fee,
                     closed_order["price_sell"],
-                    currency_type="crypto",
+                    order_type="sell",
                 )
                 closed_order["sell_fee_fiat"] = sell_fee_fiat
                 closed_order["sell_volume_crypto"] = sell_volume_crypto
-                closed_order["sell_volume_fiat"] = sell_volume_crypto * closed_order["price_sell"]
+                closed_order["sell_volume_fiat"] = (
+                    closed_order["buy_volume_crypto"] * closed_order["price_sell"]
+                ) - sell_fee_fiat
                 closed_order["profit_fiat"] = closed_order["sell_volume_fiat"] - closed_order["amount_invest_fiat"]
                 self.new_order(closed_order, "closed_orders")
                 self.del_order(open_order[0], "open_orders")
@@ -468,6 +469,21 @@ class Trader:
                         f"[INFO] Sell price of {sell_order['asset']} has been changed "
                         + f"from {open_order[0]['price_buy']} to {sell_order['price']}."
                     )
+
+    async def check_sold_orders(self):
+        exchange_order_history = await self.fts_instance.exchange_api.get_order_history()
+        sell_order_ids = self.get_all_open_orders()["sell_order_id"].to_list()
+        sold_orders = [
+            order
+            for order in exchange_order_history
+            if order["id"] in sell_order_ids and "EXECUTED" in order["order_status"]
+        ]
+        for sold_order in sold_orders:
+            print(
+                f"[INFO] Sold order of {sold_order['symbol']} (id:{sold_order['is']} gid:{sold_order['gid']}) "
+                + "has been converted to closed order."
+            )
+            self.sell_confirmed(sold_order)
 
     def get_all_open_orders(self, raw=False):
         if raw:

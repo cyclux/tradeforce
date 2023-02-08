@@ -28,6 +28,17 @@ def check_timestamp_difference(start=None, end=None, freq="5min"):
     return diff_range
 
 
+def convert_order_to_dict(order_obj):
+    order_dict = {
+        "symbol": order_obj.symbol,
+        "gid": order_obj.gid,
+        "mts_update": order_obj.mts_update,
+        "price_avg": order_obj.price_avg,
+        "amount_orig": order_obj.amount_orig,
+    }
+    return order_dict
+
+
 class ExchangeWebsocket:
     """_summary_
 
@@ -187,6 +198,8 @@ class ExchangeWebsocket:
                 await self.fts_instance.trader.update()
 
             self.check_candle_cache_cap()
+            if self.fts_instance.trader is not None:
+                await self.fts_instance.trader.check_sold_orders()
             # TODO: Check exceptions
             # health_check_size = 10
             # check_result = self.check_ws_health(health_check_size)
@@ -230,7 +243,8 @@ class ExchangeWebsocket:
             if order_type == "buy":
                 await self.fts_instance.trader.buy_confirmed(ws_order_closed)
             if order_type == "sell":
-                self.fts_instance.trader.sell_confirmed(ws_order_closed)
+                order_closed_dict = convert_order_to_dict(ws_order_closed)
+                self.fts_instance.trader.sell_confirmed(order_closed_dict)
 
     async def ws_priv_wallet_snapshot(self, ws_wallet_snapshot):
         print("wallet_snapshot", ws_wallet_snapshot)

@@ -122,6 +122,27 @@ class ExchangeAPI:
             print(exc)
         return exchange_result
 
+    async def get_order_history(self, raw=False):
+        order_history = await self.bfx_api_priv.rest.post("auth/r/orders/hist", data={"limit": 2500}, params="")
+        if not raw:
+            order_history = [
+                {
+                    "id": order[0],
+                    "gid": order[1],
+                    "symbol": order[3],
+                    "mts_create": order[4],
+                    "mts_update": order[5],
+                    "amount": order[6],
+                    "amount_orig": order[7],
+                    "type": order[8],
+                    "order_status": order[13],
+                    "price": order[16],
+                    "price_avg": order[17],
+                }
+                for order in order_history
+            ]
+        return order_history
+
     async def get_active_orders(self, symbol):
         bfx_active_orders = await self.bfx_api_priv.rest.get_active_orders(symbol)
         return bfx_active_orders

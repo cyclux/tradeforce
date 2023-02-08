@@ -1,6 +1,7 @@
 .vscode
 *.code-workspace
 *.arrow
+*.ipynb
 exchange_creds.cfg
 archive
 analysis
