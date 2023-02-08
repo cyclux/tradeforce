@@ -187,9 +187,9 @@ class Trader:
             )
             if len(db_response) > 0 and db_response[0]["trader_id"] == trader_id:
                 trader_status = db_response[0]
+                self.gid = trader_status["gid"]
                 if self.config.budget == 0:
                     self.config.budget = trader_status["budget"]
-                    self.gid = trader_status["gid"]
                 # TODO: Save remaining vals to DB
             else:
                 trader_status = {
