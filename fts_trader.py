@@ -480,7 +480,7 @@ class Trader:
         ]
         for sold_order in sold_orders:
             print(
-                f"[INFO] Sold order of {sold_order['symbol']} (id:{sold_order['is']} gid:{sold_order['gid']}) "
+                f"[INFO] Sold order of {sold_order['symbol']} (id:{sold_order['id']} gid:{sold_order['gid']}) "
                 + "has been converted to closed order."
             )
             self.sell_confirmed(sold_order)
