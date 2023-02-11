@@ -16,7 +16,7 @@ class FastTradingSimulator:
     """_summary_"""
 
     def __init__(self, user_config, assets=None):
-        print("[INFO] Fast Trading Simulator Beta 0.0.1")
+        print("[INFO] Fast Trading Simulator Beta 0.1.0")
         self.assets_list_symbols = None if assets is None or len(assets) == 0 else assets
         self.config = self.register_config(user_config)
         self.backend = self.register_backend()
