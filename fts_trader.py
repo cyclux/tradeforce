@@ -374,6 +374,7 @@ class Trader:
 
     async def buy_assets(self, buy_options):
         compensate_rate_limit = bool(len(buy_options) > 9)
+        assets_out_of_funds_to_buy = []
         for asset in buy_options:
             # TODO: Make possible to have multiple orders of same asset
             if asset in self.config.assets_excluded:
@@ -400,10 +401,7 @@ class Trader:
                 buy_amount_crypto = min_order_size * 1.02
 
             if self.config.budget < self.config.amount_invest_fiat:
-                print(
-                    f"[INFO] Out of funds to buy {asset_symbol}: "
-                    f"${self.config.budget} < ${self.config.amount_invest_fiat}"
-                )
+                assets_out_of_funds_to_buy.append(asset_symbol)
                 continue
 
             buy_order = {
@@ -426,6 +424,11 @@ class Trader:
                     print(f"[ERROR] Buy order execution failed! -> {buy_order}")
                 if compensate_rate_limit:
                     await asyncio.sleep(0.8)
+        print(
+            "[INFO] Assets out of funds to buy "
+            + f"(${np.round(self.config.budget, 2)} < ${self.config.amount_invest_fiat}):",
+            *assets_out_of_funds_to_buy,
+        )
 
     async def sell_assets(self, sell_options):
         for sell_option in sell_options:
@@ -511,7 +514,12 @@ class Trader:
         if len(sell_options) > 0:
             await self.sell_assets(sell_options)
         buy_options = self.check_buy_options(latest_prices, timestamp)
-        print("[DEBUG] Potential buy options:")
+        buy_options_print = [
+            f"{buy_option['asset']} [perf:{np.round(buy_option['perf'], 2)}, price: {buy_option['price']}]"
+            for buy_option in buy_options
+        ]
+        print(f"[DEBUG] {len(buy_options_print)} Potential buy options:", *buy_options_print)
+
         print(buy_options)
         if len(buy_options) > 0:
             await self.buy_assets(buy_options)
