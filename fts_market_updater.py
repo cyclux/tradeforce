@@ -140,9 +140,3 @@ class MarketUpdater:
                 + f"Wait at least {int(abs(timeframe['ms_until_wait_over']) / 1000 // 60)} min for next try."
             )
         return df_market_history_update
-
-    # async def update_market_history_synced_by_candle_timestamps(self, timespan=""):
-    #     latest_remote_candle_timestamp = await self.fts_instance.exchange_api.get_latest_remote_candle_timestamp()
-    #     start = get_time_minus_delta(timestamp=latest_remote_candle_timestamp, delta=timespan)["timestamp"]
-    #     market_history_recent = await self.update_market_history(start=start)
-    #     return market_history_recent
