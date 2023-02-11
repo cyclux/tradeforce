@@ -26,7 +26,7 @@ def calc_fee(volume, price_current, order_type):
 class Trader:
     """_summary_"""
 
-    async def __init__(self, fts_instance):
+    def __init__(self, fts_instance):
         self.fts_instance = fts_instance
         self.config = fts_instance.config
 
