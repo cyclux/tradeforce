@@ -114,12 +114,16 @@ class Trader:
             df_buy_options.reset_index(names=["asset"], inplace=True)  # names=["symbol"]
             buy_options = df_buy_options.to_dict("records")
 
-        if len(buy_options) > 0:
+        amount_buy_options = len(buy_options)
+        if amount_buy_options > 0:
             buy_options_print = [
                 f"{buy_option['asset']} [perf:{np.round(buy_option['perf'], 2)}, price: {buy_option['price']}]"
                 for buy_option in buy_options
             ]
-            print(f"[INFO] {len(buy_options_print)} potential assets to buy:", *buy_options_print)
+            print(
+                f"[INFO] {amount_buy_options} potential asset{'s' if len(buy_options) > 1 else ''} to buy:",
+                *buy_options_print,
+            )
         else:
             print("[INFO] Currently no potential assets to buy.")
         return buy_options
@@ -416,15 +420,19 @@ class Trader:
                     print(f"[ERROR] Buy order execution failed! -> {buy_order}")
                 if compensate_rate_limit:
                     await asyncio.sleep(0.8)
-        if len(assets_out_of_funds_to_buy) > 0:
+        amount_assets_out_of_funds = len(assets_out_of_funds_to_buy)
+        amount_assets_max_bought = len(assets_max_amount_bought)
+        if amount_assets_out_of_funds > 0:
             print(
-                f"[INFO] {len(assets_out_of_funds_to_buy)} assets out of funds to buy "
+                f"[INFO] {amount_assets_out_of_funds} asset{'s' if amount_assets_out_of_funds > 1 else ''}"
+                + " out of funds to buy "
                 + f"(${np.round(self.config.budget, 2)} < ${self.config.amount_invest_fiat}):",
                 *assets_out_of_funds_to_buy,
             )
-        if len(assets_max_amount_bought) > 0:
+        if amount_assets_max_bought > 0:
             print(
-                f"[INFO] {len(assets_max_amount_bought)} assets max amount already bought:",
+                f"[INFO] {amount_assets_max_bought} asset{'s' if amount_assets_max_bought > 1 else ''}"
+                + "max amount already bought:",
                 *assets_max_amount_bought,
             )
 
