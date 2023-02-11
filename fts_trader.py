@@ -519,8 +519,6 @@ class Trader:
             for buy_option in buy_options
         ]
         print(f"[DEBUG] {len(buy_options_print)} Potential buy options:", *buy_options_print)
-
-        print(buy_options)
         if len(buy_options) > 0:
             await self.buy_assets(buy_options)
 
