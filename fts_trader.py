@@ -114,11 +114,14 @@ class Trader:
             df_buy_options.reset_index(names=["asset"], inplace=True)  # names=["symbol"]
             buy_options = df_buy_options.to_dict("records")
 
-        buy_options_print = [
-            f"{buy_option['asset']} [perf:{np.round(buy_option['perf'], 2)}, price: {buy_option['price']}]"
-            for buy_option in buy_options
-        ]
-        print(f"[DEBUG] {len(buy_options_print)} potential assets to buy:", *buy_options_print)
+        if len(buy_options) > 0:
+            buy_options_print = [
+                f"{buy_option['asset']} [perf:{np.round(buy_option['perf'], 2)}, price: {buy_option['price']}]"
+                for buy_option in buy_options
+            ]
+            print(f"[INFO] {len(buy_options_print)} potential assets to buy:", *buy_options_print)
+        else:
+            print("[INFO] Currently no potential assets to buy.")
         return buy_options
 
     def check_sell_options(self, latest_prices=None, timestamp=None):
