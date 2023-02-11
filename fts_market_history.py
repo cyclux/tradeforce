@@ -73,7 +73,9 @@ class MarketHistory:
             self.path_current / "data/inputs" if path_history_dumps is None else self.path_current / path_history_dumps
         )
         Path(self.path_feather).mkdir(parents=True, exist_ok=True)
-        self.feather_filename = f"{self.config.exchange}_{self.config.base_currency}.arrow"
+        self.feather_filename = (
+            f"{self.config.exchange}_{self.config.base_currency}_{self.config.mongo_collection}.arrow"
+        )
 
     async def load_history(self):
         print(f"[INFO] Loading history via {self.config.load_history_via}")
