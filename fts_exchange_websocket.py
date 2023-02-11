@@ -59,6 +59,7 @@ class ExchangeWebsocket:
         self.latest_candle_timestamp = 0
         self.current_candle_timestamp = 0
         self.last_candle_timestamp = 0
+        self.anti_race_condition_list = []
         self.ws_subs_finished = False
         self.is_set_last_candle_timestamp = False
         self.history_sync_patch_running = False
@@ -170,11 +171,12 @@ class ExchangeWebsocket:
                         self.history_sync_patch_running = False
 
         if (
-            self.current_candle_timestamp > self.last_candle_timestamp
+            self.current_candle_timestamp not in self.anti_race_condition_list
+            and self.current_candle_timestamp > self.last_candle_timestamp
             and self.is_set_last_candle_timestamp
             and self.ws_subs_finished
         ):
-
+            self.anti_race_condition_list.append(self.current_candle_timestamp)
             print(
                 "[INFO] Saving last candle into " + f"{self.config.backend} (timestamp: {self.last_candle_timestamp})"
             )
