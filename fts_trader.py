@@ -26,7 +26,7 @@ def calc_fee(volume, price_current, order_type):
 class Trader:
     """_summary_"""
 
-    def __init__(self, fts_instance):
+    async def __init__(self, fts_instance):
         self.fts_instance = fts_instance
         self.config = fts_instance.config
 
@@ -37,8 +37,8 @@ class Trader:
         self.wallets = {}
         self.open_orders = []
         self.closed_orders = []
-        self.min_order_sizes = {}
         self.gid = 10**9
+        self.min_order_sizes = {}
 
         self.check_run_conditions()
         self.finalize_trading_config()
@@ -62,21 +62,6 @@ class Trader:
             self.config.amount_invest_fiat = float(np.round(self.config.budget * self.config.amount_invest_relative, 2))
         if self.config.buy_limit_strategy and self.config.budget > 0:
             self.config.asset_buy_limit = self.config.budget // self.config.amount_invest_fiat
-
-    async def get_min_order_sizes(self):
-        bfx_asset_infos = await self.fts_instance.exchange_api.bfx_api_pub.rest.fetch("conf/", params="pub:info:pair")
-        asset_symbols = self.fts_instance.market_history.get_asset_symbols()
-        all_asset_symbols = convert_symbol_str(
-            asset_symbols, base_currency="USD", with_trade_prefix=False, to_exchange=True
-        )
-        all_asset_symbols_info = [
-            asset for asset in bfx_asset_infos[0] if asset[0][-3:] == "USD" and asset[0] in all_asset_symbols
-        ]
-        asset_min_order_sizes = {
-            convert_symbol_str(asset[0], to_exchange=False): float(asset[1][3]) for asset in all_asset_symbols_info
-        }
-        self.min_order_sizes = asset_min_order_sizes
-        return asset_min_order_sizes
 
     def get_market_performance(self, history_window=150, timestamp=None):
         start = -1 * history_window
@@ -531,3 +516,6 @@ class Trader:
     def get_profit(self):
         profit_fiat = sum(order["profit_fiat"] for order in self.closed_orders)
         return profit_fiat
+
+    async def get_min_order_sizes(self):
+        self.min_order_sizes = await self.fts_instance.exchange_api.get_min_order_sizes()

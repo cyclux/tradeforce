@@ -78,7 +78,7 @@ class ExchangeAPI:
 
         latest_candle_timestamp_pool = []
         for indicator in indicator_assets:
-            latest_exchange_candle = await self.fts_instance.exchange_api.get_public_candles(
+            latest_exchange_candle = await self.get_public_candles(
                 symbol=indicator, base_currency=self.config.base_currency, candle_type="last"
             )
             latest_candle_timestamp_pool.append(int(latest_exchange_candle[0]))
@@ -88,6 +88,20 @@ class ExchangeAPI:
             latest_candle = pd.Timestamp(latest_candle_timestamp, unit="ms", tz="UTC") - pd.to_timedelta(minus_delta)
             latest_candle_timestamp = ns_to_ms(latest_candle.value)
         return latest_candle_timestamp
+
+    async def get_min_order_sizes(self):
+        bfx_asset_infos = await self.bfx_api_pub.rest.fetch("conf/", params="pub:info:pair")
+        asset_symbols = self.fts_instance.market_history.get_asset_symbols()
+        all_asset_symbols = convert_symbol_str(
+            asset_symbols, base_currency="USD", with_trade_prefix=False, to_exchange=True
+        )
+        all_asset_symbols_info = [
+            asset for asset in bfx_asset_infos[0] if asset[0][-3:] == "USD" and asset[0] in all_asset_symbols
+        ]
+        asset_min_order_sizes = {
+            convert_symbol_str(asset[0], to_exchange=False): float(asset[1][3]) for asset in all_asset_symbols_info
+        }
+        return asset_min_order_sizes
 
     ######################
     # REST API - PRIVATE #
