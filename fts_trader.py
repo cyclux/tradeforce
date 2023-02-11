@@ -425,7 +425,7 @@ class Trader:
                 if compensate_rate_limit:
                     await asyncio.sleep(0.8)
         print(
-            "[INFO] Assets out of funds to buy "
+            f"[INFO] {len(assets_out_of_funds_to_buy)} assets out of funds to buy "
             + f"(${np.round(self.config.budget, 2)} < ${self.config.amount_invest_fiat}):",
             *assets_out_of_funds_to_buy,
         )
@@ -518,7 +518,7 @@ class Trader:
             f"{buy_option['asset']} [perf:{np.round(buy_option['perf'], 2)}, price: {buy_option['price']}]"
             for buy_option in buy_options
         ]
-        print(f"[DEBUG] {len(buy_options_print)} Potential buy options:", *buy_options_print)
+        print(f"[DEBUG] {len(buy_options_print)} potential assets to buy:", *buy_options_print)
         if len(buy_options) > 0:
             await self.buy_assets(buy_options)
 
