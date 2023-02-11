@@ -129,6 +129,11 @@ class Trader:
             df_buy_options.reset_index(names=["asset"], inplace=True)  # names=["symbol"]
             buy_options = df_buy_options.to_dict("records")
 
+        buy_options_print = [
+            f"{buy_option['asset']} [perf:{np.round(buy_option['perf'], 2)}, price: {buy_option['price']}]"
+            for buy_option in buy_options
+        ]
+        print(f"[DEBUG] {len(buy_options_print)} potential assets to buy:", *buy_options_print)
         return buy_options
 
     def check_sell_options(self, latest_prices=None, timestamp=None):
@@ -375,23 +380,22 @@ class Trader:
     async def buy_assets(self, buy_options):
         compensate_rate_limit = bool(len(buy_options) > 9)
         assets_out_of_funds_to_buy = []
+        assets_max_amount_bought = []
         for asset in buy_options:
+            asset_symbol = asset["asset"]
             # TODO: Make possible to have multiple orders of same asset
-            if asset in self.config.assets_excluded:
+            if asset_symbol in self.config.assets_excluded:
                 print("[INFO] Asset on blacklist. Will not buy {asset}")
                 continue
             asset_open_orders = self.get_open_order(asset=asset)
             if len(asset_open_orders) > 0:
+                assets_max_amount_bought.append(asset_symbol)
                 continue
 
             # Add 1% margin for BUY LIMIT order
             asset["price"] *= 1.015
-            # buy_volume_fiat, _ = calc_fee(
-            #     self.config.amount_invest_fiat, asset["price"], order_type="buy"
-            # )
             buy_amount_crypto = get_significant_digits(self.config.amount_invest_fiat / asset["price"], 9)
 
-            asset_symbol = asset["asset"]
             min_order_size = self.min_order_sizes.get(asset_symbol, 0)
             if min_order_size > buy_amount_crypto:
                 print(
@@ -424,11 +428,17 @@ class Trader:
                     print(f"[ERROR] Buy order execution failed! -> {buy_order}")
                 if compensate_rate_limit:
                     await asyncio.sleep(0.8)
-        print(
-            f"[INFO] {len(assets_out_of_funds_to_buy)} assets out of funds to buy "
-            + f"(${np.round(self.config.budget, 2)} < ${self.config.amount_invest_fiat}):",
-            *assets_out_of_funds_to_buy,
-        )
+        if len(assets_out_of_funds_to_buy) > 0:
+            print(
+                f"[INFO] {len(assets_out_of_funds_to_buy)} assets out of funds to buy "
+                + f"(${np.round(self.config.budget, 2)} < ${self.config.amount_invest_fiat}):",
+                *assets_out_of_funds_to_buy,
+            )
+        if len(assets_max_amount_bought) > 0:
+            print(
+                f"[INFO] {len(assets_max_amount_bought)} assets max amount already bought:",
+                *assets_max_amount_bought,
+            )
 
     async def sell_assets(self, sell_options):
         for sell_option in sell_options:
@@ -514,11 +524,6 @@ class Trader:
         if len(sell_options) > 0:
             await self.sell_assets(sell_options)
         buy_options = self.check_buy_options(latest_prices, timestamp)
-        buy_options_print = [
-            f"{buy_option['asset']} [perf:{np.round(buy_option['perf'], 2)}, price: {buy_option['price']}]"
-            for buy_option in buy_options
-        ]
-        print(f"[DEBUG] {len(buy_options_print)} potential assets to buy:", *buy_options_print)
         if len(buy_options) > 0:
             await self.buy_assets(buy_options)
 
