@@ -38,7 +38,6 @@ class Trader:
         self.open_orders = []
         self.closed_orders = []
         self.min_order_sizes = {}
-        # TODO: IMPORTANT -> Do not overwrite gid on restart!
         self.gid = 10**9
 
         self.check_run_conditions()

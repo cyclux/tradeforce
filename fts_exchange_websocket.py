@@ -201,7 +201,6 @@ class ExchangeWebsocket:
                 await self.fts_instance.trader.update()
 
             self.check_candle_cache_cap()
-            print(f"[DEBUG] gid: {self.fts_instance.trader.gid}")
 
             # TODO: Check exceptions
             # health_check_size = 10
