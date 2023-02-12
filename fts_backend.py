@@ -39,6 +39,10 @@ class Backend:
         self.is_filled_na = False
         self.backend_client = self.connect_backend()
 
+    #################
+    # Connecting DB #
+    #################
+
     def construct_uri(self):
         if self.config.backend_user and self.config.backend_password:
             backend_uri = (
@@ -84,8 +88,9 @@ class Backend:
 
         return backend_client
 
-    def get_internal_db_index(self):
-        return self.fts_instance.market_history.df_market_history.sort_index().index
+    #############
+    # DB checks #
+    #############
 
     def db_sync_check(self):
         internal_db_index = np.array(self.get_internal_db_index())
@@ -129,33 +134,26 @@ class Backend:
         if self.config.load_history_via == "feather" and sync_from_external_db_needed:
             self.fts_instance.market_history.dump_to_feather()
 
-    def mongodb_insert(self, payload_insert, filter_nan=False):
-        if filter_nan:
-            for entry in payload_insert:
-                payload_insert = {items[0]: items[1] for items in entry.items() if pd.notna(items[1])}
-        try:
-            insert_result = self.mongo_exchange_coll.insert_many(payload_insert)
-            insert_result = insert_result.acknowledged
-        except (TypeError, ConfigurationError):
-            insert_result = False
-            print("[ERROR] Insert into DB failed!")
-        return insert_result
+    def check_db_consistency(self):
+        is_consistent = False
+        index = self.get_internal_db_index()
+        timeframe = {
+            "start_datetime": pd.Timestamp(index[0], unit="ms", tz="UTC"),
+            "end_datetime": pd.Timestamp(index[-1], unit="ms", tz="UTC"),
+        }
+        real_index = get_df_datetime_index(timeframe, freq=self.config.asset_interval)["t"].to_list()
+        current_index = index.to_list()
+        index_diff = np.setdiff1d(real_index, current_index)
+        if len(index_diff) > 0:
+            print(f"[WARNING] Inconsistent asset history. Missing candle timestamps: {index_diff}")
+        else:
+            is_consistent = True
+            print("[INFO] Consistency check of DB history successful!")
+        return is_consistent
 
-    def mongodb_update(self, payload_update, upsert=False, filter_nan=False):
-        payload_update_copy = payload_update.copy()
-        t_index = payload_update_copy["t"]
-        del payload_update_copy["t"]
-        if filter_nan:
-            payload_update_copy = {items[0]: items[1] for items in payload_update_copy.items() if pd.notna(items[1])}
-        try:
-            update_result = self.mongo_exchange_coll.update_one(
-                {"t": t_index}, {"$set": payload_update_copy}, upsert=upsert
-            )
-            update_result = update_result.acknowledged
-        except (TypeError, ValueError):
-            print("[ERROR] Update into DB failed!")
-            update_result = False
-        return update_result
+    ################
+    # DB functions #
+    ################
 
     def db_add_history(self, df_history_update):
         self.fts_instance.market_history.df_market_history = pd.concat(
@@ -174,23 +172,6 @@ class Backend:
             if db_result and self.is_collection_new:
                 self.mongo_exchange_coll.create_index("t", unique=True)
                 self.is_collection_new = False
-
-    def check_db_consistency(self):
-        is_consistent = False
-        index = self.get_internal_db_index()
-        timeframe = {
-            "start_datetime": pd.Timestamp(index[0], unit="ms", tz="UTC"),
-            "end_datetime": pd.Timestamp(index[-1], unit="ms", tz="UTC"),
-        }
-        real_index = get_df_datetime_index(timeframe, freq=self.config.asset_interval)["t"].to_list()
-        current_index = index.to_list()
-        index_diff = np.setdiff1d(real_index, current_index)
-        if len(index_diff) > 0:
-            print(f"[WARNING] Inconsistent asset history. Missing candle timestamps: {index_diff}")
-        else:
-            is_consistent = True
-            print("[INFO] Consistency check of DB history successful!")
-        return is_consistent
 
     def db_sync_trader_state(self):
         trader_id = self.config.trader_id
@@ -225,5 +206,70 @@ class Backend:
             )
             self.fts_instance.trader.closed_orders = list(
                 self.backend_db["closed_orders"].find({"trader_id": trader_id}, projection={"_id": False})
+            )
+        return db_acknowledged
+
+    def get_internal_db_index(self):
+        return self.fts_instance.market_history.df_market_history.sort_index().index
+
+    ######################
+    # MongoDB operations #
+    ######################
+
+    def mongodb_insert(self, payload_insert, filter_nan=False):
+        if filter_nan:
+            for entry in payload_insert:
+                payload_insert = {items[0]: items[1] for items in entry.items() if pd.notna(items[1])}
+        try:
+            insert_result = self.mongo_exchange_coll.insert_many(payload_insert)
+            insert_result = insert_result.acknowledged
+        except (TypeError, ConfigurationError):
+            insert_result = False
+            print("[ERROR] Insert into DB failed!")
+        return insert_result
+
+    def mongodb_update(self, payload_update, upsert=False, filter_nan=False):
+        payload_update_copy = payload_update.copy()
+        t_index = payload_update_copy["t"]
+        del payload_update_copy["t"]
+        if filter_nan:
+            payload_update_copy = {items[0]: items[1] for items in payload_update_copy.items() if pd.notna(items[1])}
+        try:
+            update_result = self.mongo_exchange_coll.update_one(
+                {"t": t_index}, {"$set": payload_update_copy}, upsert=upsert
+            )
+            update_result = update_result.acknowledged
+        except (TypeError, ValueError):
+            print("[ERROR] Update into DB failed!")
+            update_result = False
+        return update_result
+
+    ####################
+    # Order operations #
+    ####################
+
+    def order_new(self, order, order_type):
+        db_acknowledged = False
+        if self.config.backend == "mongodb":
+            db_acknowledged = self.backend_db[order_type].insert_one(order).acknowledged
+        return db_acknowledged
+
+    def order_edit(self, order, order_type):
+        db_acknowledged = False
+        if self.config.backend == "mongodb":
+            db_acknowledged = (
+                self.backend_db[order_type]
+                .update_one({"buy_order_id": order["buy_order_id"]}, {"$set": order})
+                .acknowledged
+            )
+        return db_acknowledged
+
+    def order_del(self, order, order_type):
+        db_acknowledged = False
+        if self.config.backend == "mongodb":
+            db_acknowledged = (
+                self.backend_db[order_type]
+                .delete_one({"asset": order["asset"], "buy_order_id": order["buy_order_id"]})
+                .acknowledged
             )
         return db_acknowledged

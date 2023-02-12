@@ -150,27 +150,11 @@ class Trader:
 
         return sell_options
 
-    def backend_new_order(self, order, order_type):
-        db_acknowledged = False
-        if self.config.backend == "mongodb":
-            db_acknowledged = self.fts_instance.backend.backend_db[order_type].insert_one(order).acknowledged
-        return db_acknowledged
-
-    def backend_edit_order(self, order, order_type):
-        db_acknowledged = False
-        if self.config.backend == "mongodb":
-            db_acknowledged = (
-                self.fts_instance.backend.backend_db[order_type]
-                .update_one({"buy_order_id": order["buy_order_id"]}, {"$set": order})
-                .acknowledged
-            )
-        return db_acknowledged
-
     def new_order(self, order, order_type):
         order_obj = getattr(self, order_type)
         order_obj.append(order)
         if self.config.use_backend:
-            db_response = self.backend_new_order(order.copy(), order_type)
+            db_response = self.fts_instance.backend.order_new(order.copy(), order_type)
             if not db_response:
                 print("[ERROR] Backend DB insert failed")
 
@@ -180,26 +164,16 @@ class Trader:
         order_obj.append(order)
 
         if self.config.use_backend:
-            db_response = self.backend_edit_order(order.copy(), order_type)
+            db_response = self.fts_instance.backend.order_edit(order.copy(), order_type)
             if not db_response:
                 print("[ERROR] Backend DB insert failed")
-
-    def backend_del_order(self, order, order_type):
-        db_acknowledged = False
-        if self.config.backend == "mongodb":
-            db_acknowledged = (
-                self.fts_instance.backend.backend_db[order_type]
-                .delete_one({"asset": order["asset"], "buy_order_id": order["buy_order_id"]})
-                .acknowledged
-            )
-        return db_acknowledged
 
     def del_order(self, order, order_type):
         # Delete from internal mirror of DB
         order_obj = getattr(self, order_type)
         order_obj[:] = [o for o in order_obj if o.get("asset") != order["asset"]]
         if self.config.use_backend:
-            db_response = self.backend_del_order(order.copy(), order_type)
+            db_response = self.fts_instance.backend.order_del(order.copy(), order_type)
             if not db_response:
                 print("[ERROR] Backend DB delete order failed")
 
