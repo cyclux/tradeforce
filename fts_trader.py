@@ -432,7 +432,7 @@ class Trader:
         if amount_assets_max_bought > 0:
             print(
                 f"[INFO] {amount_assets_max_bought} asset{'s' if amount_assets_max_bought > 1 else ''}"
-                + "max amount already bought:",
+                + f" {'have' if amount_assets_max_bought > 1 else 'has'} reached max amount to buy:",
                 *assets_max_amount_bought,
             )
 
