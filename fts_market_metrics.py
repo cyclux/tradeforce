@@ -111,3 +111,28 @@ def get_asset_volatility(df_input):
     return pd.Series(
         np.nanstd(assets_agg_open_pct, axis=0), index=get_col_names(assets_agg_open_pct.columns)
     ).sort_values()
+
+
+def get_asset_buy_performance(fts_instance, history_window=150, timestamp=None):
+    start = -1 * history_window
+    end = None
+    idx_type = "iloc"
+    if timestamp is not None:
+        idx_type = "loc"
+        start = timestamp - (history_window * 300000)
+        end = timestamp
+    market_window_pct_change = fts_instance.market_history.get_market_history(
+        start=start,
+        end=end,
+        idx_type=idx_type,
+        pct_change=True,
+        pct_as_factor=False,
+        metrics=["o"],
+        fill_na=True,
+        uniform_cols=True,
+    )
+    if len(market_window_pct_change) < history_window:
+        buy_performance = None
+    else:
+        buy_performance = market_window_pct_change.sum()
+    return buy_performance

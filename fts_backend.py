@@ -192,8 +192,38 @@ class Backend:
             print("[INFO] Consistency check of DB history successful!")
         return is_consistent
 
-    def get_backend_client(self):
-        return self.backend_client
+    def db_sync_trader_state(self):
+        trader_id = self.config.trader_id
+        db_acknowledged = False
+        if self.config.backend == "mongodb":
+            db_response = list(
+                self.backend_db["trader_status"].find({"trader_id": trader_id}, projection={"_id": False})
+            )
+            if len(db_response) > 0 and db_response[0]["trader_id"] == trader_id:
+                trader_status = db_response[0]
+                self.fts_instance.trader.gid = trader_status["gid"]
+                if self.config.budget == 0:
+                    self.config.budget = trader_status["budget"]
+                # TODO: Save remaining vals to DB
+            else:
+                trader_status = {
+                    "trader_id": trader_id,
+                    "window": self.config.window,
+                    "budget": self.config.budget,
+                    "buy_opportunity_factor": self.config.buy_opportunity_factor,
+                    "buy_opportunity_boundary": self.config.buy_opportunity_boundary,
+                    "profit_factor": self.config.profit_factor,
+                    "amount_invest_fiat": self.config.amount_invest_fiat,
+                    "exchange_fee": self.config.exchange_fee,
+                    "gid": self.fts_instance.trader.gid,
+                }
 
-    def get_backend_db(self):
-        return self.backend_db
+                db_acknowledged = self.backend_db["trader_status"].insert_one(trader_status).acknowledged
+
+            self.fts_instance.trader.open_orders = list(
+                self.backend_db["open_orders"].find({"trader_id": trader_id}, projection={"_id": False})
+            )
+            self.fts_instance.trader.closed_orders = list(
+                self.backend_db["closed_orders"].find({"trader_id": trader_id}, projection={"_id": False})
+            )
+        return db_acknowledged

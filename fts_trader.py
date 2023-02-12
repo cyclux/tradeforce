@@ -8,6 +8,7 @@ import sys
 import numpy as np
 import pandas as pd
 from fts_utils import convert_symbol_str
+from fts_market_metrics import get_asset_buy_performance
 
 
 def get_significant_digits(num, digits):
@@ -30,10 +31,6 @@ class Trader:
         self.fts_instance = fts_instance
         self.config = fts_instance.config
 
-        self.config.backend = self.config.backend
-        self.backend_client = self.fts_instance.backend.get_backend_client()
-        self.backend_db = self.fts_instance.backend.get_backend_db()
-
         self.wallets = {}
         self.open_orders = []
         self.closed_orders = []
@@ -43,9 +40,10 @@ class Trader:
         self.check_run_conditions()
         self.finalize_trading_config()
         # Only sync backend now if there is no exchange API connection.
-        # In case an API connection is used, "sync_state_backend" will be called after API states have been received
+        # In case an API connection is used, db_sync_trader_state()
+        # will be called once by exchange_ws -> ws_priv_wallet_snapshot()
         if self.config.use_backend and not self.config.run_exchange_api:
-            self.sync_state_backend()
+            self.fts_instance.backend.db_sync_trader_state()
 
     def check_run_conditions(self):
         if (self.config.amount_invest_fiat is None) and (self.config.amount_invest_relative is None):
@@ -63,31 +61,8 @@ class Trader:
         if self.config.buy_limit_strategy and self.config.budget > 0:
             self.config.asset_buy_limit = self.config.budget // self.config.amount_invest_fiat
 
-    def get_market_performance(self, history_window=150, timestamp=None):
-        start = -1 * history_window
-        end = None
-        idx_type = "iloc"
-        if timestamp is not None:
-            idx_type = "loc"
-            start = timestamp - (history_window * 300000)
-            end = timestamp
-        market_window_pct_change = self.fts_instance.market_history.get_market_history(
-            start=start,
-            end=end,
-            idx_type=idx_type,
-            pct_change=True,
-            pct_as_factor=False,
-            metrics=["o"],
-            fill_na=True,
-            uniform_cols=True,
-        )
-        if len(market_window_pct_change) < history_window:
-            market_performance = None
-        else:
-            market_performance = market_window_pct_change.sum()  # .sort_values()
-        return market_performance
-
     def check_buy_options(self, latest_prices=None, timestamp=None):
+        buy_options = []
         if latest_prices is None:
             df_latest_prices = self.fts_instance.market_history.get_market_history(
                 latest_candle=True, metrics=["o"], uniform_cols=True
@@ -95,13 +70,14 @@ class Trader:
             latest_prices = df_latest_prices.to_dict("records")[0]
             if timestamp is None:
                 timestamp = df_latest_prices.index[0]
-        market_performance = self.get_market_performance(history_window=self.config.window, timestamp=timestamp)
-        buy_options = []
-        if market_performance is not None:
-            buy_condition = (market_performance >= self.config.buy_opportunity_factor_min) & (
-                market_performance <= self.config.buy_opportunity_factor_max
+        buy_performance = get_asset_buy_performance(
+            self.fts_instance, history_window=self.config.window, timestamp=timestamp
+        )
+        if buy_performance is not None:
+            buy_condition = (buy_performance >= self.config.buy_opportunity_factor_min) & (
+                buy_performance <= self.config.buy_opportunity_factor_max
             )
-            buy_options = market_performance[buy_condition]
+            buy_options = buy_performance[buy_condition]
             df_buy_options = pd.DataFrame({"perf": buy_options, "price": latest_prices}).dropna()
             if self.config.prefer_performance == "negative":
                 df_buy_options = df_buy_options.sort_values(by="perf", ascending=True)
@@ -174,53 +150,17 @@ class Trader:
 
         return sell_options
 
-    def sync_state_backend(self):
-        trader_id = self.config.trader_id
-        db_acknowledged = False
-        if self.config.backend == "mongodb":
-            db_response = list(
-                self.backend_db["trader_status"].find({"trader_id": trader_id}, projection={"_id": False})
-            )
-            if len(db_response) > 0 and db_response[0]["trader_id"] == trader_id:
-                trader_status = db_response[0]
-                self.gid = trader_status["gid"]
-                if self.config.budget == 0:
-                    self.config.budget = trader_status["budget"]
-                # TODO: Save remaining vals to DB
-            else:
-                trader_status = {
-                    "trader_id": trader_id,
-                    "window": self.config.window,
-                    "budget": self.config.budget,
-                    "buy_opportunity_factor": self.config.buy_opportunity_factor,
-                    "buy_opportunity_boundary": self.config.buy_opportunity_boundary,
-                    "profit_factor": self.config.profit_factor,
-                    "amount_invest_fiat": self.config.amount_invest_fiat,
-                    "exchange_fee": self.config.exchange_fee,
-                    "gid": self.gid,
-                }
-
-                db_acknowledged = self.backend_db["trader_status"].insert_one(trader_status).acknowledged
-
-            self.open_orders = list(
-                self.backend_db["open_orders"].find({"trader_id": trader_id}, projection={"_id": False})
-            )
-            self.closed_orders = list(
-                self.backend_db["closed_orders"].find({"trader_id": trader_id}, projection={"_id": False})
-            )
-        return db_acknowledged
-
     def backend_new_order(self, order, order_type):
         db_acknowledged = False
         if self.config.backend == "mongodb":
-            db_acknowledged = self.backend_db[order_type].insert_one(order).acknowledged
+            db_acknowledged = self.fts_instance.backend.backend_db[order_type].insert_one(order).acknowledged
         return db_acknowledged
 
     def backend_edit_order(self, order, order_type):
         db_acknowledged = False
         if self.config.backend == "mongodb":
             db_acknowledged = (
-                self.backend_db[order_type]
+                self.fts_instance.backend.backend_db[order_type]
                 .update_one({"buy_order_id": order["buy_order_id"]}, {"$set": order})
                 .acknowledged
             )
@@ -248,7 +188,7 @@ class Trader:
         db_acknowledged = False
         if self.config.backend == "mongodb":
             db_acknowledged = (
-                self.backend_db[order_type]
+                self.fts_instance.backend.backend_db[order_type]
                 .delete_one({"asset": order["asset"], "buy_order_id": order["buy_order_id"]})
                 .acknowledged
             )
@@ -269,7 +209,7 @@ class Trader:
             setattr(self, status, value)
         if self.config.use_backend:
             db_acknowledged = (
-                self.backend_db["trader_status"]
+                self.fts_instance.backend.backend_db["trader_status"]
                 .update_one({"trader_id": self.config.trader_id}, {"$set": status_updates})
                 .acknowledged
             )
@@ -523,9 +463,8 @@ class Trader:
         if len(buy_options) > 0:
             await self.buy_assets(buy_options)
 
-    # TODO: Currently not used
     def get_profit(self):
-        profit_fiat = sum(order["profit_fiat"] for order in self.closed_orders)
+        profit_fiat = np.round(sum(order["profit_fiat"] for order in self.closed_orders), 2)
         return profit_fiat
 
     async def get_min_order_sizes(self):

@@ -254,7 +254,7 @@ class ExchangeWebsocket:
         print("wallet_snapshot", ws_wallet_snapshot)
         self.fts_instance.trader.set_budget(ws_wallet_snapshot)
         self.fts_instance.trader.finalize_trading_config()
-        self.fts_instance.trader.sync_state_backend()
+        self.fts_instance.backend.db_sync_trader_state()
         await self.fts_instance.trader.get_min_order_sizes()
 
     def ws_priv_wallet_update(self, ws_wallet_update):
