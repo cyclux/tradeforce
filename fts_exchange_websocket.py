@@ -4,10 +4,6 @@ Returns:
     _type_: _description_
 """
 
-#################
-# WEBSOCKET API #
-#################
-
 import traceback
 import pandas as pd
 
@@ -61,10 +57,14 @@ class ExchangeWebsocket:
         self.latest_candle_timestamp = 0
         self.current_candle_timestamp = 0
         self.last_candle_timestamp = 0
-        self.anti_race_condition_list = []
+        self.prevent_race_condition_list = []
         self.ws_subs_finished = False
         self.is_set_last_candle_timestamp = False
         self.history_sync_patch_running = False
+
+    ###################
+    # Init websockets #
+    ###################
 
     def ws_run(self):
         self.bfx_api_pub.ws.on("connected", self.ws_init_connection)
@@ -83,7 +83,15 @@ class ExchangeWebsocket:
             self.bfx_api_priv.ws.on("order_closed", self.ws_priv_order_closed)
             self.bfx_api_priv.ws.run()
 
-    def check_candle_cache_cap(self):
+    ######################
+    # Round robin caches #
+    ######################
+
+    def prune_race_condition_prevention_cache(self):
+        if len(self.prevent_race_condition_list) > 3:
+            del self.prevent_race_condition_list[0]
+
+    def prune_candle_cache(self):
         candles_timestamps = self.ws_candle_cache.keys()
         candle_cache_size = len(self.ws_candle_cache.keys())
         while candle_cache_size > self.candle_cache_cap:
@@ -95,9 +103,9 @@ class ExchangeWebsocket:
             del self.ws_candle_cache[min(candles_timestamps)]
             candle_cache_size -= 1
 
-    ####################
-    # PUBLIC WEBSOCKET #
-    ####################
+    #############################
+    # Public websocket channels #
+    #############################
 
     def ws_error(self, ws_error):
         print(traceback.format_exc())
@@ -173,12 +181,12 @@ class ExchangeWebsocket:
                         self.history_sync_patch_running = False
 
         if (
-            self.current_candle_timestamp not in self.anti_race_condition_list
+            self.current_candle_timestamp not in self.prevent_race_condition_list
             and self.current_candle_timestamp > self.last_candle_timestamp
             and self.is_set_last_candle_timestamp
             and self.ws_subs_finished
         ):
-            self.anti_race_condition_list.append(self.current_candle_timestamp)
+            self.prevent_race_condition_list.append(self.current_candle_timestamp)
             print(
                 "[INFO] Saving last candle into " + f"{self.config.backend} (timestamp: {self.last_candle_timestamp})"
             )
@@ -204,7 +212,8 @@ class ExchangeWebsocket:
             ):
                 await self.fts_instance.trader.update()
 
-            self.check_candle_cache_cap()
+            self.prune_candle_cache()
+            self.prune_race_condition_prevention_cache()
 
             # TODO: Check exceptions
             # health_check_size = 10
@@ -221,9 +230,9 @@ class ExchangeWebsocket:
             #     print("[INFO] Trying resub..")
             #     await self.ws_subscribe_candles(check_result["not_subscribed"])
 
-    #####################
-    # PRIVATE WEBSOCKET #
-    #####################
+    ##############################
+    # Private websocket channels #
+    ##############################
 
     def ws_priv_order_confirmed(self, ws_confirmed):
         print("order_confirmed", ws_confirmed)
