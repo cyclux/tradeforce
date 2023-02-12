@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 from fts_utils import convert_symbol_str
 from fts_market_metrics import get_asset_buy_performance
+from fts_trader_sells import submit_sell_order
 
 
 def get_significant_digits(num, digits):
@@ -153,4 +154,4 @@ async def buy_confirmed(fts_instance, buy_order):
     }
     fts_instance.trader.new_order(open_order, "open_orders")
     if not fts_instance.config.is_simulation:
-        await fts_instance.trader.submit_sell_order(open_order)
+        await submit_sell_order(fts_instance, open_order)

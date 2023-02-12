@@ -95,6 +95,19 @@ async def sell_assets(fts_instance, sell_options):
                 )
 
 
+async def submit_sell_order(fts_instance, open_order):
+    volatility_buffer = 0.00000002
+    sell_order = {
+        "asset": open_order["asset"],
+        "price": open_order["price_profit"],
+        "amount": open_order["buy_volume_crypto"] - volatility_buffer,
+        "gid": open_order["gid"],
+    }
+    exchange_result_ok = await fts_instance.exchange_api.order("sell", sell_order)
+    if not exchange_result_ok:
+        print(f"[ERROR] Sell order execution failed! -> {sell_order}")
+
+
 def sell_confirmed(fts_instance, sell_order):
     print("sell_order confirmed", sell_order)
     asset_symbol = convert_symbol_str(

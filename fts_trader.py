@@ -33,6 +33,10 @@ class Trader:
         if self.config.use_backend and not self.config.run_exchange_api:
             self.fts_instance.backend.db_sync_trader_state()
 
+    ##################
+    # Initial checks #
+    ##################
+
     def check_run_conditions(self):
         if (self.config.amount_invest_fiat is None) and (self.config.amount_invest_relative is None):
             sys.exit("[ERROR] Either 'amount_invest_fiat' or 'amount_invest_relative' must be set.")
@@ -48,6 +52,10 @@ class Trader:
             self.config.amount_invest_fiat = float(np.round(self.config.budget * self.config.amount_invest_relative, 2))
         if self.config.buy_limit_strategy and self.config.budget > 0:
             self.config.asset_buy_limit = self.config.budget // self.config.amount_invest_fiat
+
+    ####################
+    # Order operations #
+    ####################
 
     def new_order(self, order, order_type):
         order_obj = getattr(self, order_type)
@@ -75,6 +83,10 @@ class Trader:
             db_response = self.fts_instance.backend.order_del(order.copy(), order_type)
             if not db_response:
                 print("[ERROR] Backend DB delete order failed")
+
+    ##################
+    # Getting orders #
+    ##################
 
     def get_open_order(self, asset_order=None, asset=None):
         gid = None
@@ -107,17 +119,31 @@ class Trader:
             open_orders = df_open_orders.query(query).to_dict("records")
         return open_orders
 
-    async def submit_sell_order(self, open_order):
-        volatility_buffer = 0.00000002
-        sell_order = {
-            "asset": open_order["asset"],
-            "price": open_order["price_profit"],
-            "amount": open_order["buy_volume_crypto"] - volatility_buffer,
-            "gid": open_order["gid"],
-        }
-        exchange_result_ok = await self.fts_instance.exchange_api.order("sell", sell_order)
-        if not exchange_result_ok:
-            print(f"[ERROR] Sell order execution failed! -> {sell_order}")
+    def get_all_open_orders(self, raw=False):
+        if raw:
+            all_open_orders = self.open_orders
+        else:
+            all_open_orders = pd.DataFrame(self.open_orders)
+        return all_open_orders
+
+    def get_all_closed_orders(self, raw=False):
+        if raw:
+            all_closed_orders = self.closed_orders
+        else:
+            all_closed_orders = pd.DataFrame(self.closed_orders)
+        return all_closed_orders
+
+    #############################
+    # Trader relevant functions #
+    #############################
+
+    async def update(self, latest_prices=None, timestamp=None):
+        sell_options = check_sell_options(self.fts_instance, latest_prices, timestamp)
+        if len(sell_options) > 0:
+            await sell_assets(self.fts_instance, sell_options)
+        buy_options = check_buy_options(self.fts_instance, latest_prices, timestamp)
+        if len(buy_options) > 0:
+            await buy_assets(self.fts_instance, buy_options)
 
     async def check_sold_orders(self):
         exchange_order_history = await self.fts_instance.exchange_api.get_order_history()
@@ -134,20 +160,6 @@ class Trader:
             )
             sell_confirmed(self.fts_instance, sold_order)
 
-    def get_all_open_orders(self, raw=False):
-        if raw:
-            all_open_orders = self.open_orders
-        else:
-            all_open_orders = pd.DataFrame(self.open_orders)
-        return all_open_orders
-
-    def get_all_closed_orders(self, raw=False):
-        if raw:
-            all_closed_orders = self.closed_orders
-        else:
-            all_closed_orders = pd.DataFrame(self.closed_orders)
-        return all_closed_orders
-
     def set_budget(self, ws_wallet_snapshot):
         for wallet in ws_wallet_snapshot:
             if wallet.currency == self.config.base_currency:
@@ -155,14 +167,6 @@ class Trader:
                 base_currency_balance = wallet.balance if is_snapshot else wallet.balance_available
                 self.config.budget = base_currency_balance
                 self.fts_instance.backend.update_status({"budget": base_currency_balance})
-
-    async def update(self, latest_prices=None, timestamp=None):
-        sell_options = check_sell_options(self.fts_instance, latest_prices, timestamp)
-        if len(sell_options) > 0:
-            await sell_assets(self.fts_instance, sell_options)
-        buy_options = check_buy_options(self.fts_instance, latest_prices, timestamp)
-        if len(buy_options) > 0:
-            await buy_assets(self.fts_instance, buy_options)
 
     def get_profit(self):
         profit_fiat = np.round(sum(order["profit_fiat"] for order in self.closed_orders), 2)
