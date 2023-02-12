@@ -3,25 +3,13 @@
 Returns:
     _type_: _description_
 """
-import asyncio
+
 import sys
 import numpy as np
 import pandas as pd
 from fts_utils import convert_symbol_str
-from fts_market_metrics import get_asset_buy_performance
-
-
-def get_significant_digits(num, digits):
-    return round(num, digits - int(np.floor(np.log10(abs(num)))) - 1)
-
-
-def calc_fee(volume, price_current, order_type):
-    volume = abs(volume)
-    exchange_fee = 0.20 if order_type == "buy" else 0.10
-    amount_fee_crypto = volume / 100 * exchange_fee
-    volume_incl_fee = volume - amount_fee_crypto
-    amount_fee_fiat = np.round(amount_fee_crypto * price_current, 2)
-    return volume_incl_fee, amount_fee_crypto, amount_fee_fiat
+from fts_trader_buys import check_buy_options, buy_assets
+from fts_trader_sells import check_sell_options, sell_assets, sell_confirmed
 
 
 class Trader:
@@ -61,95 +49,6 @@ class Trader:
         if self.config.buy_limit_strategy and self.config.budget > 0:
             self.config.asset_buy_limit = self.config.budget // self.config.amount_invest_fiat
 
-    def check_buy_options(self, latest_prices=None, timestamp=None):
-        buy_options = []
-        if latest_prices is None:
-            df_latest_prices = self.fts_instance.market_history.get_market_history(
-                latest_candle=True, metrics=["o"], uniform_cols=True
-            )
-            latest_prices = df_latest_prices.to_dict("records")[0]
-            if timestamp is None:
-                timestamp = df_latest_prices.index[0]
-        buy_performance = get_asset_buy_performance(
-            self.fts_instance, history_window=self.config.window, timestamp=timestamp
-        )
-        if buy_performance is not None:
-            buy_condition = (buy_performance >= self.config.buy_opportunity_factor_min) & (
-                buy_performance <= self.config.buy_opportunity_factor_max
-            )
-            buy_options = buy_performance[buy_condition]
-            df_buy_options = pd.DataFrame({"perf": buy_options, "price": latest_prices}).dropna()
-            if self.config.prefer_performance == "negative":
-                df_buy_options = df_buy_options.sort_values(by="perf", ascending=True)
-            if self.config.prefer_performance == "positive":
-                df_buy_options = df_buy_options.sort_values(by="perf", ascending=False)
-            if self.config.prefer_performance == "center":
-                df_buy_options.loc[:, "perf"] = np.absolute(df_buy_options["perf"] - self.config.buy_opportunity_factor)
-                df_buy_options = df_buy_options.sort_values(by="perf")
-
-            df_buy_options.reset_index(names=["asset"], inplace=True)  # names=["symbol"]
-            buy_options = df_buy_options.to_dict("records")
-
-        amount_buy_options = len(buy_options)
-        if amount_buy_options > 0:
-            buy_options_print = [
-                f"{buy_option['asset']} [perf:{np.round(buy_option['perf'], 2)}, price: {buy_option['price']}]"
-                for buy_option in buy_options
-            ]
-            print(
-                f"[INFO] {amount_buy_options} potential asset{'s' if len(buy_options) > 1 else ''} to buy:",
-                *buy_options_print,
-            )
-        else:
-            print("[INFO] Currently no potential assets to buy.")
-        return buy_options
-
-    def check_sell_options(self, latest_prices=None, timestamp=None):
-        sell_options = []
-        if latest_prices is None:
-            df_latest_prices = self.fts_instance.market_history.get_market_history(
-                latest_candle=True, metrics=["c"], uniform_cols=True
-            )
-            timestamp = df_latest_prices.index[0]
-            latest_prices = df_latest_prices.to_dict("records")[0]
-        open_orders = self.get_all_open_orders(raw=True)
-        for open_order in open_orders:
-            price_current = latest_prices.get(open_order["asset"], 0)
-
-            current_profit_ratio = price_current / open_order["price_buy"]
-            time_since_buy = (timestamp - open_order["timestamp_buy"]) / 1000 / 60 // 5
-
-            buy_orders_maxed_out = (
-                len(open_orders) >= self.config.asset_buy_limit
-                if self.config.buy_limit_strategy is True
-                else self.config.budget < self.config.amount_invest_fiat
-            )
-            ok_to_sell = (
-                time_since_buy > self.config.hold_time_limit
-                and current_profit_ratio >= self.config.profit_ratio_limit
-                and buy_orders_maxed_out
-            )
-            if self.config.is_simulation:
-                if (price_current >= open_order["price_profit"]) or ok_to_sell:
-                    # IF SIMULATION
-                    # check plausibility and prevent false logic
-                    # profit gets a max plausible threshold
-                    if price_current / open_order["price_profit"] > 1.2:
-                        price_current = open_order["price_profit"]
-                    sell_option = {"asset": open_order["asset"], "price_sell": price_current}
-                    sell_options.append(sell_option)
-            else:
-                if buy_orders_maxed_out and ok_to_sell:
-                    sell_option = {
-                        "asset": open_order["asset"],
-                        "price_sell": price_current,
-                        "gid": open_order["gid"],
-                        "buy_order_id": open_order["buy_order_id"],
-                    }
-                    sell_options.append(sell_option)
-
-        return sell_options
-
     def new_order(self, order, order_type):
         order_obj = getattr(self, order_type)
         order_obj.append(order)
@@ -176,18 +75,6 @@ class Trader:
             db_response = self.fts_instance.backend.order_del(order.copy(), order_type)
             if not db_response:
                 print("[ERROR] Backend DB delete order failed")
-
-    def update_status(self, status_updates):
-        db_acknowledged = False
-        for status, value in status_updates.items():
-            setattr(self, status, value)
-        if self.config.use_backend:
-            db_acknowledged = (
-                self.fts_instance.backend.backend_db["trader_status"]
-                .update_one({"trader_id": self.config.trader_id}, {"$set": status_updates})
-                .acknowledged
-            )
-        return db_acknowledged
 
     def get_open_order(self, asset_order=None, asset=None):
         gid = None
@@ -220,35 +107,6 @@ class Trader:
             open_orders = df_open_orders.query(query).to_dict("records")
         return open_orders
 
-    async def buy_confirmed(self, buy_order):
-        print("buy_order", buy_order)
-        print("buy_order.symbol", buy_order.symbol)
-
-        asset_price_profit = get_significant_digits(buy_order.price * self.config.profit_factor, 5)
-        asset_symbol = convert_symbol_str(buy_order.symbol, base_currency=self.config.base_currency, to_exchange=False)
-        buy_volume_fiat = float(np.round(self.config.amount_invest_fiat - buy_order.fee, 5))
-        # Wait until balance is registered by websocket into self.wallets
-        await asyncio.sleep(10)
-        buy_volume_crypto = self.wallets[asset_symbol].balance_available
-        open_order = {
-            "trader_id": self.config.trader_id,
-            "buy_order_id": buy_order.id,
-            "gid": buy_order.gid,
-            "timestamp_buy": int(buy_order.mts_create),
-            "asset": asset_symbol,
-            "base_currency": self.config.base_currency,
-            # TODO: "performance": asset["perf"],
-            "price_buy": buy_order.price,
-            "price_profit": asset_price_profit,
-            "amount_invest_fiat": self.config.amount_invest_fiat,
-            "buy_volume_fiat": buy_volume_fiat,
-            "buy_fee_fiat": buy_order.fee,
-            "buy_volume_crypto": buy_volume_crypto,
-        }
-        self.new_order(open_order, "open_orders")
-        if not self.config.is_simulation:
-            await self.submit_sell_order(open_order)
-
     async def submit_sell_order(self, open_order):
         volatility_buffer = 0.00000002
         sell_order = {
@@ -260,137 +118,6 @@ class Trader:
         exchange_result_ok = await self.fts_instance.exchange_api.order("sell", sell_order)
         if not exchange_result_ok:
             print(f"[ERROR] Sell order execution failed! -> {sell_order}")
-
-    def sell_confirmed(self, sell_order):
-        print("sell_order confirmed", sell_order)
-        asset_symbol = convert_symbol_str(
-            sell_order["symbol"], base_currency=self.config.base_currency, to_exchange=False
-        )
-        open_order = self.get_open_order(asset={"asset": asset_symbol, "gid": sell_order["gid"]})
-        if len(open_order) > 0:
-            closed_order = open_order[0].copy()
-            closed_order["sell_timestamp"] = sell_order["mts_update"]
-            closed_order["price_sell"] = sell_order["price_avg"]
-            closed_order["sell_volume_crypto"], _, closed_order["sell_fee_fiat"] = calc_fee(
-                abs(sell_order["amount_orig"]), sell_order["price_avg"], order_type="sell"
-            )
-            closed_order["sell_volume_fiat"] = float(
-                np.round(abs(sell_order["amount_orig"]) * sell_order["price_avg"] - closed_order["sell_fee_fiat"], 2)
-            )
-            closed_order["profit_fiat"] = closed_order["sell_volume_fiat"] - closed_order["amount_invest_fiat"]
-            self.new_order(closed_order, "closed_orders")
-            self.del_order(open_order[0], "open_orders")
-        else:
-            print(f"[ERROR] Could not find order to sell: {sell_order}")
-
-    async def buy_assets(self, buy_options):
-        compensate_rate_limit = bool(len(buy_options) > 9)
-        assets_out_of_funds_to_buy = []
-        assets_max_amount_bought = []
-        for asset in buy_options:
-            asset_symbol = asset["asset"]
-            # TODO: Make possible to have multiple orders of same asset
-            if asset_symbol in self.config.assets_excluded:
-                print("[INFO] Asset on blacklist. Will not buy {asset}")
-                continue
-            asset_open_orders = self.get_open_order(asset=asset)
-            if len(asset_open_orders) > 0:
-                assets_max_amount_bought.append(asset_symbol)
-                continue
-
-            # Add 1% margin for BUY LIMIT order
-            asset["price"] *= 1.015
-            buy_amount_crypto = get_significant_digits(self.config.amount_invest_fiat / asset["price"], 9)
-
-            min_order_size = self.min_order_sizes.get(asset_symbol, 0)
-            if min_order_size > buy_amount_crypto:
-                print(
-                    f"[INFO] Adapting buy_amount_crypto ({buy_amount_crypto}) "
-                    + f"of {asset_symbol} to min_order_size ({min_order_size})"
-                )
-                buy_amount_crypto = min_order_size * 1.02
-
-            if self.config.budget < self.config.amount_invest_fiat:
-                assets_out_of_funds_to_buy.append(asset_symbol)
-                continue
-
-            buy_order = {
-                "asset": asset_symbol,
-                "gid": self.gid,
-                "price": asset["price"],
-                "amount": buy_amount_crypto,
-            }
-            print("[INFO] Executing buy order:", buy_order)
-
-            if self.config.is_simulation:
-                new_budget = float(np.round(self.config.budget - self.config.amount_invest_fiat, 2))
-                self.update_status({"budget": new_budget})
-            else:
-                exchange_result_ok = await self.fts_instance.exchange_api.order("buy", buy_order)
-                self.gid += 1
-                self.update_status({"gid": self.gid})
-                if not exchange_result_ok:
-                    # TODO: Send notification about this event!
-                    print(f"[ERROR] Buy order execution failed! -> {buy_order}")
-                if compensate_rate_limit:
-                    await asyncio.sleep(0.8)
-        amount_assets_out_of_funds = len(assets_out_of_funds_to_buy)
-        amount_assets_max_bought = len(assets_max_amount_bought)
-        if amount_assets_out_of_funds > 0:
-            print(
-                f"[INFO] {amount_assets_out_of_funds} asset{'s' if amount_assets_out_of_funds > 1 else ''}"
-                + " out of funds to buy "
-                + f"(${np.round(self.config.budget, 2)} < ${self.config.amount_invest_fiat}):",
-                *assets_out_of_funds_to_buy,
-            )
-        if amount_assets_max_bought > 0:
-            print(
-                f"[INFO] {amount_assets_max_bought} asset{'s' if amount_assets_max_bought > 1 else ''}"
-                + f" {'have' if amount_assets_max_bought > 1 else 'has'} reached max amount to buy:",
-                *assets_max_amount_bought,
-            )
-
-    async def sell_assets(self, sell_options):
-        for sell_option in sell_options:
-            open_order = self.get_open_order(asset=sell_option)
-            if len(open_order) < 1:
-                continue
-
-            if self.config.is_simulation:
-                closed_order = open_order[0].copy()
-                closed_order["price_sell"] = sell_option["price_sell"]
-                sell_volume_crypto, _, sell_fee_fiat = calc_fee(
-                    closed_order["buy_volume_crypto"],
-                    closed_order["price_sell"],
-                    order_type="sell",
-                )
-                closed_order["sell_fee_fiat"] = sell_fee_fiat
-                closed_order["sell_volume_crypto"] = sell_volume_crypto
-                closed_order["sell_volume_fiat"] = (
-                    closed_order["buy_volume_crypto"] * closed_order["price_sell"]
-                ) - sell_fee_fiat
-                closed_order["profit_fiat"] = closed_order["sell_volume_fiat"] - closed_order["amount_invest_fiat"]
-                self.new_order(closed_order, "closed_orders")
-                self.del_order(open_order[0], "open_orders")
-
-                new_budget = float(np.round(self.config.budget + closed_order["sell_volume_fiat"], 2))
-                self.update_status({"budget": new_budget})
-            else:
-                # Adapt sell price
-                volatility_buffer = 0.00000005
-                sell_order = {
-                    "sell_order_id": open_order[0]["sell_order_id"],
-                    "gid": open_order[0]["gid"],
-                    "asset": open_order[0]["asset"],
-                    "price": sell_option["price_sell"],
-                    "amount": open_order[0]["buy_volume_crypto"] - volatility_buffer,
-                }
-                order_result_ok = await self.fts_instance.exchange_api.order("sell", sell_order, update_order=True)
-                if order_result_ok:
-                    print(
-                        f"[INFO] Sell price of {sell_order['asset']} has been changed "
-                        + f"from {open_order[0]['price_buy']} to {sell_order['price']}."
-                    )
 
     async def check_sold_orders(self):
         exchange_order_history = await self.fts_instance.exchange_api.get_order_history()
@@ -405,7 +132,7 @@ class Trader:
                 f"[INFO] Sold order of {sold_order['symbol']} (id:{sold_order['id']} gid:{sold_order['gid']}) "
                 + "has been converted to closed order."
             )
-            self.sell_confirmed(sold_order)
+            sell_confirmed(self.fts_instance, sold_order)
 
     def get_all_open_orders(self, raw=False):
         if raw:
@@ -427,15 +154,15 @@ class Trader:
                 is_snapshot = wallet.balance_available is None
                 base_currency_balance = wallet.balance if is_snapshot else wallet.balance_available
                 self.config.budget = base_currency_balance
-                self.update_status({"budget": base_currency_balance})
+                self.fts_instance.backend.update_status({"budget": base_currency_balance})
 
     async def update(self, latest_prices=None, timestamp=None):
-        sell_options = self.check_sell_options(latest_prices, timestamp)
+        sell_options = check_sell_options(self.fts_instance, latest_prices, timestamp)
         if len(sell_options) > 0:
-            await self.sell_assets(sell_options)
-        buy_options = self.check_buy_options(latest_prices, timestamp)
+            await sell_assets(self.fts_instance, sell_options)
+        buy_options = check_buy_options(self.fts_instance, latest_prices, timestamp)
         if len(buy_options) > 0:
-            await self.buy_assets(buy_options)
+            await buy_assets(self.fts_instance, buy_options)
 
     def get_profit(self):
         profit_fiat = np.round(sum(order["profit_fiat"] for order in self.closed_orders), 2)

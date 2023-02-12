@@ -212,3 +212,12 @@ def get_snapshot_indices(snapshot_idx_boundary, snapshot_amount=10, snapshot_siz
     snapshot_idx_boundary = snapshot_idx_boundary - snapshot_size
     snapshot_idxs = np.linspace(0, snapshot_idx_boundary, snapshot_amount).astype(np.int64)
     return snapshot_idxs
+
+
+def calc_fee(volume, price_current, order_type):
+    volume = abs(volume)
+    exchange_fee = 0.20 if order_type == "buy" else 0.10
+    amount_fee_crypto = volume / 100 * exchange_fee
+    volume_incl_fee = volume - amount_fee_crypto
+    amount_fee_fiat = np.round(amount_fee_crypto * price_current, 2)
+    return volume_incl_fee, amount_fee_crypto, amount_fee_fiat

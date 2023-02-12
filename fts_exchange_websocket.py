@@ -12,6 +12,8 @@ import traceback
 import pandas as pd
 
 from fts_utils import convert_symbol_str
+from fts_trader_buys import buy_confirmed
+from fts_trader_sells import sell_confirmed
 
 
 def check_timestamp_difference(start=None, end=None, freq="5min"):
@@ -245,10 +247,10 @@ class ExchangeWebsocket:
         order_type = "buy" if ws_order_closed.amount_orig > 0 else "sell"
         if order_closed_and_filled:
             if order_type == "buy":
-                await self.fts_instance.trader.buy_confirmed(ws_order_closed)
+                await buy_confirmed(self.fts_instance, ws_order_closed)
             if order_type == "sell":
                 order_closed_dict = convert_order_to_dict(ws_order_closed)
-                self.fts_instance.trader.sell_confirmed(order_closed_dict)
+                sell_confirmed(self.fts_instance, order_closed_dict)
 
     async def ws_priv_wallet_snapshot(self, ws_wallet_snapshot):
         print("wallet_snapshot", ws_wallet_snapshot)

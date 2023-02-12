@@ -155,6 +155,18 @@ class Backend:
     # DB functions #
     ################
 
+    def update_status(self, status_updates):
+        db_acknowledged = False
+        for status, value in status_updates.items():
+            setattr(self.fts_instance.trader, status, value)
+        if self.config.use_backend:
+            db_acknowledged = (
+                self.backend_db["trader_status"]
+                .update_one({"trader_id": self.config.trader_id}, {"$set": status_updates})
+                .acknowledged
+            )
+        return db_acknowledged
+
     def db_add_history(self, df_history_update):
         self.fts_instance.market_history.df_market_history = pd.concat(
             [self.fts_instance.market_history.df_market_history, df_history_update], axis=0
