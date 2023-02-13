@@ -10,6 +10,7 @@ from fts_market_updater import MarketUpdater
 from fts_exchange_api import ExchangeAPI
 from fts_exchange_websocket import ExchangeWebsocket
 from fts_trader import Trader
+from fts_simulator import run_simulation
 
 
 class FastTradingSimulator:
@@ -70,6 +71,12 @@ class FastTradingSimulator:
             self.exchange_ws.ws_priv_run()
         return self
 
+    def run_ws_updater(self, run_in_jupyter=False):
+        if not run_in_jupyter:
+            loop_ws_updater = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop_ws_updater)
+        self.exchange_ws.ws_run()
+
     def run(self):
         asyncio.run(self.init())
         if self.config.keep_updated:
@@ -86,8 +93,7 @@ class FastTradingSimulator:
             self.run_ws_updater(run_in_jupyter=True)
         return self
 
-    def run_ws_updater(self, run_in_jupyter=False):
-        if not run_in_jupyter:
-            loop_ws_updater = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop_ws_updater)
-        self.exchange_ws.ws_run()
+    def run_sim(self):
+        asyncio.run(self.init())
+        sim_total_profit, _, _ = run_simulation(fts_instance=self)
+        return sim_total_profit

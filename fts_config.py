@@ -2,6 +2,27 @@
 """
 
 
+SIM_RELEVANT_ENTRIES = [
+    "index_start",
+    "window",
+    "buy_opportunity_factor",
+    "buy_opportunity_factor_max",
+    "buy_opportunity_factor_min",
+    "buy_opportunity_boundary",
+    "prefer_performance",
+    "profit_factor",
+    "budget",
+    "amount_invest_fiat",
+    "exchange_fee",
+    "buy_limit_strategy",
+    "hold_time_limit",
+    "profit_ratio_limit",
+    "max_buy_per_asset",
+    "snapshot_size",
+    "snapshot_amount",
+]
+
+
 class Config:
     """_summary_"""
 
@@ -44,6 +65,10 @@ class Config:
         self.exchange_fee = config_input.get("exchange_fee", 0.15)
         self.use_backend = config_input.get("use_backend", True)
         self.is_simulation = config_input.get("is_simulation", False)
+        # Simulator specific
+        self.index_start = config_input.get("index_start", 0)
+        self.snapshot_size = config_input.get("snapshot_size", -1)
+        self.snapshot_amount = config_input.get("snapshot_amount", 1)
 
         self.assets_excluded = [
             "UDC",
@@ -62,3 +87,9 @@ class Config:
             "SHIB",
             "ETH2X",
         ]
+
+    def as_dict(self, for_sim=True):
+        attr_as_dict = self.__dict__
+        if for_sim:
+            attr_as_dict = {key: val for (key, val) in attr_as_dict.items() if key in SIM_RELEVANT_ENTRIES}
+        return attr_as_dict

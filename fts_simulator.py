@@ -124,7 +124,7 @@ def iter_market_history(
 @nb.njit(cache=NB_CACHE, parallel=False)
 def simulate_trading(sim_params_numba, df_buy_factors, df_history_prices):
     current_idx = sim_params_numba["index_start"]
-    window = sim_params_numba["window"] * 60 // 5
+    window = sim_params_numba["window"]
     buy_opportunity_factor_max = sim_params_numba["buy_opportunity_factor_max"]
     buy_opportunity_factor_min = sim_params_numba["buy_opportunity_factor_min"]
     buy_opportunity_factor = sim_params_numba["buy_opportunity_factor"]
@@ -134,7 +134,7 @@ def simulate_trading(sim_params_numba, df_buy_factors, df_history_prices):
     budget = sim_params_numba["budget"]
     amount_invest_fiat = sim_params_numba["amount_invest_fiat"]
     exchange_fee = sim_params_numba["exchange_fee"]  # in percent -> maker 0.1 | taker 0.2
-    buy_limit_strategy = sim_params_numba["buy_limit"]
+    buy_limit_strategy = sim_params_numba["buy_limit_strategy"]
     hold_time_limit = sim_params_numba["hold_time_limit"]
     profit_ratio_limit = sim_params_numba["profit_ratio_limit"]
     max_buy_per_asset = sim_params_numba["max_buy_per_asset"]
@@ -164,8 +164,6 @@ def simulate_trading(sim_params_numba, df_buy_factors, df_history_prices):
     # index_start = np.float64(history_buy_factors.index[0])
     for current_iter, snapshot_idx in enumerate(snapshot_bounds, 1):
         snapshot_bounds = (snapshot_idx, snapshot_idx + snapshot_size)
-        # TODO: DEBUG
-        # print(snapshot_bounds)
         soldbag, buybag = iter_market_history(
             df_buy_factors,
             snapshot_bounds,
@@ -195,12 +193,16 @@ def simulate_trading(sim_params_numba, df_buy_factors, df_history_prices):
     return profit_total, soldbag_all_snapshots, buybag
 
 
-def run_simulation(sim_params, market_history, market_history_pct):
-    window = int(sim_params["window"] * 60 // 5)
-    history_buy_factors = market_history_pct.rolling(window=window, step=1, min_periods=1).sum(
+def run_simulation(fts_instance):
+    bfx_history = fts_instance.market_history.get_market_history(metrics=["o"], fill_na=True)
+    bfx_history_pct = fts_instance.market_history.get_market_history(
+        metrics=["o"], fill_na=True, pct_change=True, pct_as_factor=False
+    )
+    window = int(fts_instance.config.window)
+    history_buy_factors = bfx_history_pct.rolling(window=window, step=1, min_periods=1).sum(
         engine="numba", engine_kwargs={"parallel": True, "cache": True}
     )
     total_profit, trades_history, buy_log = simulate_trading(
-        to_numba_dict(sim_params), history_buy_factors.to_numpy(), market_history.to_numpy()
+        to_numba_dict(fts_instance.config.as_dict()), history_buy_factors.to_numpy(), bfx_history.to_numpy()
     )
     return total_profit, trades_history, buy_log

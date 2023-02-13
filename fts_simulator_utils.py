@@ -31,10 +31,10 @@ def to_numba_dict(sim_params):
     if sim_params["prefer_performance"] == "center":
         sim_params["prefer_performance"] = 0
 
-    if sim_params["buy_limit"] is True:
-        sim_params["buy_limit"] = 1
+    if sim_params["buy_limit_strategy"] is True:
+        sim_params["buy_limit_strategy"] = 1
     else:
-        sim_params["buy_limit"] = 0
+        sim_params["buy_limit_strategy"] = 0
 
     sim_params_numba = nb_types.Dict.empty(key_type=types.unicode_type, value_type=types.float64)
     for key, val in sim_params.items():
