@@ -9,9 +9,6 @@ import pandas as pd
 from bfxapi import Client
 from bfxapi.constants import WS_HOST, PUB_WS_HOST, REST_HOST, PUB_REST_HOST
 
-import numba.typed as nb_types
-from numba.core import types
-
 
 def get_col_names(df_input, specific_col=""):
     return pd.unique(
@@ -110,41 +107,16 @@ def connect_api(creds_path, api_type=None):
     return bfx_api
 
 
-def numba_dict_defaults(sim_params):
-    set_default_params = [
-        "buy_opportunity_factor",
-        "buy_opportunity_boundary",
-        "buy_opportunity_factor_min",
-        "buy_opportunity_factor_max",
-    ]
-    for default_param in set_default_params:
-        sim_params[default_param] = sim_params.get(default_param, 999)
-    return sim_params
-
-
-def to_numba_dict(sim_params):
-    sim_params = numba_dict_defaults(sim_params)
-    if sim_params["prefer_performance"] == "positive":
-        sim_params["prefer_performance"] = 1
-    if sim_params["prefer_performance"] == "negative":
-        sim_params["prefer_performance"] = -1
-    if sim_params["prefer_performance"] == "center":
-        sim_params["prefer_performance"] = 0
-
-    if sim_params["buy_limit"] is True:
-        sim_params["buy_limit"] = 1
-    else:
-        sim_params["buy_limit"] = 0
-
-    sim_params_numba = nb_types.Dict.empty(key_type=types.unicode_type, value_type=types.float64)
-    for key, val in sim_params.items():
-        sim_params_numba[key] = np.float64(val)
-    return sim_params_numba
+def calc_fee(volume, price_current, order_type):
+    volume = abs(volume)
+    exchange_fee = 0.20 if order_type == "buy" else 0.10
+    amount_fee_crypto = volume / 100 * exchange_fee
+    volume_incl_fee = volume - amount_fee_crypto
+    amount_fee_fiat = np.round(amount_fee_crypto * price_current, 2)
+    return volume_incl_fee, amount_fee_crypto, amount_fee_fiat
 
 
 # TODO: Following functions are not currently used. Check relevance
-
-
 def get_metric_labels():
     metric_labels = [
         "asset_idx",
@@ -208,16 +180,7 @@ def get_sim_metrics_df(sim_trades_history_array, market_history_instance):
     return sim_trades_history_df
 
 
-def get_snapshot_indices(snapshot_idx_boundary, snapshot_amount=10, snapshot_size=10000):
-    snapshot_idx_boundary = snapshot_idx_boundary - snapshot_size
-    snapshot_idxs = np.linspace(0, snapshot_idx_boundary, snapshot_amount).astype(np.int64)
-    return snapshot_idxs
-
-
-def calc_fee(volume, price_current, order_type):
-    volume = abs(volume)
-    exchange_fee = 0.20 if order_type == "buy" else 0.10
-    amount_fee_crypto = volume / 100 * exchange_fee
-    volume_incl_fee = volume - amount_fee_crypto
-    amount_fee_fiat = np.round(amount_fee_crypto * price_current, 2)
-    return volume_incl_fee, amount_fee_crypto, amount_fee_fiat
+# def get_snapshot_indices(snapshot_idx_boundary, snapshot_amount=10, snapshot_size=10000):
+#     snapshot_idx_boundary = snapshot_idx_boundary - snapshot_size
+#     snapshot_idxs = np.linspace(0, snapshot_idx_boundary, snapshot_amount).astype(np.int64)
+#     return snapshot_idxs
