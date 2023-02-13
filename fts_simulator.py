@@ -357,14 +357,10 @@ def iter_market_history(
                 budget = soldbag[-1, 8]
 
         buy_options_bool = (buyfactor_row >= buy_opportunity_factor_min) & (buyfactor_row <= buy_opportunity_factor_max)
-        # if row_idx == 0:
-        #     print(buy_options_bool)
         if np.any(buy_options_bool):
             list_buy_options = get_buy_option_assets(
                 buy_options_bool, buyfactor_row, buy_opportunity_factor, prefer_performance
             )
-            # TODO: DEBUG
-            # print(list_buy_options)
             buybag = check_buy(
                 list_buy_options,
                 buybag,

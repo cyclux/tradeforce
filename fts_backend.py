@@ -146,6 +146,7 @@ class Backend:
         index_diff = np.setdiff1d(real_index, current_index)
         if len(index_diff) > 0:
             print(f"[WARNING] Inconsistent asset history. Missing candle timestamps: {index_diff}")
+            # TODO: fetch index_diff from remote
         else:
             is_consistent = True
             print("[INFO] Consistency check of DB history successful!")
