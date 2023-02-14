@@ -30,10 +30,10 @@ class Backend:
         _type_: _description_
     """
 
-    def __init__(self, fts_instance=None):
+    def __init__(self, fts=None):
 
-        self.fts_instance = fts_instance
-        self.config = fts_instance.config
+        self.fts = fts
+        self.config = fts.config
         self.sync_check_needed = False
         self.is_collection_new = True
         self.is_filled_na = False
@@ -109,8 +109,8 @@ class Backend:
                 {"t": {"$in": only_exist_in_external_db.tolist()}}, projection={"_id": False}
             )
             df_external_db_entries = pd.DataFrame(list(external_db_entries_to_sync)).set_index("t")
-            self.fts_instance.market_history.df_market_history = pd.concat(
-                [self.fts_instance.market_history.df_market_history, df_external_db_entries]
+            self.fts.market_history.df_market_history = pd.concat(
+                [self.fts.market_history.df_market_history, df_external_db_entries]
             ).sort_values("t")
             print(
                 f"[INFO] {len(only_exist_in_external_db)} candles synced from external to internal DB "
@@ -118,9 +118,7 @@ class Backend:
             )
 
         if sync_from_internal_db_needed:
-            internal_db_entries = self.fts_instance.market_history.get_market_history(
-                from_list=only_exist_in_internal_db
-            )
+            internal_db_entries = self.fts.market_history.get_market_history(from_list=only_exist_in_internal_db)
             internal_db_entries_to_sync = [
                 drop_dict_na_values(record) for record in internal_db_entries.reset_index(drop=False).to_dict("records")
             ]
@@ -132,7 +130,7 @@ class Backend:
 
         print("[INFO] Internal and external DB synced.")
         if self.config.load_history_via == "feather" and sync_from_external_db_needed:
-            self.fts_instance.market_history.dump_to_feather()
+            self.fts.market_history.dump_to_feather()
 
     def check_db_consistency(self):
         is_consistent = False
@@ -159,7 +157,7 @@ class Backend:
     def update_status(self, status_updates):
         db_acknowledged = False
         for status, value in status_updates.items():
-            setattr(self.fts_instance.trader, status, value)
+            setattr(self.fts.trader, status, value)
         if self.config.use_backend:
             db_acknowledged = (
                 self.backend_db["trader_status"]
@@ -169,8 +167,8 @@ class Backend:
         return db_acknowledged
 
     def db_add_history(self, df_history_update):
-        self.fts_instance.market_history.df_market_history = pd.concat(
-            [self.fts_instance.market_history.df_market_history, df_history_update], axis=0
+        self.fts.market_history.df_market_history = pd.concat(
+            [self.fts.market_history.df_market_history, df_history_update], axis=0
         ).sort_index()
         if self.config.backend == "mongodb":
             db_result = False
@@ -195,7 +193,7 @@ class Backend:
             )
             if len(db_response) > 0 and db_response[0]["trader_id"] == trader_id:
                 trader_status = db_response[0]
-                self.fts_instance.trader.gid = trader_status["gid"]
+                self.fts.trader.gid = trader_status["gid"]
                 if self.config.budget == 0:
                     self.config.budget = trader_status["budget"]
                 # TODO: Save remaining vals to DB
@@ -209,21 +207,21 @@ class Backend:
                     "profit_factor": self.config.profit_factor,
                     "amount_invest_fiat": self.config.amount_invest_fiat,
                     "exchange_fee": self.config.exchange_fee,
-                    "gid": self.fts_instance.trader.gid,
+                    "gid": self.fts.trader.gid,
                 }
 
                 db_acknowledged = self.backend_db["trader_status"].insert_one(trader_status).acknowledged
 
-            self.fts_instance.trader.open_orders = list(
+            self.fts.trader.open_orders = list(
                 self.backend_db["open_orders"].find({"trader_id": trader_id}, projection={"_id": False})
             )
-            self.fts_instance.trader.closed_orders = list(
+            self.fts.trader.closed_orders = list(
                 self.backend_db["closed_orders"].find({"trader_id": trader_id}, projection={"_id": False})
             )
         return db_acknowledged
 
     def get_internal_db_index(self):
-        return self.fts_instance.market_history.df_market_history.sort_index().index
+        return self.fts.market_history.df_market_history.sort_index().index
 
     ######################
     # MongoDB operations #

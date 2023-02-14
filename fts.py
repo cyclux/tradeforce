@@ -33,15 +33,15 @@ class FastTradingSimulator:
         return config
 
     def register_backend(self):
-        backend = Backend(fts_instance=self)
+        backend = Backend(fts=self)
         return backend
 
     def register_updater(self):
-        market_updater_api = MarketUpdater(fts_instance=self)
+        market_updater_api = MarketUpdater(fts=self)
         return market_updater_api
 
     def register_market_history(self):
-        market_history = MarketHistory(fts_instance=self)
+        market_history = MarketHistory(fts=self)
         return market_history
 
     def connect_api(self):
@@ -51,23 +51,23 @@ class FastTradingSimulator:
         return api
 
     def register_exchange_api(self):
-        exchange_api = ExchangeAPI(fts_instance=self)
+        exchange_api = ExchangeAPI(fts=self)
         return exchange_api
 
     def register_exchange_ws(self):
-        exchange_ws = ExchangeWebsocket(fts_instance=self)
+        exchange_ws = ExchangeWebsocket(fts=self)
         return exchange_ws
 
     def register_trader(self):
         if self.config.run_exchange_api:
-            trader = Trader(fts_instance=self)
+            trader = Trader(fts=self)
         else:
             trader = None
         return trader
 
-    async def init(self):
+    async def init(self, is_sim=False):
         await self.market_history.load_history()
-        if self.config.run_exchange_api:
+        if self.config.run_exchange_api and not is_sim:
             self.exchange_ws.ws_priv_run()
         return self
 
@@ -94,6 +94,6 @@ class FastTradingSimulator:
         return self
 
     def run_sim(self):
-        asyncio.run(self.init())
-        sim_total_profit, _, _ = run_simulation(fts_instance=self)
+        asyncio.run(self.init(is_sim=True))
+        sim_total_profit, _, _ = run_simulation(fts=self)
         return sim_total_profit

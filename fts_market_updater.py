@@ -38,20 +38,20 @@ def append_market_history_update(assets_hist_update, assets_candles, symbol_curr
 class MarketUpdater:
     """_summary_"""
 
-    def __init__(self, fts_instance=None):
-        self.fts_instance = fts_instance
-        self.config = fts_instance.config
+    def __init__(self, fts=None):
+        self.fts = fts
+        self.config = fts.config
 
     async def get_timeframe(self, start=None, end=None):
         candle_freq_in_ms = get_timedelta(self.config.asset_interval)["timestamp"]
         timeframe = {}
 
         timeframe["start_timestamp"] = (
-            start if start else self.fts_instance.market_history.get_local_candle_timestamp(position="latest")
+            start if start else self.fts.market_history.get_local_candle_timestamp(position="latest")
         )
         if timeframe["start_timestamp"] == 0:
-            timeframe["start_timestamp"] = await self.fts_instance.exchange_api.get_latest_remote_candle_timestamp(
-                minus_delta=self.fts_instance.market_history.history_timeframe
+            timeframe["start_timestamp"] = await self.fts.exchange_api.get_latest_remote_candle_timestamp(
+                minus_delta=self.fts.market_history.history_timeframe
             )
         elif not start:
             # only needed when fetching as update to existing history
@@ -73,9 +73,9 @@ class MarketUpdater:
 
     async def fetch_market_history(self, timeframe):
         market_history_update = {}
-        for symbol in self.fts_instance.assets_list_symbols:
+        for symbol in self.fts.assets_list_symbols:
             time_start = process_time()
-            candle_update = await self.fts_instance.exchange_api.get_public_candles(
+            candle_update = await self.fts.exchange_api.get_public_candles(
                 symbol=symbol,
                 base_currency=self.config.base_currency,
                 timestamp_start=timeframe["start_timestamp"],
@@ -115,11 +115,11 @@ class MarketUpdater:
 
     async def update_market_history(self, start=None, end=None, init_timespan=None):
         if init_timespan is not None:
-            latest_remote_candle_timestamp = await self.fts_instance.exchange_api.get_latest_remote_candle_timestamp()
+            latest_remote_candle_timestamp = await self.fts.exchange_api.get_latest_remote_candle_timestamp()
             start = get_time_minus_delta(timestamp=latest_remote_candle_timestamp, delta=init_timespan)["timestamp"]
 
-        if self.fts_instance.assets_list_symbols is None:
-            self.fts_instance.assets_list_symbols = await self.fts_instance.exchange_api.get_active_assets()
+        if self.fts.assets_list_symbols is None:
+            self.fts.assets_list_symbols = await self.fts.exchange_api.get_active_assets()
 
         timeframe = await self.get_timeframe(start=start, end=end)
 

@@ -193,16 +193,16 @@ def simulate_trading(sim_params_numba, df_buy_factors, df_history_prices):
     return profit_total, soldbag_all_snapshots, buybag
 
 
-def run_simulation(fts_instance):
-    bfx_history = fts_instance.market_history.get_market_history(metrics=["o"], fill_na=True)
-    bfx_history_pct = fts_instance.market_history.get_market_history(
+def run_simulation(fts):
+    bfx_history = fts.market_history.get_market_history(metrics=["o"], fill_na=True)
+    bfx_history_pct = fts.market_history.get_market_history(
         metrics=["o"], fill_na=True, pct_change=True, pct_as_factor=False
     )
-    window = int(fts_instance.config.window)
+    window = int(fts.config.window)
     history_buy_factors = bfx_history_pct.rolling(window=window, step=1, min_periods=1).sum(
         engine="numba", engine_kwargs={"parallel": True, "cache": True}
     )
     total_profit, trades_history, buy_log = simulate_trading(
-        to_numba_dict(fts_instance.config.as_dict()), history_buy_factors.to_numpy(), bfx_history.to_numpy()
+        to_numba_dict(fts.config.as_dict()), history_buy_factors.to_numpy(), bfx_history.to_numpy()
     )
     return total_profit, trades_history, buy_log

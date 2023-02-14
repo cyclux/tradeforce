@@ -7,12 +7,12 @@ config = {
     # trading strategy
     "trader_id": 1,
     "use_backend": True,
-    "is_simulation": False,
+    "dry_run": False,
     "amount_invest_fiat": 100,
     "amount_invest_relative": None,
     "buy_limit_strategy": False,
-    "buy_opportunity_factor": 0.16,
-    "buy_opportunity_boundary": 0.01,
+    "buy_opportunity_factor": 0.10,
+    "buy_opportunity_boundary": 0.10,
     "prefer_performance": "positive",
     "max_buy_per_asset": 1,
     "hold_time_limit": 12000,
@@ -21,7 +21,7 @@ config = {
     "window": 160,
     "exchange_fee": 0.20,
     "budget": 0,
-    # history config
+    # market history config
     "asset_interval": "5min",
     "history_timeframe": "60days",
     "base_currency": "USD",

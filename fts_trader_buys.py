@@ -13,32 +13,26 @@ def get_significant_digits(num, digits):
     return round(num, digits - int(np.floor(np.log10(abs(num)))) - 1)
 
 
-def check_buy_options(fts_instance, latest_prices=None, timestamp=None):
+def check_buy_options(fts, latest_prices=None, timestamp=None):
     buy_options = []
     if latest_prices is None:
-        df_latest_prices = fts_instance.market_history.get_market_history(
-            latest_candle=True, metrics=["o"], uniform_cols=True
-        )
+        df_latest_prices = fts.market_history.get_market_history(latest_candle=True, metrics=["o"], uniform_cols=True)
         latest_prices = df_latest_prices.to_dict("records")[0]
         if timestamp is None:
             timestamp = df_latest_prices.index[0]
-    buy_performance = get_asset_buy_performance(
-        fts_instance, history_window=fts_instance.config.window, timestamp=timestamp
-    )
+    buy_performance = get_asset_buy_performance(fts, history_window=fts.config.window, timestamp=timestamp)
     if buy_performance is not None:
-        buy_condition = (buy_performance >= fts_instance.config.buy_opportunity_factor_min) & (
-            buy_performance <= fts_instance.config.buy_opportunity_factor_max
+        buy_condition = (buy_performance >= fts.config.buy_opportunity_factor_min) & (
+            buy_performance <= fts.config.buy_opportunity_factor_max
         )
         buy_options = buy_performance[buy_condition]
         df_buy_options = pd.DataFrame({"perf": buy_options, "price": latest_prices}).dropna()
-        if fts_instance.config.prefer_performance == "negative":
+        if fts.config.prefer_performance == "negative":
             df_buy_options = df_buy_options.sort_values(by="perf", ascending=True)
-        if fts_instance.config.prefer_performance == "positive":
+        if fts.config.prefer_performance == "positive":
             df_buy_options = df_buy_options.sort_values(by="perf", ascending=False)
-        if fts_instance.config.prefer_performance == "center":
-            df_buy_options.loc[:, "perf"] = np.absolute(
-                df_buy_options["perf"] - fts_instance.config.buy_opportunity_factor
-            )
+        if fts.config.prefer_performance == "center":
+            df_buy_options.loc[:, "perf"] = np.absolute(df_buy_options["perf"] - fts.config.buy_opportunity_factor)
             df_buy_options = df_buy_options.sort_values(by="perf")
 
         df_buy_options.reset_index(names=["asset"], inplace=True)
@@ -59,26 +53,26 @@ def check_buy_options(fts_instance, latest_prices=None, timestamp=None):
     return buy_options
 
 
-async def buy_assets(fts_instance, buy_options):
+async def buy_assets(fts, buy_options):
     compensate_rate_limit = bool(len(buy_options) > 9)
     assets_out_of_funds_to_buy = []
     assets_max_amount_bought = []
     for asset in buy_options:
         asset_symbol = asset["asset"]
         # TODO: Make possible to have multiple orders of same asset
-        if asset_symbol in fts_instance.config.assets_excluded:
+        if asset_symbol in fts.config.assets_excluded:
             print("[INFO] Asset on blacklist. Will not buy {asset}")
             continue
-        asset_open_orders = fts_instance.trader.get_open_order(asset=asset)
+        asset_open_orders = fts.trader.get_open_order(asset=asset)
         if len(asset_open_orders) > 0:
             assets_max_amount_bought.append(asset_symbol)
             continue
 
         # Add 1% margin for BUY LIMIT order
         asset["price"] *= 1.015
-        buy_amount_crypto = get_significant_digits(fts_instance.config.amount_invest_fiat / asset["price"], 9)
+        buy_amount_crypto = get_significant_digits(fts.config.amount_invest_fiat / asset["price"], 9)
 
-        min_order_size = fts_instance.trader.min_order_sizes.get(asset_symbol, 0)
+        min_order_size = fts.trader.min_order_sizes.get(asset_symbol, 0)
         if min_order_size > buy_amount_crypto:
             print(
                 f"[INFO] Adapting buy_amount_crypto ({buy_amount_crypto}) "
@@ -86,26 +80,26 @@ async def buy_assets(fts_instance, buy_options):
             )
             buy_amount_crypto = min_order_size * 1.02
 
-        if fts_instance.config.budget < fts_instance.config.amount_invest_fiat:
+        if fts.config.budget < fts.config.amount_invest_fiat:
             assets_out_of_funds_to_buy.append(asset_symbol)
             continue
 
         buy_order = {
             "asset": asset_symbol,
-            "gid": fts_instance.trader.gid,
+            "gid": fts.trader.gid,
             "price": asset["price"],
             "amount": buy_amount_crypto,
         }
         print("[INFO] Executing buy order:", buy_order)
 
-        if fts_instance.config.is_simulation:
-            new_budget = float(np.round(fts_instance.config.budget - fts_instance.config.amount_invest_fiat, 2))
+        if fts.config.is_simulation:
+            new_budget = float(np.round(fts.config.budget - fts.config.amount_invest_fiat, 2))
             # TODO: Trader does not have "budget" ?
-            fts_instance.backend.update_status({"budget": new_budget})
+            fts.backend.update_status({"budget": new_budget})
         else:
-            exchange_result_ok = await fts_instance.exchange_api.order("buy", buy_order)
-            fts_instance.trader.gid += 1
-            fts_instance.backend.update_status({"gid": fts_instance.trader.gid})
+            exchange_result_ok = await fts.exchange_api.order("buy", buy_order)
+            fts.trader.gid += 1
+            fts.backend.update_status({"gid": fts.trader.gid})
             if not exchange_result_ok:
                 # TODO: Send notification about this event!
                 print(f"[ERROR] Buy order execution failed! -> {buy_order}")
@@ -117,7 +111,7 @@ async def buy_assets(fts_instance, buy_options):
         print(
             f"[INFO] {amount_assets_out_of_funds} asset{'s' if amount_assets_out_of_funds > 1 else ''}"
             + " out of funds to buy "
-            + f"(${np.round(fts_instance.config.budget, 2)} < ${fts_instance.config.amount_invest_fiat}):",
+            + f"(${np.round(fts.config.budget, 2)} < ${fts.config.amount_invest_fiat}):",
             *assets_out_of_funds_to_buy,
         )
     if amount_assets_max_bought > 0:
@@ -128,30 +122,28 @@ async def buy_assets(fts_instance, buy_options):
         )
 
 
-async def buy_confirmed(fts_instance, buy_order):
-    asset_price_profit = get_significant_digits(buy_order.price * fts_instance.config.profit_factor, 5)
-    asset_symbol = convert_symbol_str(
-        buy_order.symbol, base_currency=fts_instance.config.base_currency, to_exchange=False
-    )
-    buy_volume_fiat = float(np.round(fts_instance.config.amount_invest_fiat - buy_order.fee, 5))
+async def buy_confirmed(fts, buy_order):
+    asset_price_profit = get_significant_digits(buy_order.price * fts.config.profit_factor, 5)
+    asset_symbol = convert_symbol_str(buy_order.symbol, base_currency=fts.config.base_currency, to_exchange=False)
+    buy_volume_fiat = float(np.round(fts.config.amount_invest_fiat - buy_order.fee, 5))
     # Wait until balance is registered by websocket into self.wallets
     await asyncio_sleep(10)
-    buy_volume_crypto = fts_instance.trader.wallets[asset_symbol].balance_available
+    buy_volume_crypto = fts.trader.wallets[asset_symbol].balance_available
     open_order = {
-        "trader_id": fts_instance.config.trader_id,
+        "trader_id": fts.config.trader_id,
         "buy_order_id": buy_order.id,
         "gid": buy_order.gid,
         "timestamp_buy": int(buy_order.mts_create),
         "asset": asset_symbol,
-        "base_currency": fts_instance.config.base_currency,
+        "base_currency": fts.config.base_currency,
         # TODO: "performance": asset["perf"],
         "price_buy": buy_order.price,
         "price_profit": asset_price_profit,
-        "amount_invest_fiat": fts_instance.config.amount_invest_fiat,
+        "amount_invest_fiat": fts.config.amount_invest_fiat,
         "buy_volume_fiat": buy_volume_fiat,
         "buy_fee_fiat": buy_order.fee,
         "buy_volume_crypto": buy_volume_crypto,
     }
-    fts_instance.trader.new_order(open_order, "open_orders")
-    if not fts_instance.config.is_simulation:
-        await submit_sell_order(fts_instance, open_order)
+    fts.trader.new_order(open_order, "open_orders")
+    if not fts.config.is_simulation:
+        await submit_sell_order(fts, open_order)

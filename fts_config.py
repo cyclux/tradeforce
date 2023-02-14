@@ -64,7 +64,7 @@ class Config:
         self.buy_limit_strategy = config_input.get("buy_limit_strategy", False)
         self.exchange_fee = config_input.get("exchange_fee", 0.15)
         self.use_backend = config_input.get("use_backend", True)
-        self.is_simulation = config_input.get("is_simulation", False)
+        self.is_simulation = config_input.get("dry_run", False)
         # Simulator specific
         self.index_start = config_input.get("index_start", 0)
         self.snapshot_size = config_input.get("snapshot_size", -1)
