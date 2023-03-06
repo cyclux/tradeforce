@@ -67,8 +67,10 @@ class TradingEngine:
 
     def _register_api(self) -> dict[str, Any]:
         api = {}
-        api["bfx_api_priv"] = connect_api(self.config.creds_path, "priv")
-        api["bfx_api_pub"] = connect_api(self.config.creds_path, "pub")
+        if self.config.update_mode == "live":
+            api["bfx_api_pub"] = connect_api(self.config.creds_path, "pub")
+        if self.config.run_live:
+            api["bfx_api_priv"] = connect_api(self.config.creds_path, "priv")
         return api
 
     def _register_exchange_api(self) -> ExchangeAPI:

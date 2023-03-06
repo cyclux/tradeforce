@@ -20,8 +20,8 @@ class ExchangeAPI:
         self.root = root
         self.config = root.config
         self.log = root.logging.getLogger(__name__)
-        self.bfx_api_priv = root.api["bfx_api_priv"]
-        self.bfx_api_pub = root.api["bfx_api_pub"]
+        self.bfx_api_priv = root.api.get("bfx_api_priv", None)
+        self.bfx_api_pub = root.api.get("bfx_api_pub", None)
 
     #####################
     # REST API - Public #

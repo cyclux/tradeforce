@@ -96,5 +96,5 @@ class Backend:
             )
 
         self.log.info("Internal and external DB are synced")
-        if self.config.force_source == "local_cache" and sync_from_external_db_needed:
-            self.root.market_history.local_cache()
+        if self.config.local_cache and sync_from_external_db_needed:
+            self.root.market_history.save_to_local_cache()

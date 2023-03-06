@@ -47,8 +47,8 @@ class ExchangeWebsocket:
         self.root = root
         self.config = root.config
         self.log = root.logging.getLogger(__name__)
-        self.bfx_api_priv = root.api["bfx_api_priv"]
-        self.bfx_api_pub = root.api["bfx_api_pub"]
+        self.bfx_api_priv = root.api.get("bfx_api_priv", None)
+        self.bfx_api_pub = root.api.get("bfx_api_pub", None)
 
         self.ws_candle_cache = {}
         self.candle_cache_cap = 20
@@ -207,7 +207,6 @@ class ExchangeWebsocket:
             self.root.backend.db_add_history(df_history_update)
 
             if self.root.exchange_api.bfx_api_priv is not None:
-                print(self.root.exchange_api.bfx_api_priv)
                 await self.root.trader.check_sold_orders()
             # TODO: Check if is_simulation is needed
             if not self.history_sync_patch_running and not self.config.is_simulation:
