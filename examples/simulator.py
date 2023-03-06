@@ -10,6 +10,7 @@ from tradeforce import TradingEngine
 tradeforce_config = {
     "trader": {
         "id": 1,
+        "run_live": False,
         "budget": 1100,
         "maker_fee": 0.10,
         "taker_fee": 0.20,
@@ -22,23 +23,22 @@ tradeforce_config = {
             "hold_time_limit": 1000,
             "profit_factor": 1.70,
             "profit_ratio_limit": 1.01,
-            "window": 180,
+            "moving_window_hours": 180,
         },
     },
-    "market_history": {
-        "candle_interval": "5min",
-        "history_timeframe": "60days",
-        "base_currency": "USD",
-        "exchange": "bitfinex",
-        "load_history_via": "feather",
-        "check_db_consistency": True,
-        "dump_to_feather": True,
+    "backend": {
         "backend": "mongodb",
         "backend_host": "localhost:1234",
-        "mongo_collection": "bfx_history_2y",
-        "update_history": False,
-        "run_exchange_api": True,
-        "keep_updated": True,
+        "local_cache": True,
+    },
+    "market_history": {
+        "name": "bfx_history_2y",
+        "exchange": "bitfinex",
+        "base_currency": "USD",
+        "candle_interval": "5min",
+        "history_timeframe": "720days",
+        "update_mode": "None",
+        "force_source": "local_cache",
     },
     "simulation": {
         "snapshot_size": 100000,
@@ -61,10 +61,10 @@ def pre_process(config, market_history):
     asset_prices_pct[asset_prices_pct > quantiles[upper_threshold]] = quantiles[upper_threshold]
     asset_prices_pct[asset_prices_pct < quantiles[lower_threshold]] = quantiles[lower_threshold]
 
-    window = int(config.window)
-    asset_market_performance = asset_prices_pct.rolling(window=window, step=1, min_periods=window).sum(
-        engine="numba", engine_kwargs={"parallel": True, "cache": True}
-    )[window - 1 :]
+    moving_window_increments = int(config.moving_window_increments)
+    asset_market_performance = asset_prices_pct.rolling(
+        window=moving_window_increments, step=1, min_periods=moving_window_increments
+    ).sum(engine="numba", engine_kwargs={"parallel": True, "cache": True})[moving_window_increments - 1 :]
 
     preprocess_return = {
         "asset_prices": asset_prices,
@@ -76,10 +76,10 @@ def pre_process(config, market_history):
 
 @nb.njit(cache=True, parallel=False)
 def buy_strategy(params, df_asset_prices_pct, df_asset_performance):
-    row_idx = np.int64(params["row_idx"] - params["window"])  # init row_idx == 0
+    row_idx = np.int64(params["row_idx"] - params["moving_window_increments"])  # init row_idx == 0
     buyfactor_row = df_asset_performance[row_idx]
-    # window_history_prices_pct = get_current_window(params, df_asset_prices_pct)
-    # buyfactor_row = np.sum(window_history_prices_pct, axis=0)
+    # moving_window_increments_history_prices_pct = get_current_moving_window_increments(params, df_asset_prices_pct)
+    # buyfactor_row = np.sum(moving_window_increments_history_prices_pct, axis=0)
 
     buy_opportunity_factor_min = params["buy_opportunity_factor"] - params["buy_opportunity_boundary"]
     buy_opportunity_factor_max = params["buy_opportunity_factor"] + params["buy_opportunity_boundary"]

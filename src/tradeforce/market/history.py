@@ -10,27 +10,32 @@ from tradeforce.utils import ms_to_ns, get_col_names, ns_to_ms, get_time_minus_d
 from tradeforce.market.metrics import get_init_relevant_assets
 
 
-def get_pct_change(df_history, pct_first_row, as_factor=True):
+def get_pct_change(df_history: pd.DataFrame, pct_first_row: int, as_factor: bool = True) -> pd.DataFrame:
+    """Calculates the percentage change between each row and the previous row of DataFrame df_history,
+    and optionally converts the changes to factors by adding 1 to each value. e.g. -0.1 -> 0.9
+    Allows setting a specific value for the first row of the output DataFrame.
+    Also renames the columns of the output DataFrame to include "_pct". e.g. "BTC_o" -> "BTC_o_pct"
+    """
     df_history_pct = df_history.pct_change()
     if as_factor:
         df_history_pct += 1
     if pct_first_row is not None:
         df_history_pct.iloc[0] = pct_first_row
-    df_history_pct.columns = [f"{col}_pct" for col in df_history_pct.columns]
+    df_history_pct.columns = pd.Index([f"{col}_pct" for col in df_history_pct.columns])
     return df_history_pct
 
 
-def get_timestamp_intervals(start, end):
-    # 50000min == 10000 * 5min -> 10000 max len @ bitfinex api
-    timestamp_intervals = [(start, end)]
-    if start and end:
+# TODO: make freq dynamic based on min time delta between candles
+def get_timestamp_intervals(start: int, end: int) -> list[tuple[int, int]]:
+    timestamp_intervals = [(-1, -1)]
+    if start != -1 and end != -1:
+        # 50000min == 10000 * 5min -> 10000 max len @ bitfinex api
         timestamp_list = ns_to_ms(
             pd.date_range(start=ms_to_ns(start), end=ms_to_ns(end), tz="UTC", freq="50000min").asi8
         ).tolist()
         if timestamp_list[-1] != end:
             timestamp_list.append(end)
         timestamp_intervals = list(zip(timestamp_list, timestamp_list[1:]))
-
     return timestamp_intervals
 
 
@@ -67,79 +72,117 @@ class MarketHistory:
         self.root = root
         self.config = root.config
         self.log = root.logging.getLogger(__name__)
-        self.df_market_history = None
+        self.df_market_history = pd.DataFrame()
 
         # Set paths
         self.path_current = (
             Path(os.path.dirname(os.path.abspath(__file__))) if path_current is None else Path(path_current)
         )
-        self.path_feather = (
+        self.path_local_cache = (
             self.path_current / "data/inputs" if path_history_dumps is None else self.path_current / path_history_dumps
         )
-        Path(self.path_feather).mkdir(parents=True, exist_ok=True)
-        self.feather_filename = (
-            f"{self.config.exchange}_{self.config.base_currency}_{self.config.mongo_collection}.arrow"
+        Path(self.path_local_cache).mkdir(parents=True, exist_ok=True)
+        self.local_cache_filename = (
+            f"{self.config.exchange}_{self.config.base_currency}_{self.config.backend_table_collection}.arrow"
         )
 
-    async def load_history(self):
-        self.log.info("Loading history via %s", self.config.load_history_via)
-        if self.config.load_history_via == "mongodb":
-            if self.root.backend.is_collection_new:
-                sys.exit(
-                    f"[ERROR] MongoDB collection '{self.config.mongo_collection}' does not exist. "
-                    + "Choose correct collection or get initial market history via 'API' or local storage 'feather'."
-                )
-            cursor = self.root.backend.mongo_exchange_coll.find({}, sort=[("t", 1)], projection={"_id": False})
-            self.df_market_history = pd.DataFrame(list(cursor))
+    async def load_history(self) -> pd.DataFrame:
+        load_method = self.config.force_source
+        try_next_method = True if load_method == "none" else False
 
-        elif self.config.load_history_via == "feather":
-            self.df_market_history = pd.read_feather(self.path_feather / self.feather_filename)
+        if try_next_method or load_method == "local_cache":
+            try_next_method = self.load_via_local_cache(try_next_method)
+        if try_next_method or load_method == "mongodb":
+            try_next_method = self.load_via_backend(try_next_method)
+        if try_next_method or load_method == "api":
+            try_next_method = await self.load_via_api(try_next_method)
+
+        if not self.df_market_history.empty:
+            await self.post_process()
+            amount_assets = len(self.root.assets_list_symbols)
+
+            self.log.info(
+                "Market history from %s assets [%s] loaded via %s",
+                amount_assets,
+                self.config.exchange,
+                self.config.force_source,
+            )
+        else:
+            if load_method == "none":
+                sys.exit(
+                    "[ERROR] Was not able to load market history via local or remote db storage nor remote api fetch.\n"
+                    + "Check your local file paths, DB connection or internet connection."
+                )
+            else:
+                sys.exit(f"[ERROR] Was not able to load market history via {load_method}.")
+        return self.df_market_history
+
+    def load_via_local_cache(self, try_next_method: bool) -> bool:
+        try:
+            self.df_market_history = pd.read_feather(self.path_local_cache / self.local_cache_filename)
+        except Exception:
+            self.log.info(
+                "No local_cache of market history found at: %s", self.path_local_cache / self.local_cache_filename
+            )
+        else:
             self.df_market_history.set_index("t", inplace=True)
             self.df_market_history.sort_index(inplace=True)
+            self.config.force_source = "local_cache"
+            try_next_method = False
+        return try_next_method
 
-        elif self.config.load_history_via == "api":
-            if self.root.assets_list_symbols is not None:
-                end = await self.root.exchange_api.get_latest_remote_candle_timestamp()
-                start = get_time_minus_delta(end, delta=self.config.history_timeframe)["timestamp"]
-            else:
-                relevant_assets = await get_init_relevant_assets(self.root, capped=self.config.relevant_assets_cap)
-                self.root.assets_list_symbols = relevant_assets["assets"]
-                filtered_assets = [
-                    f"{asset}_{metric}" for asset in relevant_assets["assets"] for metric in ["o", "h", "l", "c", "v"]
-                ]
-                await self.update(history_data=relevant_assets["data"][filtered_assets])
-
-                latest_local_candle_timestamp = self.get_local_candle_timestamp(position="latest")
-                start_time = get_time_minus_delta(latest_local_candle_timestamp, delta=self.config.history_timeframe)
-                start = start_time["timestamp"]
-                first_local_candle_timestamp = self.get_local_candle_timestamp(position="first")
-
-                end_time = get_time_minus_delta(first_local_candle_timestamp, delta=self.config.candle_interval)
-                end = end_time["timestamp"]
-            self.log.info(
-                "Fetching %s (%s - %s) of market history from %s assets",
-                self.config.history_timeframe,
-                start,
-                end,
-                len(self.root.assets_list_symbols),
-            )
-            if start < end:
-                await self.update(start=start, end=end)
-
+    def load_via_backend(self, try_next_method: bool) -> bool:
+        if not self.root.backend.is_collection_new:
+            cursor = self.root.backend.mongo_exchange_coll.find({}, sort=[("t", 1)], projection={"_id": False})
+            self.df_market_history = pd.DataFrame(list(cursor))
         else:
-            sys.exit(
-                "[ERROR] load_history_via = '{self.load_history_via}' does not exist. "
-                + "Available are 'api', 'mongodb', 'feather' and 'csv'."
-            )
+            self.log.info("MongoDB collection '%s' does not exist!", self.config.backend_table_collection)
+        if not self.df_market_history.empty:
+            self.config.force_source = "mongodb"
+            try_next_method = False
+        return try_next_method
 
+    async def load_via_api(self, try_next_method: bool) -> bool:
+        self.log.info("Fetching market history via API from %s.", self.config.exchange)
+        if self.root.assets_list_symbols is not None:
+            end = await self.root.exchange_api.get_latest_remote_candle_timestamp()
+            start = get_time_minus_delta(end, delta=self.config.history_timeframe)["timestamp"]
+        else:
+            relevant_assets = await get_init_relevant_assets(self.root, capped=self.config.relevant_assets_cap)
+            self.root.assets_list_symbols = relevant_assets["assets"]
+            filtered_assets = [
+                f"{asset}_{metric}" for asset in relevant_assets["assets"] for metric in ["o", "h", "l", "c", "v"]
+            ]
+            await self.update(history_data=relevant_assets["data"][filtered_assets])
+            latest_local_candle_timestamp = self.get_local_candle_timestamp(position="latest")
+            start_time = get_time_minus_delta(latest_local_candle_timestamp, delta=self.config.history_timeframe)
+            start = start_time["timestamp"]
+            first_local_candle_timestamp = self.get_local_candle_timestamp(position="first")
+            end_time = get_time_minus_delta(first_local_candle_timestamp, delta=self.config.candle_interval)
+            end = end_time["timestamp"]
+        self.log.info(
+            "Fetching %s (%s - %s) of market history from %s assets",
+            self.config.history_timeframe,
+            start,
+            end,
+            len(self.root.assets_list_symbols),
+        )
+        if start < end:
+            await self.update(start=start, end=end)
+        if not self.df_market_history.empty:
+            try_next_method = False
+            self.config.force_source = "API"
+        return try_next_method
+
+    async def post_process(self) -> None:
         try:
             self.df_market_history.set_index("t", inplace=True)
-        except (KeyError, ValueError, TypeError):
+        except (KeyError, ValueError, TypeError, AttributeError):
             pass
 
-        if self.config.load_history_via in ("api", "mongodb"):
-            if self.config.dump_to_feather is True:
-                self.dump_to_feather()
+        if self.config.force_source in ("api", "mongodb"):
+            if self.config.local_cache is True:
+                self.save_to_local_cache()
 
         if self.root.assets_list_symbols is None:
             self.get_asset_symbols(updated=True)
@@ -147,27 +190,20 @@ class MarketHistory:
         if self.root.backend.sync_check_needed:
             self.root.backend.db_sync_check()
 
-        if self.config.update_history is True:
+        if self.config.update_mode == "once":
             start = self.get_local_candle_timestamp(position="latest", offset=1)
             end = await self.root.exchange_api.get_latest_remote_candle_timestamp()
             if start < end:
                 await self.update(start=start, end=end)
             else:
-                self.log.info("Market history is already uptodate (%s)", start)
+                self.log.info("Market history is already UpToDate (%s)", start)
 
         if self.config.check_db_consistency is True:
             self.root.backend.check_db_consistency()
 
-        amount_assets = len(self.root.assets_list_symbols)
-        self.log.info(
-            "%s assets from %s loaded via %s", amount_assets, self.config.exchange, self.config.load_history_via
-        )
-
-        return self.df_market_history
-
-    def dump_to_feather(self):
-        self.df_market_history.reset_index(drop=False).to_feather(self.path_feather / self.feather_filename)
-        self.log.info("Assets dumped via feather to: %s", str(self.path_feather / self.feather_filename))
+    def save_to_local_cache(self):
+        self.df_market_history.reset_index(drop=False).to_feather(self.path_local_cache / self.local_cache_filename)
+        self.log.info("Assets dumped via local_cache to: %s", str(self.path_local_cache / self.local_cache_filename))
 
     def get_market_history(
         self,
@@ -231,7 +267,7 @@ class MarketHistory:
             df_market_history.columns = get_col_names(df_market_history.columns)
         return df_market_history
 
-    async def update(self, history_data=None, start=None, end=None):
+    async def update(self, history_data=None, start=-1, end=-1):
         assets_status = None
         if history_data is not None:
             df_history_update = history_data
@@ -269,7 +305,7 @@ class MarketHistory:
     def get_local_candle_timestamp(self, position="latest", skip=0, offset=0):
         idx = (-1 - skip) if position == "latest" else (0 + skip)
         latest_candle_timestamp = 0
-        if self.df_market_history is not None:
+        if not self.df_market_history.empty:
             latest_candle_timestamp = int(self.df_market_history.index[idx])
         elif self.config.backend == "mongodb" and not self.root.backend.is_collection_new:
             sort_id = -1 if position == "latest" else 1

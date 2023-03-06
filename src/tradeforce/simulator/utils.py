@@ -75,9 +75,9 @@ def calc_fee(volume_crypto, maker_fee, taker_fee, prices_current, order_type):
 
 
 @nb.njit(cache=NB_CACHE, parallel=False)
-def get_snapshot_indices(window, snapshot_idx_boundary, snapshot_amount=10, snapshot_size=10000):
+def get_snapshot_indices(moving_window_increments, snapshot_idx_boundary, snapshot_amount=10, snapshot_size=10000):
     snapshot_idx_boundary = np.int64(snapshot_idx_boundary - snapshot_size)
-    snapshot_idxs = np.linspace(window, snapshot_idx_boundary, snapshot_amount).astype(np.int64)
+    snapshot_idxs = np.linspace(moving_window_increments, snapshot_idx_boundary, snapshot_amount).astype(np.int64)
     return snapshot_idxs
 
 
@@ -98,7 +98,7 @@ def get_pct_change(df_history_prices):
 
 @nb.njit(cache=NB_CACHE, parallel=False)
 def get_current_window(params, df_history_prices_pct):
-    window_start = np.int64(params["row_idx"] - params["window"])
-    window_end = np.int64(params["row_idx"])
-    window_history_prices_pct = df_history_prices_pct[window_start:window_end]
-    return window_history_prices_pct
+    moving_window_start = np.int64(params["row_idx"] - params["moving_window_increments"])
+    moving_window_end = np.int64(params["row_idx"])
+    moving_window_history_prices_pct = df_history_prices_pct[moving_window_start:moving_window_end]
+    return moving_window_history_prices_pct

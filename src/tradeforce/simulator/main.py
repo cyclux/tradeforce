@@ -21,12 +21,14 @@ Returns:
 """
 
 # from time import perf_counter
-
+from typing import Union, Tuple, Callable, Optional
 import numpy as np
 import numba as nb  # type: ignore
-
-from tradeforce.utils import get_timedelta
+import pandas as pd
 import tradeforce.simulator.utils as sim_utils
+from tradeforce.config import Config
+from tradeforce.market.history import MarketHistory
+from tradeforce.utils import get_timedelta
 from tradeforce.simulator.buys import check_buy
 from tradeforce.simulator.sells import check_sell
 
@@ -55,7 +57,9 @@ def set_budget_from_bag(row_idx, budget, bag, bag_type):
 # cache needs to be off in case of a user defined trading strategy function
 # @perf.jit_timer
 @nb.njit(cache=False, parallel=False)
-def iter_market_history(params, snapshot_bounds, asset_prices, asset_prices_pct, asset_performance):
+def iter_market_history(
+    params, snapshot_bounds, asset_prices, asset_prices_pct, asset_performance
+) -> Tuple[np.ndarray, np.ndarray]:
     budget = params["budget"]
     buybag = np.empty((0, 9), type_float)
     soldbag = np.empty((0, 15), type_float)
@@ -76,7 +80,9 @@ def iter_market_history(params, snapshot_bounds, asset_prices, asset_prices_pct,
 
 # cache needs to be off in case of a user defined trading strategy function
 @nb.njit(cache=False, parallel=False)
-def simulate_trading(params, asset_prices, asset_prices_pct, asset_performance):
+def simulate_trading(
+    params, asset_prices, asset_prices_pct, asset_performance
+) -> Tuple[np.int64, np.ndarray, np.ndarray]:
     # strategy = nb.jit(nopython=True)(strategy)
     # Fill NaN probably not needed as it is done by the data fetch api
     # fill_nan(df_buy_factors)
@@ -84,7 +90,7 @@ def simulate_trading(params, asset_prices, asset_prices_pct, asset_performance):
     snapshot_idx_boundary = asset_prices.shape[0]
     snapshot_size, snapshot_amount = sim_utils.sanitize_snapshot_params(params, snapshot_idx_boundary)
     snapshot_start_idxs = sim_utils.get_snapshot_indices(
-        params["window"], snapshot_idx_boundary, snapshot_amount, snapshot_size
+        params["moving_window_increments"], snapshot_idx_boundary, snapshot_amount, snapshot_size
     )
     profit_snapshot_list = np.empty(snapshot_amount, type_float)
     soldbag_all_snapshots = np.empty((0, 15), type_float)
@@ -126,7 +132,7 @@ def print_sim_details(root, asset_prices):
     )
 
 
-def pre_process_default(config, market_history):
+def pre_process_default(config: Config, market_history: MarketHistory) -> dict[str, pd.DataFrame]:
     # TODO: provide start and timeframe for simulation: sim_start_delta ?
     sim_start_delta = config.sim_start_delta
     asset_prices = market_history.get_market_history(start=sim_start_delta, metrics=["o"], fill_na=True)
@@ -141,10 +147,10 @@ def pre_process_default(config, market_history):
     asset_prices_pct[asset_prices_pct > quantiles[upper_threshold]] = quantiles[upper_threshold]
     asset_prices_pct[asset_prices_pct < quantiles[lower_threshold]] = quantiles[lower_threshold]
 
-    window = int(config.window)
-    asset_market_performance = asset_prices_pct.rolling(window=window, step=1, min_periods=window).sum(
-        engine="numba", engine_kwargs={"parallel": True, "cache": True}
-    )[window - 1 :]
+    moving_window_increments = int(config.moving_window_increments)
+    asset_market_performance = asset_prices_pct.rolling(
+        window=moving_window_increments, step=1, min_periods=moving_window_increments
+    ).sum(engine="numba", engine_kwargs={"parallel": True, "cache": True})[moving_window_increments - 1 :]
 
     preprocess_return = {
         "asset_prices": asset_prices,
@@ -154,12 +160,10 @@ def pre_process_default(config, market_history):
     return preprocess_return
 
 
-def run(root, asset_prices=None, sim_config=None, pre_process=None):
+def run(root, pre_process: Optional[Callable] = None) -> dict[str, Union[int, np.ndarray, np.ndarray]]:
     pre_process = pre_process_default if pre_process is None else pre_process
-    if asset_prices is None:
-        preprocess_result = pre_process(root.config, root.market_history)
-    if sim_config is None:
-        sim_config = sim_utils.to_numba_dict(root.config.to_dict())
+    preprocess_result = pre_process(root.config, root.market_history)
+    sim_config = sim_utils.to_numba_dict(root.config.to_dict())
 
     asset_prices = preprocess_result.get("asset_prices", None)
     asset_prices_pct = preprocess_result.get("asset_prices_pct", None)
@@ -168,14 +172,14 @@ def run(root, asset_prices=None, sim_config=None, pre_process=None):
     print_sim_details(root, asset_prices)
 
     if asset_prices is not None:
-        asset_prices = asset_prices.to_numpy()
+        np_asset_prices = asset_prices.to_numpy()
     if asset_prices_pct is not None:
-        asset_prices_pct = asset_prices_pct.to_numpy()
+        np_asset_prices_pct = asset_prices_pct.to_numpy()
     if asset_performance is not None:
-        asset_performance = asset_performance.to_numpy()
+        np_asset_performance = asset_performance.to_numpy()
 
     total_profit, trades_history, buy_log = simulate_trading(
-        sim_config, asset_prices, asset_prices_pct, asset_performance
+        sim_config, np_asset_prices, np_asset_prices_pct, np_asset_performance
     )
     sim_result = {"profit": total_profit, "trades": trades_history, "buy_log": buy_log}
     return sim_result

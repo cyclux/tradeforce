@@ -5,44 +5,36 @@ from tradeforce import TradingEngine
 
 config = {
     "trader": {
-        "id": 1,
-        "creds_path": "exchange_creds.cfg",
-        "use_backend": True,
-        "dry_run": False,
-        "budget": 1100,
+        "id": 3,
+        "run_live": False,
+        "budget": 0,
         "maker_fee": 0.10,
         "taker_fee": 0.20,
         "strategy": {
-            "amount_invest_fiat": 100,
+            "amount_invest_fiat": 1000,
             "investment_cap": 0,
-            "window": 180,
             "buy_opportunity_factor": 0.10,
             "buy_opportunity_boundary": 0.05,
             "prefer_performance": 1,
             "hold_time_limit": 1000,
-            "profit_factor": 1.70,
-            "profit_ratio_limit": 1,
+            "profit_factor": 1.10,
+            "profit_ratio_limit": 1.01,
+            "moving_window_hours": 160,
         },
     },
-    "market_history": {
-        "candle_interval": "5min",
-        "history_timeframe": "60days",
-        "base_currency": "USD",
-        "exchange": "bitfinex",
-        "load_history_via": "feather",
-        "check_db_consistency": True,
-        "dump_to_feather": True,
+    "backend": {
         "backend": "mongodb",
         "backend_host": "localhost:1234",
-        "mongo_collection": "bfx_history_2y",
-        "update_history": False,
-        "run_exchange_api": True,
-        "keep_updated": True,
+        "local_cache": True,
     },
-    "simulation": {
-        "sim_start_delta": None,
-        "snapshot_size": 1000,
-        "snapshot_amount": 1,
+    "market_history": {
+        "name": "bfx_history_2y",
+        "exchange": "bitfinex",
+        "base_currency": "USD",
+        "candle_interval": "5min",
+        "history_timeframe": "720days",
+        "update_mode": "None",
+        "force_source": "local_cache",
     },
 }
 
@@ -58,7 +50,7 @@ hyperparam_search = {
         "pruner": "HyperbandPruner",
     },
     "params": {
-        "window": {"min": 20, "max": 220, "step": 20},
+        "moving_window_increments": {"min": 20, "max": 220, "step": 20},
         "buy_opportunity_factor": {"min": -0.05, "max": 0.25, "step": 0.05},
         "buy_opportunity_boundary": {"min": 0.0, "max": 0.15, "step": 0.05},
         "profit_factor": {"min": 1.05, "max": 2.5, "step": 0.05},
@@ -68,5 +60,4 @@ hyperparam_search = {
     },
 }
 
-best_params = TradingEngine(config=config).run_sim(hyperparam_search)
-print(best_params.best_params)
+sim_result = TradingEngine(config=config).run_sim_optuna(hyperparam_search)

@@ -190,14 +190,14 @@ class ExchangeWebsocket:
             and self.ws_subs_finished
         ):
             self.prevent_race_condition_list.append(self.current_candle_timestamp)
-            self.log.debug(
-                "Saving last candle into %s (timestamp: %s)", self.config.backend, self.last_candle_timestamp
+            self.log.info(
+                "New candle received [timestamp: %s] - Saved to %s", self.last_candle_timestamp, self.config.backend
             )
             candle_cache_size = len(self.ws_candle_cache.keys())
             candles_last_timestamp = self.ws_candle_cache.get(self.last_candle_timestamp, {})
             if not candles_last_timestamp:
                 self.log.warning(
-                    "Last websocket %s timestamp has no data from any asset.", self.config.candle_interval[:-2]
+                    "Last websocket %s timestamp has no data from any asset", self.config.candle_interval[:-2]
                 )
                 # TODO: Trigger notification email?
 

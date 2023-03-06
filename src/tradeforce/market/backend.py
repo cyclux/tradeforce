@@ -42,7 +42,7 @@ class Backend:
         # Only sync backend now if there is no exchange API connection.
         # In case an API connection is used, db_sync_trader_state()
         # will be called once by exchange_ws -> ws_priv_wallet_snapshot()
-        if self.config.use_backend and not self.config.run_exchange_api:
+        if self.config.use_backend and not self.config.run_live:
             self.db_sync_trader_state()
 
     #################
@@ -66,8 +66,8 @@ class Backend:
             backend_uri = self.construct_uri()
             try:
                 backend_client = MongoClient(backend_uri)
-                self.backend_db = backend_client[self.config.mongo_exchange_db]
-                self.mongo_exchange_coll = self.backend_db[self.config.mongo_collection]
+                self.backend_db = backend_client[self.config.backend_db]
+                self.mongo_exchange_coll = self.backend_db[self.config.backend_table_collection]
                 backend_client.start_session()
             except (AutoReconnect, ConnectionFailure) as exc:
                 self.log.error(
@@ -84,10 +84,10 @@ class Backend:
                 self.is_collection_new = True
             else:
                 self.is_collection_new = False
-                if self.config.load_history_via != "mongodb":
-                    if self.config.load_history_via == "api":
+                if self.config.force_source != "mongodb":
+                    if self.config.force_source == "api":
                         sys.exit(
-                            f"[ERROR] MongoDB history '{self.config.mongo_collection}' already exists. "
+                            f"[ERROR] MongoDB history '{self.config.backend_table_collection}' already exists. "
                             + "Cannot load history via API. Choose different history DB name or loading method."
                         )
                     self.sync_check_needed = True
@@ -138,9 +138,9 @@ class Backend:
                 max(only_exist_in_internal_db),
             )
 
-        self.log.info("Internal and external DB are synced.")
-        if self.config.load_history_via == "feather" and sync_from_external_db_needed:
-            self.root.market_history.dump_to_feather()
+        self.log.info("Internal and external DB are synced")
+        if self.config.force_source == "local_cache" and sync_from_external_db_needed:
+            self.root.market_history.local_cache()
 
     def check_db_consistency(self):
         is_consistent = False
@@ -210,7 +210,7 @@ class Backend:
             else:
                 trader_status = {
                     "trader_id": trader_id,
-                    "window": self.config.window,
+                    "moving_window_increments": self.config.moving_window_increments,
                     "budget": self.config.budget,
                     "buy_opportunity_factor": self.config.buy_opportunity_factor,
                     "buy_opportunity_boundary": self.config.buy_opportunity_boundary,

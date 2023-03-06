@@ -5,7 +5,7 @@ import numba as nb  # type: ignore
 @nb.njit(cache=True, parallel=False)
 def buy_strategy(params, df_asset_prices_pct, df_asset_performance):
 
-    row_idx = np.int64(params["row_idx"] - params["window"])  # init row_idx == 0
+    row_idx = np.int64(params["row_idx"] - params["moving_window_increments"])  # init row_idx == 0
     buyfactor_row = df_asset_performance[row_idx]
     # window_history_prices_pct = get_current_window(params, df_asset_prices_pct)
     # buyfactor_row = np.sum(window_history_prices_pct, axis=0)

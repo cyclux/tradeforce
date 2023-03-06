@@ -20,7 +20,9 @@ def check_buy_options(root, latest_prices=None, timestamp=None):
         latest_prices = df_latest_prices.to_dict("records")[0]
         if timestamp is None:
             timestamp = df_latest_prices.index[0]
-    buy_performance = get_asset_buy_performance(root, history_window=root.config.window, timestamp=timestamp)
+    buy_performance = get_asset_buy_performance(
+        root, moving_window_increments=root.config.moving_window_increments, timestamp=timestamp
+    )
     if buy_performance is not None:
         buy_opportunity_factor_min = root.config.buy_opportunity_factor - root.config.buy_opportunity_boundary
         buy_opportunity_factor_max = root.config.buy_opportunity_factor + root.config.buy_opportunity_boundary
@@ -53,7 +55,7 @@ def check_buy_options(root, latest_prices=None, timestamp=None):
             buy_options_print,
         )
     else:
-        root.log.info("Currently no potential assets to buy.")
+        root.log.info("Currently no potential assets to buy")
     return buy_options
 
 

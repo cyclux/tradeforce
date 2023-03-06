@@ -92,7 +92,7 @@ async def sell_assets(root, sell_options):
             order_result_ok = await root.exchange_api.order("sell", sell_order, update_order=True)
             if order_result_ok:
                 root.log.info(
-                    "Sell price of %s has been changed from %s to %s.",
+                    "Sell price of %s has been changed from %s to %s",
                     sell_order["asset"],
                     open_order[0]["price_buy"],
                     sell_order["price"],

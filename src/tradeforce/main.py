@@ -6,6 +6,9 @@ websockets tensorflow-probability numexpr Bottleneck numba pyyaml
 import os
 import logging
 import asyncio
+import numpy as np
+import optuna
+from typing import Any
 from tradeforce.simulator import hyperparam_search
 from tradeforce.config import Config
 from tradeforce.market.backend import Backend
@@ -23,98 +26,104 @@ class TradingEngine:
 
     def __init__(self, config=None, assets=None):
         self.logging = logging
-        self.log = self.config_logger()
+        self.log = self._register_logger()
         self.log.info("Fast Trading Simulator Beta 0.4.0")
         self.assets_list_symbols = None if assets is None or len(assets) == 0 else assets
-        self.config = self.register_config(config)
-        self.trader = self.register_trader()
-        self.backend = self.register_backend()
-        self.market_history = self.register_market_history()
-        self.market_updater_api = self.register_updater()
-        self.api = self.connect_api()
-        self.exchange_api = self.register_exchange_api()
-        self.exchange_ws = self.register_exchange_ws()
+        self.config = self._register_config(config)
+        self.trader = self._register_trader()
+        self.backend = self._register_backend()
+        self.market_history = self._register_market_history()
+        self.market_updater_api = self._register_updater()
+        self.api = self._register_api()
+        self.exchange_api = self._register_exchange_api()
+        self.exchange_ws = self._register_exchange_ws()
 
-    def config_logger(self):
+    #############################
+    # Init and register modules #
+    #############################
+
+    def _register_logger(self) -> logging.Logger:
         logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO"), format="%(asctime)s [%(levelname)s] %(message)s")
-        log = logging.getLogger(__name__)
-        return log
+        return logging.getLogger(__name__)
 
-    def register_config(self, user_config):
-        config = Config(root=self, config_input=user_config)
-        return config
+    def _register_config(self, user_config: dict) -> Config:
+        return Config(root=self, config_input=user_config)
 
-    def register_backend(self):
-        backend = Backend(root=self)
-        return backend
+    def _register_backend(self) -> Backend:
+        return Backend(root=self)
 
-    def register_updater(self):
-        market_updater_api = MarketUpdater(root=self)
-        return market_updater_api
+    def _register_updater(self) -> MarketUpdater:
+        return MarketUpdater(root=self)
 
-    def register_market_history(self):
+    def _register_market_history(self) -> MarketHistory:
         working_dir = os.getcwd() if self.config.working_dir is None else self.config.working_dir
-        market_history = MarketHistory(root=self, path_current=working_dir)
-        return market_history
+        return MarketHistory(root=self, path_current=working_dir)
 
-    def connect_api(self):
+    def _register_api(self) -> dict[str, Any]:
         api = {}
         api["bfx_api_priv"] = connect_api(self.config.creds_path, "priv")
         api["bfx_api_pub"] = connect_api(self.config.creds_path, "pub")
         return api
 
-    def register_exchange_api(self):
-        exchange_api = ExchangeAPI(root=self)
-        return exchange_api
+    def _register_exchange_api(self) -> ExchangeAPI:
+        return ExchangeAPI(root=self)
 
-    def register_exchange_ws(self):
-        exchange_ws = ExchangeWebsocket(root=self)
-        return exchange_ws
+    def _register_exchange_ws(self) -> ExchangeWebsocket:
+        return ExchangeWebsocket(root=self)
 
-    def register_trader(self):
-        trader = Trader(root=self)
-        return trader
+    def _register_trader(self) -> Trader:
+        return Trader(root=self)
 
-    async def init(self, is_sim=False):
+    async def _init(self, is_sim=False) -> "TradingEngine":
         await self.market_history.load_history()
-        if self.config.run_exchange_api and not is_sim:
+        if self.config.run_live and not is_sim:
             self.exchange_ws.ws_priv_run()
         return self
 
-    def run_ws_updater(self, run_in_jupyter=False):
+    def _market_live_updates(self, run_in_jupyter=False) -> None:
         if not run_in_jupyter:
             loop_ws_updater = asyncio.new_event_loop()
             asyncio.set_event_loop(loop_ws_updater)
         self.exchange_ws.ws_run()
 
-    def run(self):
-        asyncio.run(self.init())
-        if self.config.keep_updated:
-            self.run_ws_updater()
+    #############
+    # Run modes #
+    #############
+
+    def run(self) -> "TradingEngine":
+        asyncio.run(self._init())
+        if self.config.update_mode == "live":
+            self._market_live_updates()
         return self
 
-    def run_sim(self, optuna_config=None, pre_process=None, buy_strategy=None, sell_strategy=None):
+    def run_sim(self, pre_process=None, buy_strategy=None, sell_strategy=None) -> dict[str, int | np.ndarray]:
         monkey_patch(self, buy_strategy, sell_strategy)
-        asyncio.run(self.init(is_sim=True))
-        if optuna_config is None:
-            sim_result = simulator.run(self, pre_process=pre_process)
-        else:
-            sim_result = hyperparam_search.run(self, optuna_config)
-        return sim_result
+        asyncio.run(self._init(is_sim=True))
+        return simulator.run(self, pre_process=pre_process)
 
-    async def run_jupyter(self):
+    def run_sim_optuna(
+        self, optuna_config=None, pre_process=None, buy_strategy=None, sell_strategy=None
+    ) -> optuna.Study:
+        monkey_patch(self, buy_strategy, sell_strategy)
+        asyncio.run(self._init(is_sim=True))
+        return hyperparam_search.run(self, optuna_config)
+
+    ##############################
+    # Jupyter specific run modes #
+    ##############################
+
+    async def run_jupyter(self) -> "TradingEngine":
         await self.market_history.load_history()
-        if self.config.run_exchange_api:
+        if self.config.run_live:
             self.exchange_ws.ws_priv_run()
-        if self.config.keep_updated:
-            self.run_ws_updater(run_in_jupyter=True)
+        if self.config.update_mode == "live":
+            self._market_live_updates(run_in_jupyter=True)
         return self
 
-    async def run_sim_jupyter(self, optuna_config=None, pre_process=None, buy_strategy=None, sell_strategy=None):
+    # add type hints to the function run_sim_jupyter()
+    async def run_sim_optuna_jupyter(
+        self, optuna_config=None, pre_process=None, buy_strategy=None, sell_strategy=None
+    ) -> optuna.Study:
         monkey_patch(self, buy_strategy, sell_strategy)
         await self.market_history.load_history()
-        if optuna_config is None:
-            sim_result = simulator.run(self, pre_process=pre_process)
-        else:
-            sim_result = hyperparam_search.run(self, optuna_config)
-        return sim_result
+        return hyperparam_search.run(self, optuna_config)

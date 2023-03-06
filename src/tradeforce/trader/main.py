@@ -127,7 +127,7 @@ class Trader:
         ]
         for sold_order in sold_orders:
             self.log.info(
-                "Sold order of %s (id:%s gid:%s) has been converted to closed order.",
+                "Sold order of %s (id:%s gid:%s) has been converted to closed order",
                 sold_order["symbol"],
                 sold_order["id"],
                 sold_order["gid"],

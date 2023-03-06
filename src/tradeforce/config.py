@@ -1,16 +1,21 @@
-"""_summary_
+"""Config module for tradeforce package.
+Loads config dict or config.yaml file and stores it in a Config class
+which can get passed to all other modules, classes and functions.
 """
 
 import yaml
+from tradeforce.utils import candle_interval_to_min
 
 
-def load_yaml_config():
+def load_yaml_config() -> dict:
+    """Load config.yaml file"""
     with open("config.yaml", "r", encoding="utf8") as stream:
         yaml_config = yaml.safe_load(stream)
-    return yaml_config
+    return dict(yaml_config)
 
 
-def flatten_dict(input_dict):
+def flatten_dict(input_config_dict: dict) -> dict:
+    """Flatten nested config dict to one single level dict"""
     output_dict = {}
 
     def flatten(input_dict, key=""):
@@ -20,12 +25,23 @@ def flatten_dict(input_dict):
         else:
             output_dict[key] = input_dict
 
-    flatten(input_dict)
-    return output_dict
+    flatten(input_config_dict)
+    return dict(output_dict)
+
+
+def hours_to_increments(hours: int, candle_interval: str) -> int:
+    """Convert hours to increments corresponding to candle_interval.
+    One increment is one candle timestep. e.g. 1h = 60min = 12 candles
+    """
+    candle_interval_min = candle_interval_to_min(candle_interval)
+    return int(hours * 60 // candle_interval_min)
 
 
 class Config:
-    """_summary_"""
+    """The Config class is used to load and store the user config.
+    It gets passed to all other classes and allows us to access them via self.config.<config_key>
+    Provides default values to fall back on if param is not specified in user config.
+    """
 
     # TODO: Add sanity check
     def __init__(self, root, config_input):
@@ -33,24 +49,25 @@ class Config:
         config_type = "config.yaml" if config_input is None else "dict"
         self.log.info("Loading config via %s", config_type)
 
+        # Load config.yaml file if no config dict is provided
         if config_input is None:
             config_input = load_yaml_config()
 
         config_input = flatten_dict(config_input)
 
+        # Set all config values as attributes. This ensures that user defined config keys are also accessible.
         for config_key, config_val in config_input.items():
             setattr(self, config_key, config_val)
 
-        # Default values to fall back on if param is not specified in user config
+        # If not specified, use default value.
         self.working_dir = config_input.get("working_dir", None)
-        self.update_history = config_input.get("update_history", False)
-        self.run_exchange_api = config_input.get("run_exchange_api", False)
-        self.keep_updated = config_input.get("keep_updated", False)
+        self.run_live = config_input.get("run_live", False)
+        self.update_mode = config_input.get("update_mode", "None").lower()
 
         self.exchange = config_input.get("exchange", "bitfinex")
-        self.load_history_via = config_input.get("load_history_via", "feather").lower()
-        self.check_db_consistency = config_input.get("check_db_consistency", False)
-        self.dump_to_feather = config_input.get("dump_to_feather", False)
+        self.force_source = config_input.get("force_source", "none").lower()
+        self.check_db_consistency = config_input.get("check_db_consistency", True)
+        self.local_cache = config_input.get("local_cache", True)
         self.candle_interval = config_input.get("candle_interval", "5min")
         self.base_currency = config_input.get("base_currency", "USD")
         self.history_timeframe = config_input.get("history_timeframe", "120days")
@@ -58,13 +75,15 @@ class Config:
         self.backend_host = config_input.get("backend_host", "localhost:1234")
         self.backend_user = config_input.get("backend_user", None)
         self.backend_password = config_input.get("backend_password", None)
-        self.mongo_exchange_db = config_input.get("mongo_exchange_db", "bitfinex_db")
-        self.mongo_collection = config_input.get("mongo_collection", "bfx_history")
+        self.backend_db = config_input.get("backend_db", f"{self.exchange}_db")
+        self.backend_table_collection = config_input.get("name", f"{self.exchange}_history_{self.history_timeframe}")
+
         self.creds_path = config_input.get("creds_path", "")
         self.relevant_assets_cap = config_input.get("relevant_assets_cap", 100)
 
         self.trader_id = config_input.get("id", 1)
-        self.window = config_input.get("window", 20) * 60 // 5
+        self.moving_window_hours = config_input.get("moving_window_hours", 20)
+        self.moving_window_increments = hours_to_increments(self.moving_window_hours, self.candle_interval)
         self.budget = float(config_input.get("budget", 0))
         self.buy_opportunity_factor = config_input.get("buy_opportunity_factor", 0.0)
         self.buy_opportunity_boundary = config_input.get("buy_opportunity_boundary", 0.02)
@@ -87,6 +106,7 @@ class Config:
         self.sim_start_delta = config_input.get("sim_start_delta", None)
         self.sim_timeframe = config_input.get("sim_timeframe", None)
 
+        # Following assets are either stable coins or not tradable without verification on bitfinex
         self.assets_excluded = [
             "UDC",
             "UST",
@@ -107,17 +127,19 @@ class Config:
         ]
 
     def to_dict(self, for_sim=True):
+        """Return a dict of the Config object's attributes.
+        If for_sim is True, exclude attributes that are not used in the simulator (and not convertable to float).
+        """
         attr_to_dict = self.__dict__
         sim_dict_exclusions = [
             "log",
             "working_dir",
-            "update_history",
-            "run_exchange_api",
-            "keep_updated",
+            "run_live",
+            "update_mode",
             "exchange",
-            "load_history_via",
+            "force_source",
             "check_db_consistency",
-            "dump_to_feather",
+            "local_cache",
             "candle_interval",
             "base_currency",
             "history_timeframe",
@@ -125,8 +147,9 @@ class Config:
             "backend_host",
             "backend_user",
             "backend_password",
-            "mongo_exchange_db",
-            "mongo_collection",
+            "backend_db",
+            "name",
+            "backend_table_collection",
             "creds_path",
             "relevant_assets_cap",
             "id",

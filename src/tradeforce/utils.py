@@ -12,20 +12,25 @@ import tradeforce.simulator.default_strategies as strategies
 
 
 def get_col_names(idx: pd.Index, specific_col: str = "") -> list[str]:
+    """Get column names from Index of a DataFrame or Series"""
     return pd.unique(
         [f"{symbol.split('_')[0]}{'_' if specific_col else ''}{specific_col}" for symbol in list(idx)]
     ).tolist()
 
 
 def ms_to_ns(t_ms):
+    """Convert milliseconds to nanoseconds"""
     return t_ms * 10**6
 
 
 def ns_to_ms(t_ns):
+    """Convert nanoseconds to milliseconds"""
     return np.int64(t_ns // 10**6)
 
 
 def convert_symbol_str(symbol_input, to_exchange, base_currency="USD", with_trade_prefix=True, exchange="bitfinex"):
+    """Convert symbol string to exchange format and vice versa.
+    "with_trade_prefix" is only relevant for bitfinex e.g. BTCUSD -> tBTCUSD"""
     symbol_input = np.array([symbol_input]).flatten()
     if exchange == "bitfinex":
         if to_exchange:
@@ -43,19 +48,30 @@ def convert_symbol_str(symbol_input, to_exchange, base_currency="USD", with_trad
     return symbol_output
 
 
-def get_timedelta(delta="", unit=None):
+def get_timedelta(delta: str = "", unit=None):
+    """Get timedelta object and timestamp from string.
+    E.g. "1h" -> {"datetime": pd.Timedelta("1h"), "timestamp": 3600000}
+    unit: "s", "ms", "us", "ns" or "D", "h", "m", "s", "ms", "us", "ns"
+    """
     delta_datetime = pd.Timedelta(delta, unit=unit)
     delta_timestamp = ns_to_ms(delta_datetime.value)
     return {"datetime": delta_datetime, "timestamp": delta_timestamp}
 
 
 def get_now():
+    """Get current datetime and timestamp in UTC.
+    E.g. {"datetime": pd.Timestamp("2023-01-01 00:00:00"), "timestamp":1672531200000}
+    """
     now_datetime = pd.Timestamp.now(tz="UTC")
     now_timestamp = ns_to_ms(now_datetime.value)
     return {"datetime": now_datetime, "timestamp": now_timestamp}
 
 
 def get_time_minus_delta(timestamp=None, delta=""):
+    """Get datetime and timestamp in UTC minus delta time.
+    E.g. get_time_minus_delta(timestamp=1672531200000, delta="1h") ->
+    {"datetime": pd.Timestamp("2023-01-01 00:00:00"), "timestamp":1672531200000}
+    """
     if timestamp:
         start_time = {"timestamp": timestamp, "datetime": pd.to_datetime(timestamp, unit="ms", utc=True)}
     else:
@@ -68,6 +84,8 @@ def get_time_minus_delta(timestamp=None, delta=""):
 
 
 def get_df_datetime_index(timeframe, freq="5min"):
+    """Get a DataFrame datetime index with given timeframe and frequency.
+    Can be utilized to create a ground truth to compare to and thus find differences (+missing data)."""
     datetime_index = pd.date_range(
         start=timeframe["start_datetime"],
         end=timeframe["end_datetime"],
@@ -81,6 +99,9 @@ def get_df_datetime_index(timeframe, freq="5min"):
 
 
 def load_credentials(creds_path):
+    """Load API credentials from credential config file.
+    Returns None if file is not found or credentials are not valid.
+    """
     creds_store = ConfigParser()
     credentials = {}
     try:
@@ -93,6 +114,9 @@ def load_credentials(creds_path):
 
 
 def connect_api(creds_path, api_type=None):
+    """Connect to Bitfinex API.
+    Returns None if credentials are not valid.
+    """
     credentials = load_credentials(creds_path)
     bfx_api = None
     if credentials is not None and api_type == "priv":
@@ -109,12 +133,48 @@ def connect_api(creds_path, api_type=None):
 
 
 def calc_fee(config, volume_crypto, price_current, order_type):
+    """Calculate fees for buy and sell orders.
+    exchange_fee is either taker or maker fee depending on order type."""
     volume_crypto = abs(volume_crypto)
     exchange_fee = config.taker_fee if order_type == "buy" else config.maker_fee
     amount_fee_crypto = (volume_crypto / 100) * exchange_fee
     volume_crypto_incl_fee = volume_crypto - amount_fee_crypto
     amount_fee_fiat = np.round(amount_fee_crypto * price_current, 3)
     return volume_crypto_incl_fee, amount_fee_crypto, amount_fee_fiat
+
+
+def monkey_patch(root, buy_strategy, sell_strategy) -> None:
+    """Monkey patch user defined buy and sell strategies if provided"""
+    if buy_strategy is not None:
+        root.log.info("Custom buy_strategy loaded")
+        # nb.njit(cache=False)(buy_strategy)
+        strategies.buy_strategy = buy_strategy
+    else:
+        root.log.info("Default buy_strategy loaded")
+
+    if sell_strategy is not None:
+        root.log.info("Custom sell_strategy loaded")
+        # nb.njit(cache=False)(sell_strategy)
+        strategies.sell_strategy = sell_strategy
+    else:
+        root.log.info("Default buy_strategy loaded")
+
+
+def candle_interval_to_min(candle_interval: str) -> int:
+    """Convert candle interval to minutes"""
+    candle_intervals = {
+        "5m": 5,
+        "15m": 15,
+        "30m": 30,
+        "1h": 60,
+        "3h": 180,
+        "6h": 360,
+        "12h": 720,
+        "1d": 1440,
+        "3d": 4320,
+        "1w": 10080,
+    }
+    return candle_intervals.get(candle_interval, 5)
 
 
 # TODO: Following functions are not currently used. Check relevance
@@ -143,6 +203,7 @@ def get_metric_labels():
 
 
 def convert_sim_items(input_array, asset_names):
+    """Converts simulation items to dictionary for easier access"""
     metric_labels = get_metric_labels()
     array_map = {
         metric_labels[0]: asset_names[int(input_array[0])],
@@ -179,22 +240,6 @@ def get_sim_metrics_df(sim_trades_history_array, market_history_instance):
         ["asset_idx", "row_index_buy", "row_index_sell", "buy_orders", "tt_sell"]
     ] = sim_trades_history_df[["asset_idx", "row_index_buy", "row_index_sell", "buy_orders", "tt_sell"]].astype(int)
     return sim_trades_history_df
-
-
-def monkey_patch(root, buy_strategy, sell_strategy):
-    if buy_strategy is not None:
-        root.log.info("Custom buy_strategy loaded.")
-        # nb.njit(cache=False)(buy_strategy)
-        strategies.buy_strategy = buy_strategy
-    else:
-        root.log.info("Default buy_strategy loaded.")
-
-    if sell_strategy is not None:
-        root.log.info("Custom sell_strategy loaded.")
-        # nb.njit(cache=False)(sell_strategy)
-        strategies.sell_strategy = sell_strategy
-    else:
-        root.log.info("Default buy_strategy loaded.")
 
 
 # def get_snapshot_indices(snapshot_idx_boundary, snapshot_amount=10, snapshot_size=10000):

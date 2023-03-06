@@ -60,7 +60,7 @@ def get_asset_performance_metrics(df_input):
 
 async def get_init_relevant_assets(root, capped=-1):
     # 34 days ~ 10000 candles limit
-    root.log.info("Analyzing market for relevant assets..")
+    root.log.info("Analyzing market for relevant assets...")
     init_market_history = await root.market_updater_api.update_market_history(init_timespan="34days")
     df_relevant_assets_metrics = get_asset_performance_metrics(init_market_history).query(
         "amount_candles > 2000 & candle_density < 500"
@@ -113,13 +113,13 @@ def get_asset_volatility(df_input):
     ).sort_values()
 
 
-def get_asset_buy_performance(root, history_window=1800, timestamp=None):
-    start = -1 * history_window
+def get_asset_buy_performance(root, moving_window_increments=1800, timestamp=None):
+    start = -1 * moving_window_increments
     end = None
     idx_type = "iloc"
     if timestamp is not None:
         idx_type = "loc"
-        start = timestamp - (history_window * 300000)
+        start = timestamp - (moving_window_increments * 300000)
         end = timestamp
     market_window_pct_change = root.market_history.get_market_history(
         start=start,
@@ -132,13 +132,13 @@ def get_asset_buy_performance(root, history_window=1800, timestamp=None):
         uniform_cols=True,
     )
     tollerance = 5
-    if len(market_window_pct_change) + tollerance < history_window:
-        difference = history_window - len(market_window_pct_change)
+    if len(market_window_pct_change) + tollerance < moving_window_increments:
+        difference = moving_window_increments - len(market_window_pct_change)
         root.log.warning(
             "Missing %s candle entries to calculate the asset performance with set "
-            + "'history_window'=%s Check DB consistency if the number of missing candles grows.",
+            + "'moving_window_increments'=%s Check DB consistency if the number of missing candles grows.",
             str(difference),
-            str(history_window // 60 * 5),
+            str(moving_window_increments),
         )
     buy_performance = market_window_pct_change.sum()
     return buy_performance

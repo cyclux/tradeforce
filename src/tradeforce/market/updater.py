@@ -137,7 +137,7 @@ class MarketUpdater:
                 )
         else:
             self.log.info(
-                "Update request too early. Frequency is %s. Wait at least %s min for next try.",
+                "Update request too early. Frequency is %s. Wait at least %s min for next try!",
                 self.config.candle_interval,
                 int(abs(timeframe["ms_until_wait_over"]) / 1000 // 60),
             )
