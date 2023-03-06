@@ -24,17 +24,19 @@ config = {
         },
     },
     "backend": {
-        "backend": "mongodb",
-        "backend_host": "localhost:1234",
-        "local_cache": True,
+        "dbms": "mongodb",
+        "dbms_host": "localhost",
+        "dbms_port": 1234,
+        "local_cache": False,
     },
     "market_history": {
-        "name": "bfx_history_60d",
+        "name": "bfx_history_2y",
         "exchange": "bitfinex",
         "base_currency": "USD",
         "candle_interval": "5min",
         "history_timeframe": "720days",
         "update_mode": "live",  # none, once or live
+        # "force_source": "local_cache",
     },
 }
 

@@ -27,10 +27,17 @@ tradeforce_config = {
         },
     },
     "backend": {
-        "backend": "mongodb",
-        "backend_host": "localhost:1234",
+        "dbms": "mongodb",
+        "dbms_host": "localhost",
+        "dbms_port": 1234,
         "local_cache": True,
     },
+    # "backend": {
+    #     "dbms": "postgresql",
+    #     "dbms_host": "localhost:1234",
+    #     "dbms_port": 1234,
+    #     "local_cache": False,
+    # },
     "market_history": {
         "name": "bfx_history_2y",
         "exchange": "bitfinex",
@@ -38,7 +45,7 @@ tradeforce_config = {
         "candle_interval": "5min",
         "history_timeframe": "720days",
         "update_mode": "None",
-        "force_source": "local_cache",
+        "force_source": "mongodb",
     },
     "simulation": {
         "snapshot_size": 100000,

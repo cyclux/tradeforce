@@ -11,7 +11,9 @@ import optuna
 from typing import Any
 from tradeforce.simulator import hyperparam_search
 from tradeforce.config import Config
-from tradeforce.market.backend import Backend
+
+# from tradeforce.backend import Backend
+from tradeforce.backend import BackendMongoDB, BackendSQL
 from tradeforce.market.history import MarketHistory
 from tradeforce.market.updater import MarketUpdater
 from tradeforce.exchange.api import ExchangeAPI
@@ -49,8 +51,12 @@ class TradingEngine:
     def _register_config(self, user_config: dict) -> Config:
         return Config(root=self, config_input=user_config)
 
-    def _register_backend(self) -> Backend:
-        return Backend(root=self)
+    def _register_backend(self) -> BackendMongoDB | BackendSQL | None:
+        if self.config.dbms == "postgresql":
+            return BackendSQL(root=self)
+        if self.config.dbms == "mongodb":
+            return BackendMongoDB(root=self)
+        return None
 
     def _register_updater(self) -> MarketUpdater:
         return MarketUpdater(root=self)

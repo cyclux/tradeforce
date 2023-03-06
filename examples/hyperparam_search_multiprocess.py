@@ -25,8 +25,8 @@ config = {
         },
     },
     "backend": {
-        "backend": "mongodb",
-        "backend_host": "localhost:1234",
+        "dbms": "mongodb",
+        "dbms_host": "localhost:1234",
         "local_cache": True,
     },
     "market_history": {

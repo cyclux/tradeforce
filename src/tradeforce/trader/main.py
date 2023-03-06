@@ -32,7 +32,7 @@ class Trader:
     def new_order(self, order, order_type):
         order_obj = getattr(self, order_type)
         order_obj.append(order)
-        if self.config.use_backend:
+        if self.config.use_dbms:
             db_response = self.root.backend.order_new(order.copy(), order_type)
             if not db_response:
                 self.log.error("Backend DB insert order failed!")
@@ -42,7 +42,7 @@ class Trader:
         order_obj[:] = [o for o in order_obj if o.get("buy_order_id") != order["buy_order_id"]]
         order_obj.append(order)
 
-        if self.config.use_backend:
+        if self.config.use_dbms:
             db_response = self.root.backend.order_edit(order.copy(), order_type)
             if not db_response:
                 self.log.error("Backend DB edit order failed!")
@@ -51,7 +51,7 @@ class Trader:
         # Delete from internal mirror of DB
         order_obj = getattr(self, order_type)
         order_obj[:] = [o for o in order_obj if o.get("asset") != order["asset"]]
-        if self.config.use_backend:
+        if self.config.use_dbms:
             db_response = self.root.backend.order_del(order.copy(), order_type)
             if not db_response:
                 self.log.error("Backend DB delete order failed!")

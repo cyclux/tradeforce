@@ -71,12 +71,13 @@ class Config:
         self.candle_interval = config_input.get("candle_interval", "5min")
         self.base_currency = config_input.get("base_currency", "USD")
         self.history_timeframe = config_input.get("history_timeframe", "120days")
-        self.backend = config_input.get("backend", "mongodb").lower()
-        self.backend_host = config_input.get("backend_host", "localhost:1234")
-        self.backend_user = config_input.get("backend_user", None)
-        self.backend_password = config_input.get("backend_password", None)
-        self.backend_db = config_input.get("backend_db", f"{self.exchange}_db")
-        self.backend_table_collection = config_input.get("name", f"{self.exchange}_history_{self.history_timeframe}")
+        self.dbms = config_input.get("dbms", "mongodb").lower()
+        self.dbms_host = config_input.get("dbms_host", "localhost")
+        self.dbms_port = config_input.get("dbms_port", "1234")
+        self.dbms_user = config_input.get("dbms_user", None)
+        self.dbms_pw = config_input.get("dbms_pw", None)
+        self.dbms_db = config_input.get("dbms_db", f"{self.exchange}_db")
+        self.dbms_table_or_coll_name = config_input.get("name", f"{self.exchange}_history_{self.history_timeframe}")
 
         self.creds_path = config_input.get("creds_path", "")
         self.relevant_assets_cap = config_input.get("relevant_assets_cap", 100)
@@ -97,7 +98,7 @@ class Config:
         self.investment_cap = config_input.get("investment_cap", 0)
         self.maker_fee = config_input.get("maker_fee", 0.10)
         self.taker_fee = config_input.get("taker_fee", 0.20)
-        self.use_backend = config_input.get("use_backend", True)
+        self.use_dbms = config_input.get("use_dbms", True)
         self.is_simulation = config_input.get("dry_run", False)
         # Simulator specific
         self.index_start = config_input.get("index_start", 0)
@@ -143,17 +144,17 @@ class Config:
             "candle_interval",
             "base_currency",
             "history_timeframe",
-            "backend",
-            "backend_host",
-            "backend_user",
-            "backend_password",
-            "backend_db",
+            "dbms",
+            "dbms_host",
+            "dbms_user",
+            "dbms_pw",
+            "dbms_db",
             "name",
-            "backend_table_collection",
+            "dbms_table_or_coll_name",
             "creds_path",
             "relevant_assets_cap",
             "id",
-            "use_backend",
+            "use_dbms",
             "dry_run",
             "is_simulation",
             "assets_excluded",

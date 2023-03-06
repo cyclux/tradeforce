@@ -83,7 +83,7 @@ class MarketHistory:
         )
         Path(self.path_local_cache).mkdir(parents=True, exist_ok=True)
         self.local_cache_filename = (
-            f"{self.config.exchange}_{self.config.base_currency}_{self.config.backend_table_collection}.arrow"
+            f"{self.config.exchange}_{self.config.base_currency}_{self.config.dbms_table_or_coll_name}.arrow"
         )
 
     async def load_history(self) -> pd.DataFrame:
@@ -136,7 +136,7 @@ class MarketHistory:
             cursor = self.root.backend.mongo_exchange_coll.find({}, sort=[("t", 1)], projection={"_id": False})
             self.df_market_history = pd.DataFrame(list(cursor))
         else:
-            self.log.info("MongoDB collection '%s' does not exist!", self.config.backend_table_collection)
+            self.log.info("MongoDB collection '%s' does not exist!", self.config.dbms_table_or_coll_name)
         if not self.df_market_history.empty:
             self.config.force_source = "mongodb"
             try_next_method = False
@@ -307,7 +307,7 @@ class MarketHistory:
         latest_candle_timestamp = 0
         if not self.df_market_history.empty:
             latest_candle_timestamp = int(self.df_market_history.index[idx])
-        elif self.config.backend == "mongodb" and not self.root.backend.is_collection_new:
+        elif self.config.dbms == "mongodb" and not self.root.backend.is_collection_new:
             sort_id = -1 if position == "latest" else 1
             cursor = self.root.backend.mongo_exchange_coll.find({}, sort=[("t", sort_id)], skip=skip, limit=1)
             latest_candle_timestamp = int(cursor[0]["t"])

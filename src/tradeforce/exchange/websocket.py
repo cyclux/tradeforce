@@ -191,7 +191,7 @@ class ExchangeWebsocket:
         ):
             self.prevent_race_condition_list.append(self.current_candle_timestamp)
             self.log.info(
-                "New candle received [timestamp: %s] - Saved to %s", self.last_candle_timestamp, self.config.backend
+                "New candle received [timestamp: %s] - Saved to %s", self.last_candle_timestamp, self.config.dbms
             )
             candle_cache_size = len(self.ws_candle_cache.keys())
             candles_last_timestamp = self.ws_candle_cache.get(self.last_candle_timestamp, {})
@@ -207,7 +207,9 @@ class ExchangeWebsocket:
             self.root.backend.db_add_history(df_history_update)
 
             if self.root.exchange_api.bfx_api_priv is not None:
+                print(self.root.exchange_api.bfx_api_priv)
                 await self.root.trader.check_sold_orders()
+            # TODO: Check if is_simulation is needed
             if not self.history_sync_patch_running and not self.config.is_simulation:
                 await self.root.trader.update()
                 current_total_profit = self.root.trader.get_profit()
