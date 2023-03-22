@@ -2,13 +2,18 @@
 
 """
 
+from __future__ import annotations
 from configparser import ConfigParser
 import numpy as np
 import pandas as pd
-
+from typing import TYPE_CHECKING
 from bfxapi import Client  # type: ignore
 from bfxapi.constants import WS_HOST, PUB_WS_HOST, REST_HOST, PUB_REST_HOST  # type: ignore
 import tradeforce.simulator.default_strategies as strategies
+
+# Prevent circular import for type checking
+if TYPE_CHECKING:
+    from tradeforce import TradingEngine
 
 
 def get_col_names(idx: pd.Index, specific_col: str = "") -> list[str]:
@@ -18,14 +23,14 @@ def get_col_names(idx: pd.Index, specific_col: str = "") -> list[str]:
     ).tolist()
 
 
-def ms_to_ns(t_ms):
+def ms_to_ns(t_ms: int):
     """Convert milliseconds to nanoseconds"""
-    return t_ms * 10**6
+    return int(t_ms * 10**6)
 
 
-def ns_to_ms(t_ns):
+def ns_to_ms(t_ns: int | np.ndarray) -> int | np.ndarray:
     """Convert nanoseconds to milliseconds"""
-    return np.int64(t_ns // 10**6)
+    return t_ns // 10**6
 
 
 def convert_symbol_str(symbol_input, to_exchange, base_currency="USD", with_trade_prefix=True, exchange="bitfinex"):
@@ -113,7 +118,7 @@ def load_credentials(creds_path):
     return credentials
 
 
-def connect_api(creds_path, api_type=None):
+def connect_api(creds_path, api_type=None) -> Client | None:
     """Connect to Bitfinex API.
     Returns None if credentials are not valid.
     """
@@ -143,7 +148,7 @@ def calc_fee(config, volume_crypto, price_current, order_type):
     return volume_crypto_incl_fee, amount_fee_crypto, amount_fee_fiat
 
 
-def monkey_patch(root, buy_strategy, sell_strategy) -> None:
+def monkey_patch(root: TradingEngine, buy_strategy, sell_strategy) -> None:
     """Monkey patch user defined buy and sell strategies if provided"""
     if buy_strategy is not None:
         root.log.info("Custom buy_strategy loaded")
@@ -177,7 +182,24 @@ def candle_interval_to_min(candle_interval: str) -> int:
     return candle_intervals.get(candle_interval, 5)
 
 
+def drop_dict_na_values(record, dbms):
+    """Drop all values from dict that are NaN"""
+    # In postgres insert_many operations require same length for all entries
+    if dbms == "postgresql":
+        return record
+        # return {key: record[key] for key in record if not pd.isna(record[key])}
+    return {key: record[key] for key in record if not pd.isna(record[key])}
+
+
 # TODO: Following functions are not currently used. Check relevance
+
+
+def get_filtered_from_nan(payload_insert) -> dict:
+    for entry in payload_insert:
+        payload_insert = {items[0]: items[1] for items in entry.items() if pd.notna(items[1])}
+    return payload_insert
+
+
 def get_metric_labels():
     metric_labels = [
         "asset_idx",

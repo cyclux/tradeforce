@@ -4,11 +4,18 @@ Returns:
     _type_: _description_
 """
 
+from __future__ import annotations
 import pandas as pd
-
+from typing import TYPE_CHECKING
+from bfxapi.models.wallet import Wallet  # type: ignore
+from bfxapi.models.subscription import Subscription  # type: ignore
 from tradeforce.utils import convert_symbol_str
 from tradeforce.trader.buys import buy_confirmed
 from tradeforce.trader.sells import sell_confirmed
+
+# Prevent circular import for type checking
+if TYPE_CHECKING:
+    from tradeforce.main import TradingEngine
 
 
 def check_timestamp_difference(log, start=None, end=None, freq="5min"):
@@ -43,20 +50,20 @@ class ExchangeWebsocket:
         _type_: _description_
     """
 
-    def __init__(self, root):
+    def __init__(self, root: TradingEngine):
         self.root = root
         self.config = root.config
         self.log = root.logging.getLogger(__name__)
         self.bfx_api_priv = root.api.get("bfx_api_priv", None)
         self.bfx_api_pub = root.api.get("bfx_api_pub", None)
 
-        self.ws_candle_cache = {}
+        self.ws_candle_cache: dict[int, dict[str, float]] = {}
+        self.asset_candle_subs: dict[str, Subscription] = {}
+        self.prevent_race_condition_cache: list[int] = []
         self.candle_cache_cap = 20
-        self.asset_candle_subs = {}
         self.latest_candle_timestamp = 0
         self.current_candle_timestamp = 0
         self.last_candle_timestamp = 0
-        self.prevent_race_condition_list = []
         self.ws_subs_finished = False
         self.is_set_last_candle_timestamp = False
         self.history_sync_patch_running = False
@@ -87,8 +94,8 @@ class ExchangeWebsocket:
     ######################
 
     def prune_race_condition_prevention_cache(self):
-        if len(self.prevent_race_condition_list) > 3:
-            del self.prevent_race_condition_list[0]
+        if len(self.prevent_race_condition_cache) > 3:
+            del self.prevent_race_condition_cache[0]
 
     def prune_candle_cache(self):
         candles_timestamps = self.ws_candle_cache.keys()
@@ -110,7 +117,7 @@ class ExchangeWebsocket:
     def ws_error(self, ws_error):
         self.log.error("ws_error: %s", str(ws_error))
 
-    def ws_is_subscribed(self, ws_subscribed):
+    def ws_is_subscribed(self, ws_subscribed: Subscription):
         symbol = convert_symbol_str(ws_subscribed.symbol, to_exchange=False)
         self.asset_candle_subs[symbol] = ws_subscribed
 
@@ -184,12 +191,12 @@ class ExchangeWebsocket:
                         self.history_sync_patch_running = False
 
         if (
-            self.current_candle_timestamp not in self.prevent_race_condition_list
+            self.current_candle_timestamp not in self.prevent_race_condition_cache
             and self.current_candle_timestamp > self.last_candle_timestamp
             and self.is_set_last_candle_timestamp
             and self.ws_subs_finished
         ):
-            self.prevent_race_condition_list.append(self.current_candle_timestamp)
+            self.prevent_race_condition_cache.append(self.current_candle_timestamp)
             self.log.info(
                 "New candle received [timestamp: %s] - Saved to %s", self.last_candle_timestamp, self.config.dbms
             )
@@ -268,7 +275,7 @@ class ExchangeWebsocket:
         self.root.backend.db_sync_trader_state()
         await self.root.trader.get_min_order_sizes()
 
-    def ws_priv_wallet_update(self, ws_wallet_update):
+    def ws_priv_wallet_update(self, ws_wallet_update: Wallet):
         if ws_wallet_update.currency == self.config.base_currency:
             self.root.trader.set_budget([ws_wallet_update])
         else:

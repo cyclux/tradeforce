@@ -3,8 +3,14 @@ Loads config dict or config.yaml file and stores it in a Config class
 which can get passed to all other modules, classes and functions.
 """
 
+from __future__ import annotations
 import yaml
+from typing import TYPE_CHECKING
 from tradeforce.utils import candle_interval_to_min
+
+# Prevent circular import for type checking
+if TYPE_CHECKING:
+    from tradeforce.main import TradingEngine
 
 
 def load_yaml_config() -> dict:
@@ -44,7 +50,7 @@ class Config:
     """
 
     # TODO: Add sanity check
-    def __init__(self, root, config_input):
+    def __init__(self, root: TradingEngine, config_input):
         self.log = root.logging.getLogger(__name__)
         config_type = "config.yaml" if config_input is None else "dict"
         self.log.info("Loading config via %s", config_type)
@@ -76,6 +82,7 @@ class Config:
         self.dbms_port = config_input.get("dbms_port", "1234")
         self.dbms_user = config_input.get("dbms_user", None)
         self.dbms_pw = config_input.get("dbms_pw", None)
+        self.dbms_connect_db = config_input.get("dbms_connect_db", "postgres")
         self.dbms_db = config_input.get("dbms_db", f"{self.exchange}_db")
         self.dbms_table_or_coll_name = config_input.get("name", f"{self.exchange}_history_{self.history_timeframe}")
 
@@ -148,6 +155,7 @@ class Config:
             "dbms_host",
             "dbms_user",
             "dbms_pw",
+            "dbms_connect_db",
             "dbms_db",
             "name",
             "dbms_table_or_coll_name",

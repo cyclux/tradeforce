@@ -3,12 +3,13 @@ pip install numpy pandas pyarrow pymongo bitfinex-api-py
 websockets tensorflow-probability numexpr Bottleneck numba pyyaml
 """
 
+from __future__ import annotations
 import os
 import logging
 import asyncio
 import numpy as np
 import optuna
-from typing import Any
+from typing import TYPE_CHECKING
 from tradeforce.simulator import hyperparam_search
 from tradeforce.config import Config
 
@@ -22,7 +23,10 @@ from tradeforce.trader import Trader
 from tradeforce.utils import connect_api, monkey_patch
 from tradeforce import simulator
 
+if TYPE_CHECKING:
+    from bfxapi import Client  # type: ignore
 
+# TODO: add support for variable candle_interval
 class TradingEngine:
     """_summary_"""
 
@@ -65,9 +69,9 @@ class TradingEngine:
         working_dir = os.getcwd() if self.config.working_dir is None else self.config.working_dir
         return MarketHistory(root=self, path_current=working_dir)
 
-    def _register_api(self) -> dict[str, Any]:
+    def _register_api(self) -> dict[str, Client | None]:
         api = {}
-        if self.config.update_mode == "live":
+        if self.config.update_mode in ("once", "live"):
             api["bfx_api_pub"] = connect_api(self.config.creds_path, "pub")
         if self.config.run_live:
             api["bfx_api_priv"] = connect_api(self.config.creds_path, "priv")
@@ -104,11 +108,13 @@ class TradingEngine:
             self._market_live_updates()
         return self
 
+    # TODO: add pre_process to monkey_patch
     def run_sim(self, pre_process=None, buy_strategy=None, sell_strategy=None) -> dict[str, int | np.ndarray]:
         monkey_patch(self, buy_strategy, sell_strategy)
         asyncio.run(self._init(is_sim=True))
         return simulator.run(self, pre_process=pre_process)
 
+    # TODO: add pre_process to monkey_patch
     def run_sim_optuna(
         self, optuna_config=None, pre_process=None, buy_strategy=None, sell_strategy=None
     ) -> optuna.Study:
@@ -128,7 +134,7 @@ class TradingEngine:
             self._market_live_updates(run_in_jupyter=True)
         return self
 
-    # add type hints to the function run_sim_jupyter()
+    # TODO: add pre_process to monkey_patch
     async def run_sim_optuna_jupyter(
         self, optuna_config=None, pre_process=None, buy_strategy=None, sell_strategy=None
     ) -> optuna.Study:

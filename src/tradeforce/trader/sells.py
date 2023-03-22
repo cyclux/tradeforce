@@ -1,10 +1,17 @@
 """_summary_
 """
+
+from __future__ import annotations
 import numpy as np
+from typing import TYPE_CHECKING
 from tradeforce.utils import calc_fee, convert_symbol_str
 
+# Prevent circular import for type checking
+if TYPE_CHECKING:
+    from tradeforce.main import TradingEngine
 
-def check_sell_options(root, latest_prices=None, timestamp=None):
+
+def check_sell_options(root: TradingEngine, latest_prices=None, timestamp=None):
     # TODO: Reconsider the "ok_to_sell logic". Maybe adapt/edit price_profit to check if it was already reduced?
     # Also consider future feature of "dynamic price decay"
     sell_options = []
@@ -13,7 +20,7 @@ def check_sell_options(root, latest_prices=None, timestamp=None):
         df_latest_prices = root.market_history.get_market_history(latest_candle=True, metrics=["c"], uniform_cols=True)
         timestamp = df_latest_prices.index[0]
         latest_prices = df_latest_prices.to_dict("records")[0]
-    open_orders = root.trader.get_all_open_orders(raw=True)
+    open_orders = root.trader.get_all_open_orders()
     for open_order in open_orders:
         symbol = open_order["asset"]
         price_current = latest_prices.get(symbol, 0)
@@ -53,7 +60,7 @@ def check_sell_options(root, latest_prices=None, timestamp=None):
     return sell_options
 
 
-async def sell_assets(root, sell_options):
+async def sell_assets(root: TradingEngine, sell_options):
     for sell_option in sell_options:
         open_order = root.trader.get_open_order(asset=sell_option)
         if len(open_order) < 1:
@@ -99,7 +106,7 @@ async def sell_assets(root, sell_options):
                 )
 
 
-async def submit_sell_order(root, open_order):
+async def submit_sell_order(root: TradingEngine, open_order):
     volatility_buffer = 0.00000002
     sell_order = {
         "asset": open_order["asset"],
@@ -112,7 +119,7 @@ async def submit_sell_order(root, open_order):
         root.log.error("Sell order execution failed! -> %s", str(sell_order))
 
 
-def sell_confirmed(root, sell_order):
+def sell_confirmed(root: TradingEngine, sell_order):
     root.log.debug("sell_order confirmed: %s", sell_order)
     asset_symbol = convert_symbol_str(sell_order["symbol"], base_currency=root.config.base_currency, to_exchange=False)
     open_order = root.trader.get_open_order(asset={"asset": asset_symbol, "gid": sell_order["gid"]})

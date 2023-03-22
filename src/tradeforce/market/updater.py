@@ -4,10 +4,15 @@ Returns:
     _type_: _description_
 """
 
+from __future__ import annotations
 from time import sleep, process_time
 from functools import reduce
-
+from typing import TYPE_CHECKING
 import pandas as pd
+
+# Prevent circular import for type checking
+if TYPE_CHECKING:
+    from tradeforce.main import TradingEngine
 
 from tradeforce.utils import (
     get_now,
@@ -17,7 +22,7 @@ from tradeforce.utils import (
 )
 
 
-def append_market_history_update(assets_hist_update, assets_candles, symbol_current):
+def append_market_history_update(assets_hist_update: dict, assets_candles: list, symbol_current: str):
     current_asset = assets_hist_update.get(symbol_current, [])
     current_asset.extend(
         [
@@ -38,7 +43,7 @@ def append_market_history_update(assets_hist_update, assets_candles, symbol_curr
 class MarketUpdater:
     """_summary_"""
 
-    def __init__(self, root):
+    def __init__(self, root: TradingEngine):
         self.root = root
         self.config = root.config
         self.log = root.logging.getLogger(__name__)

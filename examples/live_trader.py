@@ -23,20 +23,38 @@ config = {
             "moving_window_hours": 160,
         },
     },
+    # "backend": {
+    #     "dbms": "mongodb",
+    #     "dbms_host": "localhost",
+    #     "dbms_port": 1234,
+    #     "local_cache": False,
+    # },
+    # "backend": {
+    #     "dbms": "mongodb",
+    #     "dbms_host": "localhost",
+    #     "dbms_port": 27017,
+    #     "dbms_user": "tradeforce",
+    #     "dbms_pw": "tradeforce",
+    #     "dbms_connect_db": "admin",
+    #     "local_cache": False,
+    # },
     "backend": {
-        "dbms": "mongodb",
+        "dbms": "postgresql",
         "dbms_host": "localhost",
-        "dbms_port": 1234,
+        "dbms_port": 5432,
+        "dbms_connect_db": "postgres",
+        "dbms_user": "postgres",
+        "dbms_pw": "postgres",
         "local_cache": False,
     },
     "market_history": {
-        "name": "bfx_history_2y",
+        "name": "bfx_history_docker_60days",
         "exchange": "bitfinex",
         "base_currency": "USD",
         "candle_interval": "5min",
-        "history_timeframe": "720days",
+        "history_timeframe": "60days",
         "update_mode": "live",  # none, once or live
-        # "force_source": "local_cache",
+        # "force_source": "postgresql",
     },
 }
 

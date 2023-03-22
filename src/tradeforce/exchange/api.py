@@ -4,9 +4,15 @@ Returns:
     _type_: _description_
 """
 
+from __future__ import annotations
 import numpy as np
 import pandas as pd
+from typing import TYPE_CHECKING
 from tradeforce.utils import convert_symbol_str, ns_to_ms
+
+# Prevent circular import for type checking
+if TYPE_CHECKING:
+    from tradeforce.main import TradingEngine
 
 
 class ExchangeAPI:
@@ -16,7 +22,7 @@ class ExchangeAPI:
         _type_: _description_
     """
 
-    def __init__(self, root):
+    def __init__(self, root: TradingEngine):
         self.root = root
         self.config = root.config
         self.log = root.logging.getLogger(__name__)
@@ -86,7 +92,7 @@ class ExchangeAPI:
 
         if minus_delta:
             latest_candle = pd.Timestamp(latest_candle_timestamp, unit="ms", tz="UTC") - pd.to_timedelta(minus_delta)
-            latest_candle_timestamp = ns_to_ms(latest_candle.value)
+            latest_candle_timestamp = ns_to_ms(int(latest_candle.value))
         return latest_candle_timestamp
 
     async def get_min_order_sizes(self):

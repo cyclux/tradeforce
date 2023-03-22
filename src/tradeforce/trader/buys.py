@@ -1,19 +1,25 @@
 """_summary_
 """
 
+from __future__ import annotations
 from asyncio import sleep as asyncio_sleep
 import numpy as np
 import pandas as pd
+from typing import TYPE_CHECKING
 from tradeforce.utils import convert_symbol_str
 from tradeforce.market.metrics import get_asset_buy_performance
 from tradeforce.trader.sells import submit_sell_order
 
+# Prevent circular import for type checking
+if TYPE_CHECKING:
+    from tradeforce.main import TradingEngine
 
-def get_significant_digits(num, digits):
+
+def get_significant_digits(num, digits) -> int:
     return round(num, digits - int(np.floor(np.log10(abs(num)))) - 1)
 
 
-def check_buy_options(root, latest_prices=None, timestamp=None):
+def check_buy_options(root: TradingEngine, latest_prices=None, timestamp=None):
     buy_options = []
     if latest_prices is None:
         df_latest_prices = root.market_history.get_market_history(latest_candle=True, metrics=["o"], uniform_cols=True)
@@ -59,7 +65,7 @@ def check_buy_options(root, latest_prices=None, timestamp=None):
     return buy_options
 
 
-async def buy_assets(root, buy_options):
+async def buy_assets(root: TradingEngine, buy_options):
     compensate_rate_limit = bool(len(buy_options) > 9)
     assets_out_of_funds_to_buy = []
     assets_max_amount_bought = []
@@ -134,7 +140,7 @@ async def buy_assets(root, buy_options):
         )
 
 
-async def buy_confirmed(root, buy_order):
+async def buy_confirmed(root: TradingEngine, buy_order) -> None:
     asset_price_profit = get_significant_digits(buy_order.price * root.config.profit_factor, 5)
     buy_order_fee = np.round(abs(buy_order.fee), 5)
     asset_symbol = convert_symbol_str(buy_order.symbol, base_currency=root.config.base_currency, to_exchange=False)

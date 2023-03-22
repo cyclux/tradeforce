@@ -4,10 +4,15 @@ Returns:
     _type_: _description_
 """
 
+from __future__ import annotations
 import numpy as np
 import pandas as pd
+from typing import TYPE_CHECKING
 from tradeforce.utils import get_col_names
 
+# Prevent circular import for type checking
+if TYPE_CHECKING:
+    from tradeforce.main import TradingEngine
 
 ###########################
 # Calculate asset metrics #
@@ -28,12 +33,15 @@ def add_pct_change_cols(assets_history_asset, inplace=True):
 
 
 def aggregate_history(df_input, agg_timeframe="1h"):
+    # TODO: add support for other timeframes than 5min
     amount_five_min_intervals = pd.Timedelta(agg_timeframe).value // 10**9 // 60 // 5
     agg_func_map = {
         "o": lambda row: row[0],
-        "h": np.nanmax,
-        "l": np.nanmin,
-        "c": lambda row: row[-1],
+        # "h": np.nanmax,
+        # "l": np.nanmin,
+        "h": lambda x: np.nanmax(x, initial=-np.inf),  # TODO: check if this is correct:
+        "l": lambda x: np.nanmin(x, initial=np.inf),  # should prevent RuntimeWarning:
+        "c": lambda row: row[-1],  # Degrees of freedom <= 0 for slice.
         "v": np.nansum,
     }
     forward_indexer = pd.api.indexers.FixedForwardWindowIndexer(window_size=amount_five_min_intervals)
@@ -44,6 +52,7 @@ def aggregate_history(df_input, agg_timeframe="1h"):
             df_input.loc[:, candle_type_cols]
             .rolling(window=forward_indexer, step=amount_five_min_intervals, min_periods=1)
             .apply(func, raw=True)
+            .fillna(method="bfill")  # TODO: check if this does not mess up the data
         )
     return pd.concat(relevant_assets_agg_list, axis=1)[df_input.columns]
 
@@ -58,7 +67,7 @@ def get_asset_performance_metrics(df_input):
     return asset_metrics
 
 
-async def get_init_relevant_assets(root, capped=-1):
+async def get_init_relevant_assets(root: TradingEngine, capped=-1):
     # 34 days ~ 10000 candles limit
     root.log.info("Analyzing market for relevant assets...")
     init_market_history = await root.market_updater_api.update_market_history(init_timespan="34days")
@@ -113,7 +122,7 @@ def get_asset_volatility(df_input):
     ).sort_values()
 
 
-def get_asset_buy_performance(root, moving_window_increments=1800, timestamp=None):
+def get_asset_buy_performance(root: TradingEngine, moving_window_increments=1800, timestamp=None):
     start = -1 * moving_window_increments
     end = None
     idx_type = "iloc"

@@ -2,12 +2,20 @@
 Returns:
     _type_: _description_
 """
+
+from __future__ import annotations
 import sys
 import os
 from pathlib import Path
+import numpy as np
 import pandas as pd
+from typing import TYPE_CHECKING
 from tradeforce.utils import ms_to_ns, get_col_names, ns_to_ms, get_time_minus_delta
 from tradeforce.market.metrics import get_init_relevant_assets
+
+# Prevent circular import for type checking
+if TYPE_CHECKING:
+    from tradeforce import TradingEngine
 
 
 def get_pct_change(df_history: pd.DataFrame, pct_first_row: int, as_factor: bool = True) -> pd.DataFrame:
@@ -30,9 +38,8 @@ def get_timestamp_intervals(start: int, end: int) -> list[tuple[int, int]]:
     timestamp_intervals = [(-1, -1)]
     if start != -1 and end != -1:
         # 50000min == 10000 * 5min -> 10000 max len @ bitfinex api
-        timestamp_list = ns_to_ms(
-            pd.date_range(start=ms_to_ns(start), end=ms_to_ns(end), tz="UTC", freq="50000min").asi8
-        ).tolist()
+        timestamp_array = ns_to_ms(pd.date_range(ms_to_ns(start), ms_to_ns(end), tz="UTC", freq="50000min").asi8)
+        timestamp_list = np.array(timestamp_array).tolist()
         if timestamp_list[-1] != end:
             timestamp_list.append(end)
         timestamp_intervals = list(zip(timestamp_list, timestamp_list[1:]))
@@ -67,7 +74,7 @@ class MarketHistory:
         _type_: _description_
     """
 
-    def __init__(self, root, path_current=None, path_history_dumps=None):
+    def __init__(self, root: TradingEngine, path_current=None, path_history_dumps=None):
 
         self.root = root
         self.config = root.config
@@ -82,9 +89,7 @@ class MarketHistory:
             self.path_current / "data/inputs" if path_history_dumps is None else self.path_current / path_history_dumps
         )
         Path(self.path_local_cache).mkdir(parents=True, exist_ok=True)
-        self.local_cache_filename = (
-            f"{self.config.exchange}_{self.config.base_currency}_{self.config.dbms_table_or_coll_name}.arrow"
-        )
+        self.local_cache_filename = f"{self.config.dbms_table_or_coll_name}.arrow"
 
     async def load_history(self) -> pd.DataFrame:
         load_method = self.config.force_source
@@ -92,7 +97,7 @@ class MarketHistory:
 
         if try_next_method or load_method == "local_cache":
             try_next_method = self.load_via_local_cache(try_next_method)
-        if try_next_method or load_method == "mongodb":
+        if try_next_method or load_method in ("mongodb", "postgresql"):
             try_next_method = self.load_via_backend(try_next_method)
         if try_next_method or load_method == "api":
             try_next_method = await self.load_via_api(try_next_method)
@@ -132,24 +137,38 @@ class MarketHistory:
         return try_next_method
 
     def load_via_backend(self, try_next_method: bool) -> bool:
-        if not self.root.backend.is_collection_new:
-            cursor = self.root.backend.mongo_exchange_coll.find({}, sort=[("t", 1)], projection={"_id": False})
-            self.df_market_history = pd.DataFrame(list(cursor))
+        if not self.root.backend.is_new_coll_or_table:
+            # exchange_market_history =
+            # self.root.backend.exchange_history_table_or_coll.find({}, sort=[("t", 1)], projection={"_id": False})
+            exchange_market_history = self.root.backend.query(self.config.dbms_table_or_coll_name)
+
+            self.df_market_history = pd.DataFrame(exchange_market_history)
         else:
-            self.log.info("MongoDB collection '%s' does not exist!", self.config.dbms_table_or_coll_name)
+            dbms_name = ""
+            if self.config.dbms == "mongodb":
+                dbms_name = "MongoDB Collection"
+            if self.config.dbms == "postgresql":
+                dbms_name = "PostgreSQL Table"
+            self.log.info("%s '%s' does not exist!", dbms_name, self.config.dbms_table_or_coll_name)
         if not self.df_market_history.empty:
-            self.config.force_source = "mongodb"
+            self.config.force_source = self.config.dbms
             try_next_method = False
         return try_next_method
 
     async def load_via_api(self, try_next_method: bool) -> bool:
+
+        if not self.root.exchange_api.bfx_api_pub:
+            sys.exit(
+                f"[ERROR] No local_cache or DB storage found for '{self.config.dbms_table_or_coll_name}'. "
+                + f"No API connection ({self.config.exchange}) to fetch new exchange history: "
+                + "Set update_mode to 'once' or 'live' or check your internet connection."
+            )
         self.log.info("Fetching market history via API from %s.", self.config.exchange)
         if self.root.assets_list_symbols is not None:
             end = await self.root.exchange_api.get_latest_remote_candle_timestamp()
             start = get_time_minus_delta(end, delta=self.config.history_timeframe)["timestamp"]
         else:
-            relevant_assets = await get_init_relevant_assets(self.root, capped=self.config.relevant_assets_cap)
-            self.root.assets_list_symbols = relevant_assets["assets"]
+            relevant_assets = await self.get_init_relevant_assets()
             filtered_assets = [
                 f"{asset}_{metric}" for asset in relevant_assets["assets"] for metric in ["o", "h", "l", "c", "v"]
             ]
@@ -180,12 +199,17 @@ class MarketHistory:
         except (KeyError, ValueError, TypeError, AttributeError):
             pass
 
-        if self.config.force_source in ("api", "mongodb"):
+        if self.config.force_source in ("api", "mongodb", "postgresql"):
             if self.config.local_cache is True:
                 self.save_to_local_cache()
 
         if self.root.assets_list_symbols is None:
             self.get_asset_symbols(updated=True)
+
+        if self.config.dbms:
+            if self.root.backend.is_new_coll_or_table:
+                self.root.backend.create_table.history(self.root.assets_list_symbols)
+                self.root.backend.create_index(self.config.dbms_table_or_coll_name, "t", unique=True)
 
         if self.root.backend.sync_check_needed:
             self.root.backend.db_sync_check()
@@ -302,15 +326,29 @@ class MarketHistory:
             self.root.assets_list_symbols = get_col_names(self.df_market_history.columns)
         return self.root.assets_list_symbols
 
+    async def get_init_relevant_assets(self, capped=None):
+        if capped is None:
+            capped = self.config.relevant_assets_cap
+        relevant_assets = await get_init_relevant_assets(self.root, capped=capped)
+        self.root.assets_list_symbols = relevant_assets["assets"]
+        return relevant_assets
+
     def get_local_candle_timestamp(self, position="latest", skip=0, offset=0):
         idx = (-1 - skip) if position == "latest" else (0 + skip)
         latest_candle_timestamp = 0
         if not self.df_market_history.empty:
             latest_candle_timestamp = int(self.df_market_history.index[idx])
-        elif self.config.dbms == "mongodb" and not self.root.backend.is_collection_new:
+        elif self.config.dbms == "mongodb" and not self.root.backend.is_new_coll_or_table:
             sort_id = -1 if position == "latest" else 1
-            cursor = self.root.backend.mongo_exchange_coll.find({}, sort=[("t", sort_id)], skip=skip, limit=1)
-            latest_candle_timestamp = int(cursor[0]["t"])
+            # cursor = self.root.backend.exchange_history_table_or_coll.find(
+            #     {}, sort=[("t", sort_id)], skip=skip, limit=1
+            # )
+            latest_candle_timestamp = int(
+                self.root.backend.query(self.config.dbms_table_or_coll_name, sort=[("t", sort_id)], skip=skip, limit=1)[
+                    0
+                ]["t"]
+            )
+            # latest_candle_timestamp = int(cursor[0]["t"])
 
         latest_candle_timestamp += offset * 300000
         return latest_candle_timestamp
