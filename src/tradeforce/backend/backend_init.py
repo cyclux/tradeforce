@@ -50,7 +50,7 @@ class Backend:
     # DB checks #
     #############
 
-    def check_db_consistency(self):
+    def check_db_consistency(self) -> bool:
         is_consistent = False
         index = self.get_internal_db_index()
         timeframe = {

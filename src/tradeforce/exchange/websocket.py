@@ -118,7 +118,7 @@ class ExchangeWebsocket:
         self.log.error("ws_error: %s", str(ws_error))
 
     def ws_is_subscribed(self, ws_subscribed: Subscription):
-        symbol = convert_symbol_str(ws_subscribed.symbol, to_exchange=False)
+        symbol = convert_symbol_str(ws_subscribed.symbol, to_exchange=False)[0]
         self.asset_candle_subs[symbol] = ws_subscribed
 
     def ws_unsubscribed(self, ws_unsubscribed):

@@ -1,4 +1,4 @@
-from .main import Backend
+from .backend_init import Backend
 from .mongodb import BackendMongoDB
 from .postgresql import BackendSQL
 

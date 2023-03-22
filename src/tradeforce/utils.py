@@ -7,6 +7,7 @@ from configparser import ConfigParser
 import numpy as np
 import pandas as pd
 from typing import TYPE_CHECKING
+from typing_extensions import TypedDict
 from bfxapi import Client  # type: ignore
 from bfxapi.constants import WS_HOST, PUB_WS_HOST, REST_HOST, PUB_REST_HOST  # type: ignore
 import tradeforce.simulator.default_strategies as strategies
@@ -14,6 +15,9 @@ import tradeforce.simulator.default_strategies as strategies
 # Prevent circular import for type checking
 if TYPE_CHECKING:
     from tradeforce import TradingEngine
+
+TimestampDict = TypedDict("TimestampDict", {"datetime": pd.Timestamp, "timestamp": int})
+TimedeltaDict = TypedDict("TimedeltaDict", {"datetime": pd.Timedelta, "timestamp": int})
 
 
 def get_col_names(idx: pd.Index, specific_col: str = "") -> list[str]:
@@ -28,32 +32,39 @@ def ms_to_ns(t_ms: int):
     return int(t_ms * 10**6)
 
 
-def ns_to_ms(t_ns: int | np.ndarray) -> int | np.ndarray:
+def ns_to_ms(t_ns: int) -> int:
     """Convert nanoseconds to milliseconds"""
     return t_ns // 10**6
 
 
-def convert_symbol_str(symbol_input, to_exchange, base_currency="USD", with_trade_prefix=True, exchange="bitfinex"):
+def ns_to_ms_array(t_ns: np.ndarray) -> np.ndarray:
+    """Convert nanoseconds to milliseconds"""
+    return t_ns // 10**6
+
+
+def convert_symbol_str(
+    symbol_input, to_exchange, base_currency="USD", with_trade_prefix=True, exchange="bitfinex"
+) -> list[str] | np.ndarray:
     """Convert symbol string to exchange format and vice versa.
     "with_trade_prefix" is only relevant for bitfinex e.g. BTCUSD -> tBTCUSD"""
     symbol_input = np.array([symbol_input]).flatten()
-    if exchange == "bitfinex":
-        if to_exchange:
-            t_prefix = "t" if with_trade_prefix else ""
-            symbol_output = [
-                f'{t_prefix}{symbol}{":" if len(symbol) > 3 else ""}{base_currency}' for symbol in symbol_input
-            ]
-        else:
-            symbol_output = symbol_input[[symbol[-3:] == base_currency for symbol in symbol_input]]
-            symbol_output = np.char.replace(symbol_output, f":{base_currency}", base_currency)
-            symbol_output = np.char.replace(symbol_output, base_currency, "")
-            symbol_output = np.char.replace(symbol_output, "t", "")
-    if len(symbol_output) == 1:
-        symbol_output = symbol_output[0]
-    return symbol_output
+    if to_exchange:
+        t_prefix = "t" if with_trade_prefix else ""
+        symbol_output = [
+            f'{t_prefix}{symbol}{":" if len(symbol) > 3 else ""}{base_currency}' for symbol in symbol_input
+        ]
+        return symbol_output
+    else:
+        symbol_output = symbol_input[[symbol[-3:] == base_currency for symbol in symbol_input]]
+        np_symbol_output = np.char.replace(symbol_output, f":{base_currency}", base_currency)
+        np_symbol_output = np.char.replace(symbol_output, base_currency, "")
+        np_symbol_output = np.char.replace(symbol_output, "t", "")
+        # if len(symbol_output) == 1:
+        #     symbol_output = symbol_output[0]
+        return np_symbol_output
 
 
-def get_timedelta(delta: str = "", unit=None):
+def get_timedelta(delta: str = "", unit=None) -> TimedeltaDict:
     """Get timedelta object and timestamp from string.
     E.g. "1h" -> {"datetime": pd.Timedelta("1h"), "timestamp": 3600000}
     unit: "s", "ms", "us", "ns" or "D", "h", "m", "s", "ms", "us", "ns"
@@ -63,7 +74,7 @@ def get_timedelta(delta: str = "", unit=None):
     return {"datetime": delta_datetime, "timestamp": delta_timestamp}
 
 
-def get_now():
+def get_now() -> TimestampDict:
     """Get current datetime and timestamp in UTC.
     E.g. {"datetime": pd.Timestamp("2023-01-01 00:00:00"), "timestamp":1672531200000}
     """
@@ -72,23 +83,30 @@ def get_now():
     return {"datetime": now_datetime, "timestamp": now_timestamp}
 
 
-def get_time_minus_delta(timestamp=None, delta=""):
+def get_time_minus_delta(timestamp: int | None = None, delta="") -> TimestampDict:
     """Get datetime and timestamp in UTC minus delta time.
     E.g. get_time_minus_delta(timestamp=1672531200000, delta="1h") ->
     {"datetime": pd.Timestamp("2023-01-01 00:00:00"), "timestamp":1672531200000}
     """
-    if timestamp:
-        start_time = {"timestamp": timestamp, "datetime": pd.to_datetime(timestamp, unit="ms", utc=True)}
+    if timestamp is not None:
+        start_time: TimestampDict = {
+            "timestamp": timestamp,
+            "datetime": pd.to_datetime(timestamp, unit="ms", utc=True),
+        }
     else:
         start_time = get_now()
     timedelta = get_timedelta(delta=delta)
+
+    datetime = start_time["datetime"] - timedelta["datetime"]
+    timestamp = start_time["timestamp"] - timedelta["timestamp"]
+
     return {
-        "datetime": start_time["datetime"] - timedelta["datetime"],
-        "timestamp": start_time["timestamp"] - timedelta["timestamp"],
+        "datetime": datetime,
+        "timestamp": timestamp,
     }
 
 
-def get_df_datetime_index(timeframe, freq="5min"):
+def get_df_datetime_index(timeframe: dict[str, pd.Timestamp], freq="5min") -> pd.DataFrame:
     """Get a DataFrame datetime index with given timeframe and frequency.
     Can be utilized to create a ground truth to compare to and thus find differences (+missing data)."""
     datetime_index = pd.date_range(
@@ -98,12 +116,11 @@ def get_df_datetime_index(timeframe, freq="5min"):
         name="t",
         inclusive="both",
     ).asi8
-
-    df_datetime_index = pd.DataFrame(ns_to_ms(datetime_index), columns=["t"])
+    df_datetime_index = pd.DataFrame(ns_to_ms_array(datetime_index), columns=["t"])
     return df_datetime_index
 
 
-def load_credentials(creds_path):
+def load_credentials(creds_path) -> dict[str, str] | None:
     """Load API credentials from credential config file.
     Returns None if file is not found or credentials are not valid.
     """
@@ -114,7 +131,7 @@ def load_credentials(creds_path):
         credentials["auth_key"] = creds_store["api_cred"]["auth_key"]
         credentials["auth_sec"] = creds_store["api_cred"]["auth_sec"]
     except (TypeError, KeyError):
-        credentials = None
+        return None
     return credentials
 
 

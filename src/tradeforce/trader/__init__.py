@@ -1,6 +1,6 @@
 """_summary_
 """
-from .main import Trader
+from .trader_init import Trader
 
 __all__ = [
     "Trader",

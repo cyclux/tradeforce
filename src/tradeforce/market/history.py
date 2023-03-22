@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from typing import TYPE_CHECKING
-from tradeforce.utils import ms_to_ns, get_col_names, ns_to_ms, get_time_minus_delta
+from tradeforce.utils import ms_to_ns, get_col_names, ns_to_ms, ns_to_ms_array, get_time_minus_delta
 from tradeforce.market.metrics import get_init_relevant_assets
 
 # Prevent circular import for type checking
@@ -38,7 +38,7 @@ def get_timestamp_intervals(start: int, end: int) -> list[tuple[int, int]]:
     timestamp_intervals = [(-1, -1)]
     if start != -1 and end != -1:
         # 50000min == 10000 * 5min -> 10000 max len @ bitfinex api
-        timestamp_array = ns_to_ms(pd.date_range(ms_to_ns(start), ms_to_ns(end), tz="UTC", freq="50000min").asi8)
+        timestamp_array = ns_to_ms_array(pd.date_range(ms_to_ns(start), ms_to_ns(end), tz="UTC", freq="50000min").asi8)
         timestamp_list = np.array(timestamp_array).tolist()
         if timestamp_list[-1] != end:
             timestamp_list.append(end)

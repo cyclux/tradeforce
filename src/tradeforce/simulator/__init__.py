@@ -1,5 +1,5 @@
 """_summary_
 """
-from .main import run
+from .simulator_init import run
 
 __all__ = ["run"]

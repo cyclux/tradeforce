@@ -98,7 +98,9 @@ class MarketUpdater:
                 sleep(time_elapsed_difference)
         return market_history_update
 
-    def convert_market_history_to_df(self, history_update, timeframe=None):
+    def convert_market_history_to_df(
+        self, history_update, timeframe: None | dict[str, pd.Timestamp] = None
+    ) -> None | pd.DataFrame:
         if not history_update:
             self.log.warning("No market update, cannot create dataframe!")
             return None
