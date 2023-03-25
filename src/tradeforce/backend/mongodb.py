@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 # TODO: self.config.use_dbms is not needed. If self.config.dbms is None, then no DBMS is used??
 
 
-def construct_mongodb_query(query: dict) -> dict:
+def construct_mongodb_query(query: dict | None) -> dict:
     if query is None:
         return {}
     has_in_operator = query.get("in", False)
@@ -85,15 +85,23 @@ class BackendMongoDB(Backend):
             raise ValueError("Provide a collection name. Must not be None!")
         return self.dbms_db[collection_name]
 
-    def query(self, collection_name, query=None, projection=None, sort=None, limit=None, skip=None) -> list:
+    def query(
+        self,
+        collection_name: str,
+        query: dict[str, str | int | list] | None = None,
+        projection: dict[str, bool] | None = None,
+        sort: list[tuple[str, int]] | None = None,
+        limit: int | None = None,
+        skip: int | None = None,
+    ) -> list:
         collection = self.get_collection(collection_name)
         mongo_query = construct_mongodb_query(query)
         if projection is None:
             projection = {"_id": False}
         else:
             projection["_id"] = False
-        if sort is None:
-            sort = [("t", 1)]
+        # if sort is None:
+        #     sort = [("t", 1)]
         if skip is None:
             skip = 0
         if limit is None:
@@ -101,7 +109,10 @@ class BackendMongoDB(Backend):
         return list(collection.find(mongo_query, projection=projection, sort=sort, skip=skip, limit=limit))
         # return list(collection.find(mongo_query, projection=projection).sort(sort).limit(limit))
 
-    def update_one(self, collection_name, query, set_value, upsert=False) -> bool:
+    def update_one(
+        self, collection_name: str, query: dict[str, str | int | list], set_value: str | int | list | dict, upsert=False
+    ) -> bool:
+
         collection = self.get_collection(collection_name)
         mongo_query = construct_mongodb_query(query)
         try:
@@ -112,7 +123,7 @@ class BackendMongoDB(Backend):
             update_success = False
         return update_success
 
-    def insert_one(self, collection_name, payload_insert) -> bool:
+    def insert_one(self, collection_name: str, payload_insert: dict) -> bool:
         collection = self.get_collection(collection_name)
         # if filter_nan:
         #     payload_insert = {items[0]: items[1] for items in payload_insert.items() if pd.notna(items[1])}
@@ -124,7 +135,7 @@ class BackendMongoDB(Backend):
             self.log.error("Insert into DB failed!")
         return insert_ok
 
-    def insert_many(self, collection_name, payload_insert) -> bool:
+    def insert_many(self, collection_name: str, payload_insert: list[dict]) -> bool:
         collection = self.get_collection(collection_name)
         # if filter_nan:
         #     payload_insert = get_filtered_from_nan(payload_insert)

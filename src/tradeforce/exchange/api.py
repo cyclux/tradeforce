@@ -8,7 +8,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 from typing import TYPE_CHECKING
-from tradeforce.utils import convert_symbol_str, ns_to_ms
+from tradeforce.utils import convert_symbol_from_exchange, convert_symbol_to_exchange, ns_to_ms
 
 # Prevent circular import for type checking
 if TYPE_CHECKING:
@@ -35,16 +35,11 @@ class ExchangeAPI:
 
     async def get_active_assets(self, consider_exclude_list=True):
         bfx_active_symbols = await self.bfx_api_pub.rest.fetch("conf/", params="pub:list:pair:exchange")
-        symbols_base_currency = convert_symbol_str(
-            bfx_active_symbols,
-            to_exchange=False,
-            base_currency=self.config.base_currency,
-            exchange=self.config.exchange,
-        )
+        symbols_base_currency = convert_symbol_from_exchange(bfx_active_symbols)
         if consider_exclude_list:
-            assets_list_symbols = list(
-                np.setdiff1d(symbols_base_currency, self.config.assets_excluded, assume_unique=True)
-            )
+            assets_list_symbols = np.setdiff1d(
+                symbols_base_currency, self.config.assets_excluded, assume_unique=True
+            ).tolist()
         else:
             assets_list_symbols = symbols_base_currency
         return assets_list_symbols
@@ -68,11 +63,13 @@ class ExchangeAPI:
         return bfx_asset_stats_formatted
 
     async def get_public_candles(
-        self, symbol=None, base_currency=None, timestamp_start=None, timestamp_end=None, candle_type="hist"
-    ):
-        symbol_bfx = convert_symbol_str(
-            symbol, to_exchange=True, base_currency=base_currency, exchange=self.config.exchange
-        )
+        self,
+        symbol: str,
+        timestamp_start: int | None = None,
+        timestamp_end: int | None = None,
+        candle_type="hist",
+    ) -> list:
+        symbol_bfx = convert_symbol_to_exchange(symbol)[0]
 
         candles = await self.bfx_api_pub.rest.get_public_candles(
             symbol_bfx, start=timestamp_start, end=timestamp_end, section=candle_type, limit=10000, tf="5m", sort=1
@@ -84,9 +81,7 @@ class ExchangeAPI:
 
         latest_candle_timestamp_pool = []
         for indicator in indicator_assets:
-            latest_exchange_candle = await self.get_public_candles(
-                symbol=indicator, base_currency=self.config.base_currency, candle_type="last"
-            )
+            latest_exchange_candle = await self.get_public_candles(symbol=indicator, candle_type="last")
             latest_candle_timestamp_pool.append(int(latest_exchange_candle[0]))
         latest_candle_timestamp = max(latest_candle_timestamp_pool)
 
@@ -98,14 +93,12 @@ class ExchangeAPI:
     async def get_min_order_sizes(self):
         bfx_asset_infos = await self.bfx_api_pub.rest.fetch("conf/", params="pub:info:pair")
         asset_symbols = self.root.market_history.get_asset_symbols()
-        all_asset_symbols = convert_symbol_str(
-            asset_symbols, base_currency="USD", with_trade_prefix=False, to_exchange=True
-        )
+        all_asset_symbols = convert_symbol_to_exchange(asset_symbols, with_t_prefix=False)
         all_asset_symbols_info = [
             asset for asset in bfx_asset_infos[0] if asset[0][-3:] == "USD" and asset[0] in all_asset_symbols
         ]
         asset_min_order_sizes = {
-            convert_symbol_str(asset[0], to_exchange=False): float(asset[1][3]) for asset in all_asset_symbols_info
+            convert_symbol_from_exchange(asset[0])[0]: float(asset[1][3]) for asset in all_asset_symbols_info
         }
         return asset_min_order_sizes
 
@@ -115,9 +108,7 @@ class ExchangeAPI:
 
     async def order(self, order_type, order_payload, update_order=False):
         exchange_result = False
-        bfx_symbol = convert_symbol_str(
-            order_payload["asset"], base_currency=self.config.base_currency, to_exchange=True
-        )
+        bfx_symbol = convert_symbol_to_exchange(order_payload["asset"])[0]
         if order_type == "sell":
             order_amount = -1 * order_payload["amount"]
         else:

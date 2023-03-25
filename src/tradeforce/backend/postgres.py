@@ -6,14 +6,12 @@ Returns:
 from __future__ import annotations
 import sys
 
-# import pandas as pd
 from psycopg2.extensions import connection, cursor
 from psycopg2 import OperationalError
 import psycopg2.pool as pool
 from psycopg2.sql import SQL, Composed, Identifier, Literal
 from typing import TYPE_CHECKING
 
-# from urllib.parse import urlparse
 from tradeforce.backend import Backend
 from tradeforce.backend.sql_tables import CreateTables
 
@@ -29,7 +27,7 @@ class BackendSQL(Backend):
         super().__init__(root)
         self.connected = False
         self.create_table = CreateTables(root, self)
-        self.init_connect(db_name=self.config.dbms_db)
+        self.establish_connection(db_name=self.config.dbms_db)
         # Only sync backend now if there is no exchange API connection.
         # In case an API connection is used, db_sync_trader_state()
         # will be called once by exchange_ws -> ws_priv_wallet_snapshot()
@@ -47,7 +45,7 @@ class BackendSQL(Backend):
         else:
             self.connected = True
 
-    def init_connect(self, db_name=None) -> None:
+    def establish_connection(self, db_name=None) -> None:
         self.connect(db_name)
         if self.connected:
             pool_connection: connection = self.pool.getconn()
@@ -58,7 +56,7 @@ class BackendSQL(Backend):
             if db_name == self.config.dbms_connect_db:
                 self.db_exists_or_create()
                 self.dbms_db.close()
-                self.init_connect(self.config.dbms_db)
+                self.establish_connection(self.config.dbms_db)
             if db_name == self.config.dbms_db:
                 self.is_new_coll_or_table = self.check_table()
                 if self.is_new_coll_or_table:
@@ -67,9 +65,9 @@ class BackendSQL(Backend):
                     self.create_table.closed_orders()
 
         else:
-            self.init_connect(self.config.dbms_connect_db)
+            self.establish_connection(self.config.dbms_connect_db)
 
-    def execute(self, query: Composed):
+    def execute(self, query: Composed) -> bool:
         try:
             self.dbms_db.execute(query)
             execute_ok = True
@@ -82,9 +80,14 @@ class BackendSQL(Backend):
         query = SQL("SELECT 1 FROM pg_catalog.pg_database WHERE datname = {db_name};").format(
             db_name=Literal(self.config.dbms_db)
         )
-        self.execute(query)
+        execute_ok = self.execute(query)
+        if not execute_ok:
+            sys.exit(
+                f"[ERROR] Failed to check pg_catalog.pg_database of {self.config.dbms_db}. "
+                + "Choose different dbms_connect_db."
+            )
         db_exists = self.dbms_db.fetchone()
-        if not db_exists:
+        if db_exists is None:
             query = SQL("CREATE DATABASE {db_name};").format(db_name=Identifier(self.config.dbms_db))
             self.execute(query)
             self.log.info("Created database %s", self.config.dbms_db)
@@ -97,7 +100,7 @@ class BackendSQL(Backend):
         )
         self.execute(query)
         table_exists = self.dbms_db.fetchone()
-        if not table_exists:
+        if table_exists is None:
             is_new_table = True
         else:
             is_new_table = False
@@ -123,16 +126,15 @@ class BackendSQL(Backend):
         self.execute(query)
         self.log.info("Created index %s on %s", index_name, table_name)
 
-    def query(self, table_name, query=None, projection=None, sort=None, limit=None, skip=None) -> list:
-        # query={"attribute": "buy_order_id", "value": order["buy_order_id"]}
-        # SELECT * FROM table WHERE status IN ('Open', 'In Progress')
-
-        # self.query("trader_status", query={"attribute": "trader_id", "value": trader_id})
-        #         external_db_index = self.query(  # type: ignore
-        # self.config.dbms_table_or_coll_name, projection={"_id": False, "t": True})
-
-        # has_in_operator = query.get("in", False) if query is not None else False
-
+    def query(
+        self,
+        table_name: str,
+        query: dict[str, str | int | list] | None = None,
+        projection: dict[str, bool] | None = None,
+        sort: list[tuple[str, int]] | None = None,
+        limit: int | None = None,
+        skip: int | None = None,
+    ) -> list:
         postgres_query = SQL("SELECT {projection} FROM {table_name}").format(
             projection=SQL(", ").join([Identifier(projection) for projection in projection])
             if projection is not None
@@ -141,55 +143,40 @@ class BackendSQL(Backend):
         )
 
         if query is not None:
-            # print(query["value"])
             has_in_operator = query.get("in", False)
+            query_value = tuple(query["value"]) if isinstance(query["value"], list) else query["value"]
             postgres_query += SQL(" WHERE {column} {equal_or_in} {value}").format(
                 column=Identifier(query["attribute"]),
                 equal_or_in=SQL("IN") if has_in_operator else SQL("="),
-                # value=Literal(query["value"]) if has_in_operator else Literal(query["value"]),
-                value=Literal(query["value"]) if not has_in_operator else Literal(tuple(query["value"])),
-                # else SQL(", ").join(Literal(int(val)) for val in query["value"]),
+                value=Literal(query["value"]) if not has_in_operator else Literal(query_value),
             )
 
-        # if has_in_operator:
-        #     postgres_query = SQL("SELECT * WHERE {column} IN {values}").format(
-        #         column=Identifier(query["attribute"]),
-        #         values=SQL(", ").join([Identifier(val) for val in query["value"]]),
-        #     )
-        #     postgres_query += SQL(" ORDER BY {sort}").format(sort=SQL(sort))
+        if sort is not None:
+            postgres_query += SQL(" ORDER BY {sort}").format(sort=SQL(sort[0][0]))
+            postgres_query += SQL(" {direction}").format(direction=SQL("ASC") if sort[0][1] == 1 else SQL("DESC"))
 
-        # else:
-        #     postgres_query = SQL("SELECT {projection} FROM {table_name} WHERE {column} = {value}").format(
-        #         projection=SQL(", ").join([Identifier(projection) for projection in projection])
-        #         if projection is not None
-        #         else SQL("*"),
-        #         table_name=Identifier(table_name),
-        #         column=Identifier(query["attribute"]) if query is not None else Identifier("*"),
-        #         value=Literal(query["value"]) if query is not None else Literal("*"),
-        #     )
-        if sort:
-            postgres_query += SQL(" ORDER BY {sort}").format(sort=SQL(sort))
-        if limit:
+        if limit is not None:
             postgres_query += SQL(" LIMIT {limit}").format(limit=Literal(limit))
-        if skip:
+
+        if skip is not None:
             postgres_query += SQL(" OFFSET {skip}").format(skip=Literal(skip))
 
-        # print(postgres_query)
         self.execute(postgres_query)
         columns = [desc[0] for desc in self.dbms_db.description]
         result = [{columns[i]: row[i] for i in range(len(columns))} for row in self.dbms_db.fetchall()]
-        # print(result)
         return list(result)
 
-    def update_one(self, table_name, query, set_value, upsert=False) -> bool:
-        # columns = payload_insert.keys()
-        # values = tuple(payload_insert.values())
-        # print("query['value']", query["value"])
-        # print("set_value", set_value)
+    def update_one(
+        self, table_name: str, query: dict[str, str | int | list], set_value: str | int | list | dict, upsert=False
+    ) -> bool:
+        set_val_is_dict = isinstance(set_value, dict)
+        if isinstance(set_value, dict):
+            columns = set_value.keys()
+            values = tuple(set_value.values())
         postgres_update = SQL("UPDATE {table_name} SET {column} = {set_value} WHERE {column} = {value}").format(
             table_name=Identifier(table_name),
-            column=Identifier(query["attribute"]),
-            value=Literal(query["value"]),
+            column=SQL(", ").join(map(Identifier, columns)) if set_val_is_dict else Identifier(query["attribute"]),
+            value=SQL(", ").join(map(Literal, values)) if set_val_is_dict else Literal(query["value"]),
             set_value=Literal(set_value),
         )
         self.execute(postgres_update)
@@ -208,7 +195,7 @@ class BackendSQL(Backend):
                     return True
         return False
 
-    def insert_one(self, table_name, payload_insert) -> bool:
+    def insert_one(self, table_name: str, payload_insert: dict) -> bool:
         # if filter_nan:
         #     payload_insert = get_filtered_from_nan(payload_insert)
         if len(payload_insert) == 0:
@@ -223,7 +210,7 @@ class BackendSQL(Backend):
         )
         return self.execute(query)
 
-    def insert_many(self, table_name, payload_insert: list[dict]) -> bool:
+    def insert_many(self, table_name: str, payload_insert: list[dict]) -> bool:
         # if filter_nan:
         #     payload_insert = get_filtered_from_nan(payload_insert)
         if len(payload_insert) == 0:

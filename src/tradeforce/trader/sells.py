@@ -4,7 +4,7 @@
 from __future__ import annotations
 import numpy as np
 from typing import TYPE_CHECKING
-from tradeforce.utils import calc_fee, convert_symbol_str
+from tradeforce.utils import calc_fee, convert_symbol_from_exchange
 
 # Prevent circular import for type checking
 if TYPE_CHECKING:
@@ -121,7 +121,7 @@ async def submit_sell_order(root: TradingEngine, open_order):
 
 def sell_confirmed(root: TradingEngine, sell_order):
     root.log.debug("sell_order confirmed: %s", sell_order)
-    asset_symbol = convert_symbol_str(sell_order["symbol"], base_currency=root.config.base_currency, to_exchange=False)
+    asset_symbol = convert_symbol_from_exchange(sell_order["symbol"])[0]
     open_order = root.trader.get_open_order(asset={"asset": asset_symbol, "gid": sell_order["gid"]})
     if len(open_order) > 0:
         closed_order = open_order[0].copy()

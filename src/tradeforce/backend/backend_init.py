@@ -5,6 +5,8 @@ Returns:
 """
 
 from __future__ import annotations
+
+from abc import ABC, abstractmethod
 import numpy as np
 import pandas as pd
 from typing import TYPE_CHECKING
@@ -19,7 +21,7 @@ if TYPE_CHECKING:
 ##################
 
 
-class Backend:
+class Backend(ABC):
     """Fetch market history from local or remote database and store in DataFrame"""
 
     def __init__(self, root: TradingEngine):
@@ -31,7 +33,37 @@ class Backend:
         self.is_new_coll_or_table = True
         self.is_filled_na = False
 
-    def construct_uri(self, db_name=None):
+    @abstractmethod
+    def query(
+        self,
+        table_or_coll_name: str,
+        query: dict[str, str | int | list] | None = None,
+        projection: dict[str, bool] | None = None,
+        sort: list[tuple[str, int]] | None = None,
+        limit: int | None = None,
+        skip: int | None = None,
+    ) -> list:
+        pass
+
+    @abstractmethod
+    def update_one(
+        self,
+        table_or_coll_name: str,
+        query: dict[str, str | int | list],
+        set_value: str | int | list | dict,
+        upsert=False,
+    ) -> bool:
+        pass
+
+    @abstractmethod
+    def insert_one(self, table_or_coll_name: str, payload_insert: dict) -> bool:
+        pass
+
+    @abstractmethod
+    def insert_many(self, table_or_coll_name: str, payload_insert: list[dict]) -> bool:
+        pass
+
+    def construct_uri(self, db_name: str | None = None) -> str:
         db_name = self.config.dbms_connect_db if db_name is None else db_name
         dbms_uri = (
             f"{self.config.dbms}://"
@@ -43,7 +75,7 @@ class Backend:
         )
         return dbms_uri
 
-    def get_internal_db_index(self):
+    def get_internal_db_index(self) -> pd.DatetimeIndex:
         return self.root.market_history.df_market_history.sort_index().index
 
     #############
@@ -61,7 +93,9 @@ class Backend:
         current_index = index.to_list()
         index_diff = np.setdiff1d(real_index, current_index)
         if len(index_diff) > 0:
-            self.log.warning("Inconsistent asset history. Missing candle timestamps: %s", str(index_diff))
+            self.log.warning(
+                "Inconsistent asset history. Missing %s candle timestamps: %s", len(index_diff), str(index_diff)
+            )
             # TODO: fetch missing candle timestamps (index_diff) from remote
         else:
             is_consistent = True
@@ -72,8 +106,9 @@ class Backend:
         internal_db_index = np.array(self.get_internal_db_index())
         # external_db_index =
         # self.exchange_history_table_or_coll.find({}, projection={"_id": False, "t": True}).sort("t", 1)
-        external_db_index = self.query(self.config.dbms_table_or_coll_name, projection={"t": True})  # type: ignore
-        external_db_index = np.array([index_dict["t"] for index_dict in external_db_index])
+        # TODO sort by t
+        query_result = self.query(self.config.dbms_table_or_coll_name, projection={"t": True}, sort=[("t", 1)])
+        external_db_index = np.array([index_dict["t"] for index_dict in query_result])
 
         only_exist_in_external_db = np.setdiff1d(external_db_index, internal_db_index)
         only_exist_in_internal_db = np.setdiff1d(internal_db_index, external_db_index)
@@ -82,13 +117,7 @@ class Backend:
         sync_from_internal_db_needed = len(only_exist_in_internal_db) > 0
 
         if sync_from_external_db_needed:
-            # external_db_entries_to_sync = self.exchange_history_table_or_coll.find(
-            #     {"t": {"$in": only_exist_in_external_db.tolist()}}, projection={"_id": False}
-            # )
-            # external_db_entries_to_sync = self.query(
-            #     self.config.dbms_table_or_coll_name, query={"t": {"$in": only_exist_in_external_db.tolist()}}
-            # )
-            external_db_entries_to_sync = self.query(  # type: ignore
+            external_db_entries_to_sync = self.query(
                 self.config.dbms_table_or_coll_name,
                 query={"attribute": "t", "in": True, "value": only_exist_in_external_db.tolist()},
             )
@@ -109,7 +138,7 @@ class Backend:
                 drop_dict_na_values(record, self.config.dbms)
                 for record in internal_db_entries.reset_index(drop=False).to_dict("records")
             ]
-            self.insert_many(self.config.dbms_table_or_coll_name, internal_db_entries_to_sync)  # type: ignore
+            self.insert_many(self.config.dbms_table_or_coll_name, internal_db_entries_to_sync)
             self.log.info(
                 "%s candles synced from internal to external DB (%s to %s)",
                 len(only_exist_in_internal_db),
@@ -123,7 +152,6 @@ class Backend:
 
     def db_sync_trader_state(self):
         trader_id = self.config.trader_id
-        # db_response = list(self.dbms_db["trader_status"].find({"trader_id": trader_id}, projection={"_id": False}))
         db_response = self.query("trader_status", query={"attribute": "trader_id", "value": trader_id})
         if len(db_response) > 0 and db_response[0]["trader_id"] == trader_id:
             trader_status = db_response[0]
@@ -144,17 +172,12 @@ class Backend:
                 "taker_fee": self.config.taker_fee,
                 "gid": self.root.trader.gid,
             }
-            # db_acknowledged = self.dbms_db["trader_status"].insert_one(trader_status).acknowledged
             self.insert_one("trader_status", trader_status)
 
-        # self.root.trader.open_orders = list(
-        #     self.dbms_db["open_orders"].find({"trader_id": trader_id}, projection={"_id": False})
-        # )
+        # TODO: returns a list of dicts, maybe convert to list, old code did
         self.root.trader.open_orders = self.query("open_orders", query={"attribute": "trader_id", "value": trader_id})
 
-        # self.root.trader.closed_orders = list(
-        #     self.dbms_db["closed_orders"].find({"trader_id": trader_id}, projection={"_id": False})
-        # )
+        # TODO: returns a list of dicts, maybe convert to list, old code did
         self.root.trader.closed_orders = self.query(
             "closed_orders", query={"attribute": "trader_id", "value": trader_id}
         )
@@ -172,11 +195,6 @@ class Backend:
                 query={"attribute": "trader_id", "value": self.config.trader_id},
                 set_value=status_updates,
             )
-            # db_acknowledged = (
-            #     self.dbms_db["trader_status"]
-            #     .update_one({"trader_id": self.config.trader_id}, {"$set": status_updates})
-            #     .acknowledged
-            # )
 
     def db_add_history(self, df_history_update):
         self.root.market_history.df_market_history = pd.concat(
@@ -198,20 +216,13 @@ class Backend:
                 self.create_index(self.config.dbms_table_or_coll_name, "t", unique=True)
                 self.is_new_coll_or_table = False
 
-    def update_exchange_history(self, payload_update, upsert=False, filter_nan=False):
+    def update_exchange_history(self, payload_update: dict, upsert=False, filter_nan=False) -> bool:
         payload_update_copy = payload_update.copy()
         t_index = payload_update_copy["t"]
         del payload_update_copy["t"]
-        if filter_nan:
+        if filter_nan and self.config.dbms != "postgresql":
             payload_update_copy = {items[0]: items[1] for items in payload_update_copy.items() if pd.notna(items[1])}
-        # try:
-        #     update_result = self.dbms_db[self.config.dbms_table_or_coll_name].update_one(
-        #         {"t": t_index}, {"$set": payload_update_copy}, upsert=upsert
-        #     )
-        #     update_result = update_result.acknowledged
-        # except (TypeError, ValueError):
-        #     self.log.error("Update into DB failed!")
-        #     update_result = False
+
         update_success = self.update_one(
             self.config.dbms_table_or_coll_name,
             query={"attribute": "t", "value": t_index},

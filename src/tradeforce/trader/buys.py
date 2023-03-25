@@ -6,7 +6,7 @@ from asyncio import sleep as asyncio_sleep
 import numpy as np
 import pandas as pd
 from typing import TYPE_CHECKING
-from tradeforce.utils import convert_symbol_str
+from tradeforce.utils import convert_symbol_from_exchange
 from tradeforce.market.metrics import get_asset_buy_performance
 from tradeforce.trader.sells import submit_sell_order
 
@@ -143,7 +143,7 @@ async def buy_assets(root: TradingEngine, buy_options):
 async def buy_confirmed(root: TradingEngine, buy_order) -> None:
     asset_price_profit = get_significant_digits(buy_order.price * root.config.profit_factor, 5)
     buy_order_fee = np.round(abs(buy_order.fee), 5)
-    asset_symbol = convert_symbol_str(buy_order.symbol, base_currency=root.config.base_currency, to_exchange=False)
+    asset_symbol = convert_symbol_from_exchange(buy_order.symbol)[0]
     buy_volume_fiat = np.round(root.config.amount_invest_fiat - buy_order_fee, 5)
     # Wait until balance is registered by websocket into self.wallets
     await asyncio_sleep(10)

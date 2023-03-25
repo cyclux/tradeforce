@@ -206,10 +206,10 @@ class MarketHistory:
         if self.root.assets_list_symbols is None:
             self.get_asset_symbols(updated=True)
 
-        if self.config.dbms:
-            if self.root.backend.is_new_coll_or_table:
+        if self.root.backend.is_new_coll_or_table:
+            if self.config.dbms == "postgresql":
                 self.root.backend.create_table.history(self.root.assets_list_symbols)
-                self.root.backend.create_index(self.config.dbms_table_or_coll_name, "t", unique=True)
+            self.root.backend.create_index(self.config.dbms_table_or_coll_name, "t", unique=True)
 
         if self.root.backend.sync_check_needed:
             self.root.backend.db_sync_check()

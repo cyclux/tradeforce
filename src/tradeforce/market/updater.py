@@ -83,7 +83,6 @@ class MarketUpdater:
             time_start = process_time()
             candle_update = await self.root.exchange_api.get_public_candles(
                 symbol=symbol,
-                base_currency=self.config.base_currency,
                 timestamp_start=timeframe["start_timestamp"],
                 timestamp_end=timeframe["end_timestamp"],
             )

@@ -5,11 +5,12 @@ Returns:
 """
 
 from __future__ import annotations
+import numpy as np
 import pandas as pd
 from typing import TYPE_CHECKING
 from bfxapi.models.wallet import Wallet  # type: ignore
 from bfxapi.models.subscription import Subscription  # type: ignore
-from tradeforce.utils import convert_symbol_str
+from tradeforce.utils import convert_symbol_from_exchange, convert_symbol_to_exchange
 from tradeforce.trader.buys import buy_confirmed
 from tradeforce.trader.sells import sell_confirmed
 
@@ -44,10 +45,9 @@ def convert_order_to_dict(order_obj):
 
 
 class ExchangeWebsocket:
-    """_summary_
-
-    Returns:
-        _type_: _description_
+    """Websocket connection to Bitfinex exchange.
+    Subscribes to candles, order and wallet updates.
+    Feeds new candles to market hisotry and stores them in DB.
     """
 
     def __init__(self, root: TradingEngine):
@@ -67,6 +67,7 @@ class ExchangeWebsocket:
         self.ws_subs_finished = False
         self.is_set_last_candle_timestamp = False
         self.history_sync_patch_running = False
+        self.diff_range_candle_timestamps: np.ndarray | None = None
 
     ###################
     # Init websockets #
@@ -118,7 +119,7 @@ class ExchangeWebsocket:
         self.log.error("ws_error: %s", str(ws_error))
 
     def ws_is_subscribed(self, ws_subscribed: Subscription):
-        symbol = convert_symbol_str(ws_subscribed.symbol, to_exchange=False)[0]
+        symbol = convert_symbol_from_exchange(ws_subscribed.symbol)[0]
         self.asset_candle_subs[symbol] = ws_subscribed
 
     def ws_unsubscribed(self, ws_unsubscribed):
@@ -130,9 +131,7 @@ class ExchangeWebsocket:
         self.log.warning("Exchange status: %s", ws_status)
 
     async def ws_subscribe_candles(self, asset_list):
-        asset_list_bfx = convert_symbol_str(
-            asset_list, base_currency=self.config.base_currency, to_exchange=True, exchange=self.config.exchange
-        )
+        asset_list_bfx = convert_symbol_to_exchange(asset_list)
         for symbol in asset_list_bfx:
             # candle_interval[:-2] to convert "5min" -> "5m"
             await self.bfx_api_pub.ws.subscribe_candles(symbol, self.config.candle_interval[:-2])
@@ -150,9 +149,12 @@ class ExchangeWebsocket:
 
     async def ws_new_candle(self, candle):
         self.current_candle_timestamp = int(candle["mts"])
-        symbol_converted = convert_symbol_str(
-            candle["symbol"], base_currency=self.config.base_currency, to_exchange=False, exchange=self.config.exchange
-        )
+        self.update_candle_cache(candle)
+        await self.process_candle_history_sync()
+        await self.handle_new_candle()
+
+    def update_candle_cache(self, candle):
+        symbol_converted = convert_symbol_from_exchange(candle["symbol"])[0]
         current_asset = self.ws_candle_cache.get(self.current_candle_timestamp, {})
         current_asset[f"{symbol_converted}_o"] = candle["open"]
         current_asset[f"{symbol_converted}_c"] = candle["close"]
@@ -161,82 +163,77 @@ class ExchangeWebsocket:
         current_asset[f"{symbol_converted}_v"] = candle["volume"]
         self.ws_candle_cache[self.current_candle_timestamp] = current_asset
 
+    async def process_candle_history_sync(self):
         if not self.is_set_last_candle_timestamp:
-            candles_timestamps = self.ws_candle_cache.keys()
-            candle_cache_size = len(candles_timestamps)
-            if candle_cache_size >= 2:
-                self.is_set_last_candle_timestamp = True
-                self.last_candle_timestamp = max(candles_timestamps)
-                self.log.debug("last_candle_timestamp set to %s", self.last_candle_timestamp)
-                # Check sync of candle history. Patch if neccesary
-                diff_range_candle_timestamps = check_timestamp_difference(
-                    self.log,
-                    start=self.latest_candle_timestamp,
-                    end=self.last_candle_timestamp,
-                    freq=self.config.candle_interval,
-                )
-                if len(diff_range_candle_timestamps) > 0:
-                    timestamp_patch_history_start = min(diff_range_candle_timestamps)
-                    timestamp_patch_history_end = max(diff_range_candle_timestamps)
-                    if timestamp_patch_history_start != timestamp_patch_history_end:
-                        self.history_sync_patch_running = True
-                        self.log.info(
-                            "Patching out of sync history.. From %s to %s",
-                            timestamp_patch_history_start,
-                            timestamp_patch_history_end,
-                        )
-                        await self.root.market_history.update(
-                            start=timestamp_patch_history_start, end=timestamp_patch_history_end
-                        )
-                        self.history_sync_patch_running = False
+            self.set_last_candle_timestamp()
+            if self.should_patch_history():
+                await self.patch_history()
 
-        if (
+    def set_last_candle_timestamp(self):
+        candles_timestamps = self.ws_candle_cache.keys()
+        candle_cache_size = len(candles_timestamps)
+        if candle_cache_size >= 2:
+            self.is_set_last_candle_timestamp = True
+            self.last_candle_timestamp = max(candles_timestamps)
+            self.log.debug("last_candle_timestamp set to %s", self.last_candle_timestamp)
+
+    def should_patch_history(self):
+        diff_range_candle_timestamps = check_timestamp_difference(
+            self.log,
+            start=self.latest_candle_timestamp,
+            end=self.last_candle_timestamp,
+            freq=self.config.candle_interval,
+        )
+        if len(diff_range_candle_timestamps) > 1:
+            self.timestamp_patch_history_start = min(diff_range_candle_timestamps)
+            self.timestamp_patch_history_end = max(diff_range_candle_timestamps)
+            return self.timestamp_patch_history_start != self.timestamp_patch_history_end
+        return False
+
+    async def patch_history(self):
+        self.history_sync_patch_running = True
+        self.log.info(
+            "Patching out of sync history.. From %s to %s",
+            self.timestamp_patch_history_start,
+            self.timestamp_patch_history_end,
+        )
+        await self.root.market_history.update(
+            start=self.timestamp_patch_history_start, end=self.timestamp_patch_history_end
+        )
+        self.history_sync_patch_running = False
+
+    async def handle_new_candle(self):
+        if self.is_new_candle():
+            self.prevent_race_condition_cache.append(self.current_candle_timestamp)
+            await self.save_new_candle_to_db()
+            if self.config.run_live:
+                await self.trigger_trader_updates()
+
+    def is_new_candle(self):
+        return (
             self.current_candle_timestamp not in self.prevent_race_condition_cache
             and self.current_candle_timestamp > self.last_candle_timestamp
             and self.is_set_last_candle_timestamp
             and self.ws_subs_finished
-        ):
-            self.prevent_race_condition_cache.append(self.current_candle_timestamp)
-            self.log.info(
-                "New candle received [timestamp: %s] - Saved to %s", self.last_candle_timestamp, self.config.dbms
-            )
-            candle_cache_size = len(self.ws_candle_cache.keys())
-            candles_last_timestamp = self.ws_candle_cache.get(self.last_candle_timestamp, {})
-            if not candles_last_timestamp:
-                self.log.warning(
-                    "Last websocket %s timestamp has no data from any asset", self.config.candle_interval[:-2]
-                )
-                # TODO: Trigger notification email?
+        )
 
-            df_history_update = pd.DataFrame(candles_last_timestamp, index=[self.last_candle_timestamp])
-            self.last_candle_timestamp = self.current_candle_timestamp
-            df_history_update.index.name = "t"
-            self.root.backend.db_add_history(df_history_update)
+    async def save_new_candle_to_db(self):
+        self.log.info("New candle received [timestamp: %s] - Saved to %s", self.last_candle_timestamp, self.config.dbms)
+        candles_last_timestamp = self.ws_candle_cache.get(self.last_candle_timestamp, {})
+        df_history_update = pd.DataFrame(candles_last_timestamp, index=[self.last_candle_timestamp])
+        self.last_candle_timestamp = self.current_candle_timestamp
+        df_history_update.index.name = "t"
+        self.root.backend.db_add_history(df_history_update)
+        self.prune_candle_cache()
+        self.prune_race_condition_prevention_cache()
 
-            if self.root.exchange_api.bfx_api_priv is not None:
-                await self.root.trader.check_sold_orders()
-            # TODO: Check if is_simulation is needed
-            if not self.history_sync_patch_running and not self.config.is_simulation:
-                await self.root.trader.update()
-                current_total_profit = self.root.trader.get_profit()
-                self.log.info("Current total profit: $%s", current_total_profit)
-
-            self.prune_candle_cache()
-            self.prune_race_condition_prevention_cache()
-
-            # TODO: Check exceptions
-            # health_check_size = 10
-            # check_result = self.check_ws_health(health_check_size)
-            # if candle_cache_size >= health_check_size:
-            #     self.log.info("Result WS health check [based on %s candle timestamps]:", candle_cache_size)
-            #     self.log.warning(
-            #         "Potentionally unhealthy: %s",
-            #         check_result["unhealthy"] if len(check_result["unhealthy"]) > 0 else "All good",
-            #     )
-            # if len(check_result["not_subscribed"]) > 0:
-            #     self.log.warning("assets not subscribed: %s", check_result["not_subscribed"])
-            #     self.log.warning("Trying resub..")
-            #     await self.ws_subscribe_candles(check_result["not_subscribed"])
+    async def trigger_trader_updates(self):
+        if self.root.exchange_api.bfx_api_priv is not None:
+            await self.root.trader.check_sold_orders()
+        if not self.history_sync_patch_running and not self.config.is_simulation:
+            await self.root.trader.update()
+            current_total_profit = self.root.trader.get_profit()
+            self.log.info("Current total profit: $%s", current_total_profit)
 
     ##############################
     # Private websocket channels #
@@ -246,9 +243,7 @@ class ExchangeWebsocket:
         self.log.debug("order_confirmed: %s", str(ws_confirmed))
         order_type = "buy" if ws_confirmed.amount_orig > 0 else "sell"
         if order_type == "sell":
-            asset_symbol = convert_symbol_str(
-                ws_confirmed.symbol, base_currency=self.config.base_currency, to_exchange=False
-            )
+            asset_symbol = convert_symbol_from_exchange(ws_confirmed.symbol)[0]
             buy_order = {"asset": asset_symbol, "gid": ws_confirmed.gid}
             open_order = self.root.trader.get_open_order(asset=buy_order)
             if len(open_order) > 0:

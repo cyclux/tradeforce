@@ -34,7 +34,7 @@ def ms_to_ns(t_ms: int):
 
 def ns_to_ms(t_ns: int) -> int:
     """Convert nanoseconds to milliseconds"""
-    return t_ns // 10**6
+    return int(t_ns // 10**6)
 
 
 def ns_to_ms_array(t_ns: np.ndarray) -> np.ndarray:
@@ -42,26 +42,32 @@ def ns_to_ms_array(t_ns: np.ndarray) -> np.ndarray:
     return t_ns // 10**6
 
 
-def convert_symbol_str(
-    symbol_input, to_exchange, base_currency="USD", with_trade_prefix=True, exchange="bitfinex"
-) -> list[str] | np.ndarray:
-    """Convert symbol string to exchange format and vice versa.
+def convert_to_array(symbol_input):
+    """Convert input (str | list) to array"""
+    return np.array([symbol_input]).flatten()
+
+
+def convert_symbol_to_exchange(
+    symbol_input: str | list | np.ndarray, base_currency="USD", with_t_prefix=True
+) -> list[str]:
+    """Convert symbol string to exchange format.
     "with_trade_prefix" is only relevant for bitfinex e.g. BTCUSD -> tBTCUSD"""
-    symbol_input = np.array([symbol_input]).flatten()
-    if to_exchange:
-        t_prefix = "t" if with_trade_prefix else ""
-        symbol_output = [
-            f'{t_prefix}{symbol}{":" if len(symbol) > 3 else ""}{base_currency}' for symbol in symbol_input
-        ]
-        return symbol_output
-    else:
-        symbol_output = symbol_input[[symbol[-3:] == base_currency for symbol in symbol_input]]
-        np_symbol_output = np.char.replace(symbol_output, f":{base_currency}", base_currency)
-        np_symbol_output = np.char.replace(symbol_output, base_currency, "")
-        np_symbol_output = np.char.replace(symbol_output, "t", "")
-        # if len(symbol_output) == 1:
-        #     symbol_output = symbol_output[0]
-        return np_symbol_output
+    symbol_input_normalized = convert_to_array(symbol_input)
+    t_prefix = "t" if with_t_prefix else ""
+    symbol_output = [
+        f'{t_prefix}{symbol}{":" if len(symbol) > 3 else ""}{base_currency}' for symbol in symbol_input_normalized
+    ]
+    return symbol_output
+
+
+def convert_symbol_from_exchange(symbol_input: str | list | np.ndarray, base_currency="USD") -> list[str]:
+    """Convert symbol string from exchange format to standard format."""
+    symbol_input_normalized = convert_to_array(symbol_input)
+    symbol_output = symbol_input_normalized[[symbol[-3:] == base_currency for symbol in symbol_input_normalized]]
+    np_symbol_output = np.char.replace(symbol_output, f":{base_currency}", base_currency)
+    np_symbol_output = np.char.replace(np_symbol_output, base_currency, "")
+    np_symbol_output = np.char.replace(np_symbol_output, "t", "")
+    return np_symbol_output.tolist()
 
 
 def get_timedelta(delta: str = "", unit=None) -> TimedeltaDict:

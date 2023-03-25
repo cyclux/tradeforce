@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 from bfxapi.models.wallet import Wallet  # type: ignore
 from typing import TYPE_CHECKING
-from tradeforce.utils import convert_symbol_str
+from tradeforce.utils import convert_symbol_from_exchange
 from tradeforce.trader.buys import check_buy_options, buy_assets
 from tradeforce.trader.sells import check_sell_options, sell_assets, sell_confirmed
 
@@ -75,14 +75,12 @@ class Trader:
     # Getting orders #
     ##################
 
-    def get_open_order(self, asset_order=None, asset=None):
+    def get_open_order(self, asset_order=None, asset=None) -> list:
         gid = None
         buy_order_id = None
         price_profit = None
         if asset_order is not None:
-            asset_symbol = convert_symbol_str(
-                asset_order.symbol, base_currency=self.config.base_currency, to_exchange=False
-            )
+            asset_symbol = convert_symbol_from_exchange(asset_order.symbol)[0]
             buy_order_id = asset_order.id
             gid = asset_order.gid
         else:
