@@ -1,7 +1,12 @@
-"""_summary_
+"""
+TradeForce Backend Module
 
-Returns:
-    _type_: _description_
+This module contains the Backend class for fetching market history from local or remote DBs and
+storing it in a DataFrame in-memory for quick internal access. It also provides methods to ensure DB consistency
+and synchronization. Class Backend represents the abstract base class for all DB backends
+including basic interaction methods like: query, insert, update, delete etc.
+The actual DB backends currently supported are MongoDB (class BackendMongoDB) and PostgreSQL (class BackendSQL).
+The DBs can be configured in the main config file.
 """
 
 from __future__ import annotations

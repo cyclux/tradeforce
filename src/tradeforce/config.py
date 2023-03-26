@@ -69,6 +69,8 @@ class Config:
         self.working_dir = config_input.get("working_dir", None)
         self.run_live = config_input.get("run_live", False)
         self.update_mode = config_input.get("update_mode", "None").lower()
+        self.log_level_live = config_input.get("log_level_live", "ERROR").upper()
+        self.log_level_ws_update = config_input.get("log_level_ws_update", "ERROR").upper()
 
         self.exchange = config_input.get("exchange", "bitfinex")
         self.force_source = config_input.get("force_source", "none").lower()

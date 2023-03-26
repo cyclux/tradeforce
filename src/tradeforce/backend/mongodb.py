@@ -100,8 +100,6 @@ class BackendMongoDB(Backend):
             projection = {"_id": False}
         else:
             projection["_id"] = False
-        # if sort is None:
-        #     sort = [("t", 1)]
         if skip is None:
             skip = 0
         if limit is None:
@@ -125,8 +123,6 @@ class BackendMongoDB(Backend):
 
     def insert_one(self, collection_name: str, payload_insert: dict) -> bool:
         collection = self.get_collection(collection_name)
-        # if filter_nan:
-        #     payload_insert = {items[0]: items[1] for items in payload_insert.items() if pd.notna(items[1])}
         try:
             insert_result = collection.insert_one(payload_insert)
             insert_ok = insert_result.acknowledged
@@ -137,8 +133,6 @@ class BackendMongoDB(Backend):
 
     def insert_many(self, collection_name: str, payload_insert: list[dict]) -> bool:
         collection = self.get_collection(collection_name)
-        # if filter_nan:
-        #     payload_insert = get_filtered_from_nan(payload_insert)
         try:
             insert_result = collection.insert_many(payload_insert)
             insert_many_ok = insert_result.acknowledged
@@ -160,35 +154,3 @@ class BackendMongoDB(Backend):
         #     .delete_one({"asset": order["asset"], "buy_order_id": order["buy_order_id"]})
         #     .acknowledged
         # )
-
-    ####################
-    # Order operations #
-    ####################
-
-    # def order_new(self, order, order_type):
-    #     db_acknowledged = False
-    #     if self.config.dbms == "mongodb":
-    #         db_acknowledged = self.dbms_db[order_type].insert_one(order).acknowledged
-    #     return db_acknowledged
-
-    # def order_edit(self, order, order_type):
-    #     update_success = self.update_one(
-    #         order_type, query={"attribute": "buy_order_id", "value": order["buy_order_id"]}, set_value=order
-    #     )
-    #     # if self.config.dbms == "mongodb":
-    #     #     db_acknowledged = (
-    #     #         self.dbms_db[order_type]
-    #     #         .update_one({"buy_order_id": order["buy_order_id"]}, {"$set": order})
-    #     #         .acknowledged
-    #     #     )
-    #     return update_success
-
-    # def order_del(self, order, order_type):
-    #     db_acknowledged = False
-    #     if self.config.dbms == "mongodb":
-    #         db_acknowledged = (
-    #             self.dbms_db[order_type]
-    #             .delete_one({"asset": order["asset"], "buy_order_id": order["buy_order_id"]})
-    #             .acknowledged
-    #         )
-    #     return db_acknowledged

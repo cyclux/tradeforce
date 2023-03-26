@@ -48,7 +48,7 @@ class MarketUpdater:
         self.config = root.config
         self.log = root.logging.getLogger(__name__)
 
-    async def get_timeframe(self, start=None, end=None):
+    async def get_timeframe(self, start: int | None = None, end: int | None = None) -> dict[str, dict[str, int] | int]:
         candle_freq_in_ms = get_timedelta(self.config.candle_interval)["timestamp"]
         timeframe = {}
 
@@ -66,12 +66,12 @@ class MarketUpdater:
         timeframe["start_datetime"] = pd.to_datetime(timeframe["start_timestamp"], unit="ms", utc=True)
 
         if end:
-            timeframe["end_timestamp"] = end
+            timeframe["end_timestamp"] = int(end)
             timeframe["end_datetime"] = pd.to_datetime(timeframe["end_timestamp"], unit="ms", utc=True)
         else:
             now = get_now()
             timeframe["end_datetime"] = now["datetime"]
-            timeframe["end_timestamp"] = now["timestamp"]
+            timeframe["end_timestamp"] = int(now["timestamp"])
 
         ms_additional_wait = get_timedelta("2min")["timestamp"]
         ms_until_wait_over = timeframe["end_timestamp"] - (timeframe["start_timestamp"] + ms_additional_wait)

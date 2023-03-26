@@ -5,11 +5,13 @@ Returns:
 """
 
 from __future__ import annotations
+from typing import TypedDict, TYPE_CHECKING
 import numpy as np
 import pandas as pd
-from typing import TYPE_CHECKING
+
 from bfxapi.models.wallet import Wallet  # type: ignore
 from bfxapi.models.subscription import Subscription  # type: ignore
+
 from tradeforce.utils import convert_symbol_from_exchange, convert_symbol_to_exchange
 from tradeforce.trader.buys import buy_confirmed
 from tradeforce.trader.sells import sell_confirmed
@@ -17,9 +19,33 @@ from tradeforce.trader.sells import sell_confirmed
 # Prevent circular import for type checking
 if TYPE_CHECKING:
     from tradeforce.main import TradingEngine
+    from logging import Logger
+    from bfxapi.models.order import Order  # type: ignore
+
+# Type hinting for candle data
+Candle = TypedDict(
+    "Candle",
+    {
+        "mts": int,
+        "open": float,
+        "close": float,
+        "high": float,
+        "low": float,
+        "volume": float,
+        "symbol": str,
+    },
+)
 
 
-def check_timestamp_difference(log, start=None, end=None, freq="5min"):
+def check_timestamp_difference(log: Logger, start: int, end: int, freq="5min") -> np.ndarray:
+    """Check the difference between the database and websocket timestamps of candles.
+
+    :param log: Logger object
+    :param start: Starting timestamp in milliseconds
+    :param end: Ending timestamp in milliseconds
+    :param freq: Frequency of candles (e.g., '5min')
+    :return: A range of timestamps as a NumPy array
+    """
     log.debug("Check delta between DB and WS timestamp of candles: %s (DB) %s (WS)", start, end)
     diff_range = (
         pd.date_range(
@@ -33,7 +59,13 @@ def check_timestamp_difference(log, start=None, end=None, freq="5min"):
     return diff_range
 
 
-def convert_order_to_dict(order_obj):
+def convert_order_to_dict(order_obj: Order) -> dict[str, int | float | str]:
+    """
+    Convert an order object into a dictionary.
+
+    :param order_obj: Order object from bitfinex to convert
+    :return: The order as a dictionary
+    """
     order_dict = {
         "symbol": order_obj.symbol,
         "gid": order_obj.gid,
@@ -45,12 +77,20 @@ def convert_order_to_dict(order_obj):
 
 
 class ExchangeWebsocket:
-    """Websocket connection to Bitfinex exchange.
-    Subscribes to candles, order and wallet updates.
-    Feeds new candles to market hisotry and stores them in DB.
+    """
+    Manages the websocket connection to the Bitfinex exchange.
+
+    This class handles subscriptions to candle, order, and wallet updates, processes
+    new candle data, and stores the data in the DB. It ensures that the market
+    history remains up-to-date and provides real-time information for the trading engine.
     """
 
     def __init__(self, root: TradingEngine):
+        """
+        Initialize the ExchangeWebsocket object.
+
+        :param root: The TradingEngine object providing access to the config and logging
+        """
         self.root = root
         self.config = root.config
         self.log = root.logging.getLogger(__name__)
@@ -74,6 +114,7 @@ class ExchangeWebsocket:
     ###################
 
     def ws_run(self):
+        """Subscribe to public events and run the public websocket."""
         self.bfx_api_pub.ws.on("connected", self.ws_init_connection)
         self.bfx_api_pub.ws.on("new_candle", self.ws_new_candle)
         self.bfx_api_pub.ws.on("error", self.ws_error)
@@ -83,6 +124,7 @@ class ExchangeWebsocket:
         self.bfx_api_pub.ws.run()
 
     def ws_priv_run(self):
+        """Subscribe to private events and run the private websocket."""
         if self.bfx_api_priv is not None:
             self.bfx_api_priv.ws.on("wallet_snapshot", self.ws_priv_wallet_snapshot)
             self.bfx_api_priv.ws.on("wallet_update", self.ws_priv_wallet_update)
@@ -136,24 +178,46 @@ class ExchangeWebsocket:
             # candle_interval[:-2] to convert "5min" -> "5m"
             await self.bfx_api_pub.ws.subscribe_candles(symbol, self.config.candle_interval[:-2])
         self.ws_subs_finished = True
+        self.log.info("Subscribed to %s channels.", len(asset_list_bfx))
 
-    async def ws_init_connection(self):
-        self.latest_candle_timestamp = self.root.market_history.get_local_candle_timestamp(position="latest")
-        if self.latest_candle_timestamp == 0:
-            self.latest_candle_timestamp = await self.root.exchange_api.get_latest_remote_candle_timestamp(
+    async def get_latest_candle_timestamp(self):
+        """
+        Get the latest local candle timestamp, or fetch it from the remote API if not available.
+        """
+        latest_candle_timestamp = self.root.market_history.get_local_candle_timestamp(position="latest")
+        if latest_candle_timestamp == 0:
+            latest_candle_timestamp = await self.root.exchange_api.get_latest_remote_candle_timestamp(
                 minus_delta=self.config.history_timeframe
             )
+        return latest_candle_timestamp
+
+    async def ws_init_connection(self):
+        """
+        Initialize the public websocket connection and subscribe to candle updates.
+        """
+        # Get the latest candle timestamp
+        self.latest_candle_timestamp = await self.get_latest_candle_timestamp()
+
+        # Reset the last candle timestamp flag
         self.is_set_last_candle_timestamp = False
-        self.log.debug("Subscribing to channels..")
+        self.log.info("Subscribing to %s websocket channels..", self.config.exchange)
+
+        # Subscribe to candle updates for the specified asset list
         await self.ws_subscribe_candles(self.root.assets_list_symbols)
 
-    async def ws_new_candle(self, candle):
+    async def ws_new_candle(self, candle: Candle):
+        """
+        Handle new candle updates.
+
+        :param candle_obj: New candle object
+        :type candle_obj: dict
+        """
         self.current_candle_timestamp = int(candle["mts"])
         self.update_candle_cache(candle)
         await self.process_candle_history_sync()
         await self.handle_new_candle()
 
-    def update_candle_cache(self, candle):
+    def update_candle_cache(self, candle: Candle):
         symbol_converted = convert_symbol_from_exchange(candle["symbol"])[0]
         current_asset = self.ws_candle_cache.get(self.current_candle_timestamp, {})
         current_asset[f"{symbol_converted}_o"] = candle["open"]
@@ -203,6 +267,7 @@ class ExchangeWebsocket:
         self.history_sync_patch_running = False
 
     async def handle_new_candle(self):
+        """Handle new candle data received from the websocket."""
         if self.is_new_candle():
             self.prevent_race_condition_cache.append(self.current_candle_timestamp)
             await self.save_new_candle_to_db()
@@ -210,6 +275,22 @@ class ExchangeWebsocket:
                 await self.trigger_trader_updates()
 
     def is_new_candle(self):
+        """
+        Check if the current candle is new and conditions are met to process it.
+
+        Returns:
+            bool: True if the current candle is new, False otherwise.
+
+        The function checks for the following conditions:
+        1. The current candle timestamp is not in the race condition prevention cache,
+        ensuring that the same candle is not processed multiple times due to overlapping updates.
+        2. The current candle timestamp is greater than the last processed candle timestamp,
+        ensuring that the new candle is indeed more recent than the previous one.
+        3. The last candle timestamp flag (is_set_last_candle_timestamp) is set,
+        indicating that the last candle timestamp has been successfully retrieved.
+        4. The websocket subscription process (ws_subs_finished) has been completed,
+        ensuring that the websocket is ready to receive and process candle updates.
+        """
         return (
             self.current_candle_timestamp not in self.prevent_race_condition_cache
             and self.current_candle_timestamp > self.last_candle_timestamp

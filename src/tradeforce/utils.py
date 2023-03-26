@@ -14,6 +14,7 @@ import tradeforce.simulator.default_strategies as strategies
 
 # Prevent circular import for type checking
 if TYPE_CHECKING:
+    from tradeforce.config import Config
     from tradeforce import TradingEngine
 
 TimestampDict = TypedDict("TimestampDict", {"datetime": pd.Timestamp, "timestamp": int})
@@ -141,11 +142,11 @@ def load_credentials(creds_path) -> dict[str, str] | None:
     return credentials
 
 
-def connect_api(creds_path, api_type=None) -> Client | None:
+def connect_api(config: Config, api_type=None) -> Client | None:
     """Connect to Bitfinex API.
     Returns None if credentials are not valid.
     """
-    credentials = load_credentials(creds_path)
+    credentials = load_credentials(config.creds_path)
     bfx_api = None
     if credentials is not None and api_type == "priv":
         bfx_api = Client(
@@ -153,9 +154,16 @@ def connect_api(creds_path, api_type=None) -> Client | None:
             credentials["auth_sec"],
             ws_host=WS_HOST,
             rest_host=REST_HOST,
+            logLevel=config.log_level_live,
         )
     if api_type == "pub":
-        bfx_api = Client(ws_host=PUB_WS_HOST, rest_host=PUB_REST_HOST, ws_capacity=25, max_retries=100, logLevel="INFO")
+        bfx_api = Client(
+            ws_host=PUB_WS_HOST,
+            rest_host=PUB_REST_HOST,
+            ws_capacity=25,
+            max_retries=100,
+            logLevel=config.log_level_ws_update,
+        )
 
     return bfx_api
 

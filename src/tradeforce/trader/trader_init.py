@@ -44,7 +44,6 @@ class Trader:
             db_response = self.root.backend.insert_one(order.copy(), order_type)
             if not db_response:
                 self.log.error("Backend DB insert order failed!")
-            # db_response = self.root.backend.order_new(order.copy(), order_type)
 
     def edit_order(self, order: dict, order_type: str) -> None:
         order_obj = getattr(self, order_type)
@@ -57,7 +56,6 @@ class Trader:
             )
             if not update_ok:
                 self.log.error("Backend DB edit order failed!")
-            # db_response = self.root.backend.order_edit(order.copy(), order_type)
 
     def del_order(self, order: dict, order_type: str) -> None:
         # Delete from internal mirror of DB
@@ -69,7 +67,6 @@ class Trader:
             )
             if not delete_ok:
                 self.log.error("Backend DB delete order failed!")
-            # delete_ok = self.root.backend.order_del(order.copy(), order_type)
 
     ##################
     # Getting orders #
