@@ -107,10 +107,10 @@ class MarketHistory:
             amount_assets = len(self.root.assets_list_symbols)
 
             self.log.info(
-                "Market history from %s assets [%s] loaded via %s",
+                "Market history loaded via %s from %s assets from %s",
+                self.config.force_source,
                 amount_assets,
                 self.config.exchange,
-                self.config.force_source,
             )
         else:
             if load_method == "none":

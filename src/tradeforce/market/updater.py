@@ -18,7 +18,7 @@ from tradeforce.utils import (
     get_now,
     get_timedelta,
     get_time_minus_delta,
-    get_df_datetime_index,
+    get_reference_index,
 )
 
 
@@ -105,7 +105,7 @@ class MarketUpdater:
             return None
         history_df_list = []
         if timeframe is not None:
-            history_df_list.append(get_df_datetime_index(timeframe, freq=self.config.candle_interval))
+            history_df_list.append(get_reference_index(timeframe, freq=self.config.candle_interval))
 
         for asset_hist in history_update.values():
             if len(asset_hist) > 0:

@@ -16,14 +16,32 @@ import numpy as np
 import pandas as pd
 from typing import TYPE_CHECKING
 from urllib.parse import quote_plus
-from tradeforce.utils import get_df_datetime_index, drop_dict_na_values
+from tradeforce.utils import get_reference_index, drop_dict_na_values
 
 # Prevent circular import for type checking
 if TYPE_CHECKING:
     from tradeforce.main import TradingEngine
+
 ##################
 # DB interaction #
 ##################
+
+
+def get_timeframe_from_index(index: pd.DatetimeIndex) -> dict[str, pd.Timestamp]:
+    """Get the start and end datetimes from a given pandas DatetimeIndex.
+
+    Turns a DatetimeIndex into a dictionary containing
+    the start and end datetimes.
+    """
+    return {
+        "start_datetime": pd.Timestamp(index[0], unit="ms", tz="UTC"),
+        "end_datetime": pd.Timestamp(index[-1], unit="ms", tz="UTC"),
+    }
+
+
+def calculate_index_diff(reference_index: list, current_index: list) -> list:
+    """Calculate the difference between the reference index and the current index"""
+    return np.setdiff1d(reference_index, current_index).tolist()
 
 
 class Backend(ABC):
@@ -81,6 +99,7 @@ class Backend(ABC):
         return dbms_uri
 
     def get_internal_db_index(self) -> pd.DatetimeIndex:
+        """Get index of internal in-memory DB history in sorted order"""
         return self.root.market_history.df_market_history.sort_index().index
 
     #############
@@ -88,24 +107,23 @@ class Backend(ABC):
     #############
 
     def check_db_consistency(self) -> bool:
-        is_consistent = False
-        index = self.get_internal_db_index()
-        timeframe = {
-            "start_datetime": pd.Timestamp(index[0], unit="ms", tz="UTC"),
-            "end_datetime": pd.Timestamp(index[-1], unit="ms", tz="UTC"),
-        }
-        real_index = get_df_datetime_index(timeframe, freq=self.config.candle_interval)["t"].to_list()
-        current_index = index.to_list()
-        index_diff = np.setdiff1d(real_index, current_index)
+        internal_db_index = self.get_internal_db_index()
+        timeframe = get_timeframe_from_index(internal_db_index)
+        reference_index = get_reference_index(timeframe, freq=self.config.candle_interval)["t"].to_list()
+        index_diff = calculate_index_diff(reference_index, internal_db_index.to_list())
+
         if len(index_diff) > 0:
             self.log.warning(
-                "Inconsistent asset history. Missing %s candle timestamps: %s", len(index_diff), str(index_diff)
+                "Inconsistent asset history. Missing %s candle timestamps. Ranging from %s to %s",
+                len(index_diff),
+                min(index_diff),
+                max(index_diff),
             )
             # TODO: fetch missing candle timestamps (index_diff) from remote
-        else:
-            is_consistent = True
-            self.log.info("Consistency check of DB history successful!")
-        return is_consistent
+            return False
+
+        self.log.info("Consistency check of DB history successful!")
+        return True
 
     def db_sync_check(self) -> None:
         internal_db_index = np.array(self.get_internal_db_index())

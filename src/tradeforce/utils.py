@@ -113,7 +113,7 @@ def get_time_minus_delta(timestamp: int | None = None, delta="") -> TimestampDic
     }
 
 
-def get_df_datetime_index(timeframe: dict[str, pd.Timestamp], freq="5min") -> pd.DataFrame:
+def get_reference_index(timeframe: dict[str, pd.Timestamp], freq="5min") -> pd.DataFrame:
     """Get a DataFrame datetime index with given timeframe and frequency.
     Can be utilized to create a ground truth to compare to and thus find differences (+missing data)."""
     datetime_index = pd.date_range(
