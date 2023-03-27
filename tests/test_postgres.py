@@ -70,8 +70,12 @@ class TestBackendSQL:
     def backend(self, trading_engine: TradingEngine) -> BackendSQL:
         backend = BackendSQL(trading_engine)
         backend.log = MagicMock(info=MagicMock(), error=MagicMock())
-        backend.dbms_db = MagicMock(execute=MagicMock(return_value=None), fetchone=MagicMock(return_value=None))
-        backend.db_sync_trader_state = MagicMock(name="db_sync_trader_state")
+        backend.dbms_db = MagicMock(
+            execute=MagicMock(return_value=None),
+            fetchone=MagicMock(return_value=None),
+            fetchall=MagicMock(return_value=None),
+        )
+        backend.db_sync_state_trader = MagicMock(name="db_sync_state_trader")
         backend.create_table.trader_status = MagicMock(name="trader_status")
         backend.create_table.open_orders = MagicMock(name="open_orders")
         backend.create_table.closed_orders = MagicMock(name="closed_orders")
@@ -82,19 +86,19 @@ class TestBackendSQL:
         assert isinstance(backend.create_table, CreateTables)
         assert backend.config.dbms_db == config_object.dbms_db
 
-    @pytest.mark.parametrize("run_live, call_db_sync_trader_state", [(True, True), (False, False)])
+    @pytest.mark.parametrize("run_live, call_db_sync_state_trader", [(True, True), (False, False)])
     def test_init_sync(
-        self, backend: BackendSQL, trading_engine: TradingEngine, run_live: bool, call_db_sync_trader_state: bool
+        self, backend: BackendSQL, trading_engine: TradingEngine, run_live: bool, call_db_sync_state_trader: bool
     ) -> None:
         backend.config.run_live = run_live
         backend.establish_connection = MagicMock(name="establish_connection", return_value=None)
         backend.__init__(trading_engine)
-        if call_db_sync_trader_state:
+        if call_db_sync_state_trader:
             assert backend.config.run_live is True
-            backend.db_sync_trader_state.assert_not_called()
+            backend.db_sync_state_trader.assert_not_called()
         else:
             assert backend.config.run_live is False
-            backend.db_sync_trader_state.assert_called_once()
+            backend.db_sync_state_trader.assert_called_once()
 
     def test_connect_success(self, backend: BackendSQL):
         # Test a successful connection to the database
@@ -161,6 +165,8 @@ class TestBackendSQL:
             db_name=Literal(backend.config.dbms_db)
         )
         query2 = SQL("CREATE DATABASE {db_name};").format(db_name=Identifier(backend.config.dbms_db))
+
+        # Assertions
         backend.dbms_db.execute.assert_any_call(query1)
         backend.dbms_db.execute.assert_any_call(query2)
         backend.log.info.assert_called_with("Created database %s", backend.config.dbms_db)
@@ -171,6 +177,8 @@ class TestBackendSQL:
 
         # Case 2: Database exists
         backend.db_exists_or_create()
+
+        # Assertions
         backend.dbms_db.execute.assert_called_with(query1)
         backend.log.info.assert_called_with("Database %s already exists", backend.config.dbms_db)
 
@@ -182,8 +190,9 @@ class TestBackendSQL:
         is_new_table = backend.check_table()
         assert is_new_table is True
         query1 = SQL("SELECT 1 FROM pg_catalog.pg_tables WHERE tablename = {table_name};").format(
-            table_name=Literal(backend.config.dbms_table_or_coll_name)
+            table_name=Literal(backend.config.dbms_entity_name)
         )
+        # Assertion
         backend.dbms_db.execute.assert_called_with(query1)
 
         # Reset execute call count
@@ -191,6 +200,8 @@ class TestBackendSQL:
 
         # Case 2: Table exists
         is_new_table = backend.check_table()
+
+        # Assertions
         assert is_new_table is False
         backend.dbms_db.execute.assert_called_with(query1)
 
@@ -202,6 +213,8 @@ class TestBackendSQL:
         backend.dbms_db.fetchone.side_effect = iter([(1,)])
         with pytest.raises(SystemExit) as sys_exit:
             backend.check_table()
+
+        # Assertions
         assert sys_exit.type == SystemExit
         backend.dbms_db.execute.assert_called_with(query1)
 
@@ -212,6 +225,65 @@ class TestBackendSQL:
         backend.config.force_source = "other"
         backend.dbms_db.fetchone.side_effect = iter([(1,)])
         is_new_table = backend.check_table()
+
+        # Assertions
         assert is_new_table is False
         assert backend.sync_check_needed is True
         backend.dbms_db.execute.assert_called_with(query1)
+
+    @pytest.mark.parametrize("unique", [True, False])
+    def test_create_index(self, backend: BackendSQL, unique: bool):
+        table_name = "test_table"
+        index_name = "test_index"
+
+        backend.dbms_db.execute = MagicMock(return_value=None)
+        backend.log.info = MagicMock()
+
+        backend.create_index(table_name, index_name, unique)
+
+        # Assertions
+        query = SQL("CREATE {unique} INDEX {index_name} ON {table_name} ({index_name});").format(
+            unique=SQL("UNIQUE") if unique else SQL(""),
+            index_name=Identifier(index_name),
+            table_name=Identifier(table_name),
+        )
+
+        backend.dbms_db.execute.assert_called_once_with(query)
+        backend.log.info.assert_called_once_with("Created index %s on %s", index_name, table_name)
+
+    @pytest.mark.parametrize(
+        "input_params,expected_query",
+        [
+            # TODO: Add more test cases with different combinations of input parameters
+            (
+                {
+                    "table_name": "test_table_name",
+                    "query": None,
+                    "projection": None,
+                    "sort": None,
+                    "limit": None,
+                    "skip": None,
+                },
+                SQL("SELECT {projection} FROM {table_name}").format(
+                    projection=SQL("*"),
+                    table_name=Identifier("test_table_name"),
+                ),
+            )
+        ],
+    )
+    def test_query(self, backend: BackendSQL, input_params: dict, expected_query: SQL):
+        # Prepare test data
+        table_name = input_params["table_name"]
+        query = input_params["query"]
+        projection = input_params["projection"]
+        sort = input_params["sort"]
+        limit = input_params["limit"]
+        skip = input_params["skip"]
+
+        backend.execute = MagicMock(return_value=None)
+        backend.dbms_db.fetchall = MagicMock(return_value=[])
+
+        result = backend.query(table_name, query, projection, sort, limit, skip)
+
+        backend.execute.assert_called_once_with(expected_query)
+        assert result == []

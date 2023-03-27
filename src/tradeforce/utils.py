@@ -3,22 +3,23 @@
 """
 
 from __future__ import annotations
+from typing import TYPE_CHECKING
 from configparser import ConfigParser
+
 import numpy as np
 import pandas as pd
-from typing import TYPE_CHECKING
-from typing_extensions import TypedDict
+
+
 from bfxapi import Client  # type: ignore
 from bfxapi.constants import WS_HOST, PUB_WS_HOST, REST_HOST, PUB_REST_HOST  # type: ignore
+
 import tradeforce.simulator.default_strategies as strategies
+from tradeforce.custom_types import DictTimedelta, DictTimestamp
 
 # Prevent circular import for type checking
 if TYPE_CHECKING:
     from tradeforce.config import Config
     from tradeforce import TradingEngine
-
-TimestampDict = TypedDict("TimestampDict", {"datetime": pd.Timestamp, "timestamp": int})
-TimedeltaDict = TypedDict("TimedeltaDict", {"datetime": pd.Timedelta, "timestamp": int})
 
 
 def get_col_names(idx: pd.Index, specific_col: str = "") -> list[str]:
@@ -71,7 +72,7 @@ def convert_symbol_from_exchange(symbol_input: str | list | np.ndarray, base_cur
     return np_symbol_output.tolist()
 
 
-def get_timedelta(delta: str = "", unit=None) -> TimedeltaDict:
+def get_timedelta(delta: str = "", unit=None) -> DictTimedelta:
     """Get timedelta object and timestamp from string.
     E.g. "1h" -> {"datetime": pd.Timedelta("1h"), "timestamp": 3600000}
     unit: "s", "ms", "us", "ns" or "D", "h", "m", "s", "ms", "us", "ns"
@@ -81,7 +82,7 @@ def get_timedelta(delta: str = "", unit=None) -> TimedeltaDict:
     return {"datetime": delta_datetime, "timestamp": delta_timestamp}
 
 
-def get_now() -> TimestampDict:
+def get_now() -> DictTimestamp:
     """Get current datetime and timestamp in UTC.
     E.g. {"datetime": pd.Timestamp("2023-01-01 00:00:00"), "timestamp":1672531200000}
     """
@@ -90,13 +91,13 @@ def get_now() -> TimestampDict:
     return {"datetime": now_datetime, "timestamp": now_timestamp}
 
 
-def get_time_minus_delta(timestamp: int | None = None, delta="") -> TimestampDict:
+def get_time_minus_delta(timestamp: int | None = None, delta="") -> DictTimestamp:
     """Get datetime and timestamp in UTC minus delta time.
     E.g. get_time_minus_delta(timestamp=1672531200000, delta="1h") ->
     {"datetime": pd.Timestamp("2023-01-01 00:00:00"), "timestamp":1672531200000}
     """
     if timestamp is not None:
-        start_time: TimestampDict = {
+        start_time: DictTimestamp = {
             "timestamp": timestamp,
             "datetime": pd.to_datetime(timestamp, unit="ms", utc=True),
         }

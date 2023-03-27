@@ -86,7 +86,7 @@ class Config:
         self.dbms_pw = config_input.get("dbms_pw", None)
         self.dbms_connect_db = config_input.get("dbms_connect_db", "postgres")
         self.dbms_db = config_input.get("dbms_db", f"{self.exchange}_db")
-        self.dbms_table_or_coll_name = config_input.get("name", f"{self.exchange}_history_{self.history_timeframe}")
+        self.dbms_entity_name = config_input.get("name", f"{self.exchange}_history_{self.history_timeframe}")
 
         self.creds_path = config_input.get("creds_path", "")
         self.relevant_assets_cap = config_input.get("relevant_assets_cap", 100)
@@ -160,7 +160,7 @@ class Config:
             "dbms_connect_db",
             "dbms_db",
             "name",
-            "dbms_table_or_coll_name",
+            "dbms_entity_name",
             "creds_path",
             "relevant_assets_cap",
             "id",

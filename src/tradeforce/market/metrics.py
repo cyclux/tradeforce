@@ -8,11 +8,13 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 from typing import TYPE_CHECKING
+from tradeforce.custom_types import DictRelevantAssets
 from tradeforce.utils import get_col_names
 
 # Prevent circular import for type checking
 if TYPE_CHECKING:
     from tradeforce.main import TradingEngine
+
 
 ###########################
 # Calculate asset metrics #
@@ -37,8 +39,6 @@ def aggregate_history(df_input, agg_timeframe="1h"):
     amount_five_min_intervals = pd.Timedelta(agg_timeframe).value // 10**9 // 60 // 5
     agg_func_map = {
         "o": lambda row: row[0],
-        # "h": np.nanmax,
-        # "l": np.nanmin,
         "h": lambda x: np.nanmax(x, initial=-np.inf),  # TODO: check if this is correct:
         "l": lambda x: np.nanmin(x, initial=np.inf),  # should prevent RuntimeWarning:
         "c": lambda row: row[-1],  # Degrees of freedom <= 0 for slice.
@@ -67,7 +67,7 @@ def get_asset_performance_metrics(df_input):
     return asset_metrics
 
 
-async def get_init_relevant_assets(root: TradingEngine, capped=-1):
+async def get_init_relevant_assets(root: TradingEngine, capped=-1) -> DictRelevantAssets:
     # 34 days ~ 10000 candles limit
     root.log.info("Analyzing market for relevant assets...")
     init_market_history = await root.market_updater_api.update_market_history(init_timespan="34days")
@@ -78,8 +78,9 @@ async def get_init_relevant_assets(root: TradingEngine, capped=-1):
     if capped > 0:
         relevant_asset_symbols = relevant_asset_symbols[:capped]
     root.log.info("Market analysis finished!")
+
     return {
-        "assets": list(relevant_asset_symbols),
+        "assets": relevant_asset_symbols.tolist(),
         "metrics": df_relevant_assets_metrics,
         "data": init_market_history,
     }

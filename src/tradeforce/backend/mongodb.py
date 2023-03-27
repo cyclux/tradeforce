@@ -1,6 +1,7 @@
-#################
-# Connecting DB #
-#################
+""" tradeforce/backend/mongodb.py
+
+This module contains the BackendMongoDB class which is used to handle operations with MongoDB backend.
+"""
 
 from __future__ import annotations
 import sys
@@ -14,7 +15,6 @@ from tradeforce.backend import Backend
 if TYPE_CHECKING:
     from tradeforce.main import TradingEngine
 
-# TODO: table_or_coll can be collection or table depending on DBMS. A more general term should be "entity".
 # TODO: self.config.use_dbms is not needed. If self.config.dbms is None, then no DBMS is used??
 
 
@@ -35,10 +35,11 @@ class BackendMongoDB(Backend):
         self.backend_client = self.connect()
         self.is_new_coll_or_table = self.check_collection()
         # Only sync backend now if there is no exchange API connection.
-        # In case an API connection is used, db_sync_trader_state()
+        # In case an API connection is used, db_sync_state_trader()
         # will be called once by exchange_ws -> ws_priv_wallet_snapshot()
         if self.config.use_dbms and not self.config.run_live:
-            self.db_sync_trader_state()
+            self.db_sync_state_trader()
+            self.db_sync_state_orders()
 
     def connect(self) -> MongoClient:
         dbms_uri = self.construct_uri()
@@ -57,7 +58,7 @@ class BackendMongoDB(Backend):
         return dbms_client
 
     def check_collection(self) -> bool:
-        collection = self.get_collection(self.config.dbms_table_or_coll_name)
+        collection = self.get_collection(self.config.dbms_entity_name)
         try:
             self.dbms_db.validate_collection(collection)
         except (CollectionInvalid, OperationFailure):
@@ -67,15 +68,15 @@ class BackendMongoDB(Backend):
             if self.config.force_source != "mongodb":
                 if self.config.force_source == "api":
                     sys.exit(
-                        f"[ERROR] MongoDB history '{self.config.dbms_table_or_coll_name}' already exists. "
+                        f"[ERROR] MongoDB history '{self.config.dbms_entity_name}' already exists. "
                         + "Cannot load history via API. Choose different history DB name or loading method."
                     )
                 self.sync_check_needed = True
         return is_new_collection
 
-    ######################
-    # MongoDB operations #
-    ######################
+    ###############################
+    # MongoDB specific operations #
+    ###############################
     def create_index(self, collection_name, index_name, unique=False) -> None:
         collection = self.get_collection(collection_name)
         collection.create_index(index_name, unique=unique)
@@ -105,7 +106,6 @@ class BackendMongoDB(Backend):
         if limit is None:
             limit = 0
         return list(collection.find(mongo_query, projection=projection, sort=sort, skip=skip, limit=limit))
-        # return list(collection.find(mongo_query, projection=projection).sort(sort).limit(limit))
 
     def update_one(
         self, collection_name: str, query: dict[str, str | int | list], set_value: str | int | list | dict, upsert=False
@@ -141,16 +141,11 @@ class BackendMongoDB(Backend):
             self.log.error("Insert many into DB failed!")
         return insert_many_ok
 
-    def delete_one(self, collection_name, query) -> bool:
+    def delete_one(self, collection_name: str, query: dict[str, str | int]) -> bool:
         collection = self.get_collection(collection_name)
         delete_result = collection.delete_one(query)
         delete_ok = delete_result.acknowledged
         return delete_ok
+
         # TODO WARNING: -> {"asset": order["asset"], "buy_order_id": order["buy_order_id"]}
         # multiple entries not supported yet
-
-        # db_acknowledged = (
-        #     self.dbms_db[order_type]
-        #     .delete_one({"asset": order["asset"], "buy_order_id": order["buy_order_id"]})
-        #     .acknowledged
-        # )

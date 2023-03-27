@@ -5,36 +5,23 @@ Returns:
 """
 
 from __future__ import annotations
-from typing import TypedDict, TYPE_CHECKING
+from typing import TYPE_CHECKING
 import numpy as np
 import pandas as pd
 
-from bfxapi.models.wallet import Wallet  # type: ignore
-from bfxapi.models.subscription import Subscription  # type: ignore
 
 from tradeforce.utils import convert_symbol_from_exchange, convert_symbol_to_exchange
 from tradeforce.trader.buys import buy_confirmed
 from tradeforce.trader.sells import sell_confirmed
+from tradeforce.custom_types import DictCandle
 
 # Prevent circular import for type checking
 if TYPE_CHECKING:
     from tradeforce.main import TradingEngine
     from logging import Logger
     from bfxapi.models.order import Order  # type: ignore
-
-# Type hinting for candle data
-Candle = TypedDict(
-    "Candle",
-    {
-        "mts": int,
-        "open": float,
-        "close": float,
-        "high": float,
-        "low": float,
-        "volume": float,
-        "symbol": str,
-    },
-)
+    from bfxapi.models.wallet import Wallet  # type: ignore
+    from bfxapi.models.subscription import Subscription  # type: ignore
 
 
 def check_timestamp_difference(log: Logger, start: int, end: int, freq="5min") -> np.ndarray:
@@ -205,7 +192,7 @@ class ExchangeWebsocket:
         # Subscribe to candle updates for the specified asset list
         await self.ws_subscribe_candles(self.root.assets_list_symbols)
 
-    async def ws_new_candle(self, candle: Candle):
+    async def ws_new_candle(self, candle: DictCandle):
         """
         Handle new candle updates.
 
@@ -217,7 +204,7 @@ class ExchangeWebsocket:
         await self.process_candle_history_sync()
         await self.handle_new_candle()
 
-    def update_candle_cache(self, candle: Candle):
+    def update_candle_cache(self, candle: DictCandle):
         symbol_converted = convert_symbol_from_exchange(candle["symbol"])[0]
         current_asset = self.ws_candle_cache.get(self.current_candle_timestamp, {})
         current_asset[f"{symbol_converted}_o"] = candle["open"]
@@ -281,7 +268,7 @@ class ExchangeWebsocket:
         Returns:
             bool: True if the current candle is new, False otherwise.
 
-        The function checks for the following conditions:
+        Return True under following conditions:
         1. The current candle timestamp is not in the race condition prevention cache,
         ensuring that the same candle is not processed multiple times due to overlapping updates.
         2. The current candle timestamp is greater than the last processed candle timestamp,
@@ -348,7 +335,8 @@ class ExchangeWebsocket:
     async def ws_priv_wallet_snapshot(self, ws_wallet_snapshot):
         self.log.debug("wallet_snapshot: %s", str(ws_wallet_snapshot))
         self.root.trader.set_budget(ws_wallet_snapshot)
-        self.root.backend.db_sync_trader_state()
+        self.root.backend.db_sync_state_trader()
+        self.root.backend.db_sync_state_orders()
         await self.root.trader.get_min_order_sizes()
 
     def ws_priv_wallet_update(self, ws_wallet_update: Wallet):

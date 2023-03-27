@@ -125,7 +125,7 @@ def sell_confirmed(root: TradingEngine, sell_order):
     open_order = root.trader.get_open_order(asset={"asset": asset_symbol, "gid": sell_order["gid"]})
     if len(open_order) > 0:
         closed_order = open_order[0].copy()
-        closed_order["sell_timestamp"] = sell_order["mts_update"]
+        closed_order["timestamp_sell"] = sell_order["mts_update"]
         closed_order["price_sell"] = sell_order["price_avg"]
         sell_volume_crypto = abs(sell_order["amount_orig"])
         sell_volume_crypto_incl_fee, _, closed_order["sell_fee_fiat"] = calc_fee(

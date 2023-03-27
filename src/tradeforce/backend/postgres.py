@@ -1,7 +1,6 @@
-"""_summary_
+""" tradeforce/backend/postgres.py
 
-Returns:
-    _type_: _description_
+This module contains the BackendSQL class which is used to handle SQL operations with PostgreSQL backend.
 """
 from __future__ import annotations
 import sys
@@ -19,22 +18,29 @@ from tradeforce.backend.sql_tables import CreateTables
 # Prevent circular import for type checking
 if TYPE_CHECKING:
     from tradeforce.main import TradingEngine
-# FIXME sell_timestamp -> timestamp_sell
 
 
 class BackendSQL(Backend):
+    """Interface to handle SQL operations with PostgreSQL backend."""
+
     def __init__(self, root: TradingEngine):
+        """Initializes the BackendSQL object and establishes a connection to the database."""
+
         super().__init__(root)
         self.connected = False
         self.create_table = CreateTables(root, self)
         self.establish_connection(db_name=self.config.dbms_db)
-        # Only sync backend now if there is no exchange API connection.
-        # In case an API connection is used, db_sync_trader_state()
-        # will be called once by exchange_ws -> ws_priv_wallet_snapshot()
+        # Only sync state with backend now if there is no exchange API connection.
+        # So in case config.run_live is True (API connection present)
+        # both db_sync_state_trader() and db_sync_state_orders()
+        # will be called by ExchangeWebsocket.ws_priv_wallet_snapshot()
         if self.config.use_dbms and not self.config.run_live:
-            self.db_sync_trader_state()
+            self.db_sync_state_trader()
+            self.db_sync_state_orders()
 
     def connect(self, db_name) -> None:
+        """Connects to the database with given DB name."""
+
         dbms_uri = self.construct_uri(db_name)
         try:
             self.pool = pool.SimpleConnectionPool(minconn=1, maxconn=10, dsn=dbms_uri)
@@ -46,6 +52,8 @@ class BackendSQL(Backend):
             self.connected = True
 
     def establish_connection(self, db_name=None) -> None:
+        """Establishes a connection to the database by checking and creating necessary tables."""
+
         self.connect(db_name)
         if self.connected:
             pool_connection: connection = self.pool.getconn()
@@ -68,6 +76,8 @@ class BackendSQL(Backend):
             self.establish_connection(self.config.dbms_connect_db)
 
     def execute(self, query: Composed) -> bool:
+        """Executes the provided SQL query and returns a boolean indicating success or failure."""
+
         try:
             self.dbms_db.execute(query)
             execute_ok = True
@@ -77,6 +87,8 @@ class BackendSQL(Backend):
         return execute_ok
 
     def db_exists_or_create(self):
+        """Checks if the database exists and creates it if not."""
+
         query = SQL("SELECT 1 FROM pg_catalog.pg_database WHERE datname = {db_name};").format(
             db_name=Literal(self.config.dbms_db)
         )
@@ -95,8 +107,10 @@ class BackendSQL(Backend):
             self.log.info("Database %s already exists", self.config.dbms_db)
 
     def check_table(self):
+        """Checks if the table exists and returns a boolean indicating the result."""
+
         query = SQL("SELECT 1 FROM pg_catalog.pg_tables WHERE tablename = {table_name};").format(
-            table_name=Literal(self.config.dbms_table_or_coll_name)
+            table_name=Literal(self.config.dbms_entity_name)
         )
         self.execute(query)
         table_exists = self.dbms_db.fetchone()
@@ -107,17 +121,19 @@ class BackendSQL(Backend):
             if self.config.force_source != "postgresql":
                 if self.config.force_source == "api":
                     sys.exit(
-                        f"[ERROR] PostgreSQL history '{self.config.dbms_table_or_coll_name}' already exists. "
+                        f"[ERROR] PostgreSQL history '{self.config.dbms_entity_name}' already exists. "
                         + "Cannot load history via API. Choose different history DB name or loading method."
                     )
                 self.sync_check_needed = True
         return is_new_table
 
-        #########################
-        # PostgreSQL operations #
-        #########################
+    ##################################
+    # PostgreSQL specific operations #
+    ##################################
 
     def create_index(self, table_name, index_name, unique=False) -> None:
+        """Creates an index on the specified table with the given index_name and optional unique constraint."""
+
         query = SQL("CREATE {unique} INDEX {index_name} ON {table_name} ({index_name});").format(
             unique=SQL("UNIQUE") if unique else SQL(""),
             index_name=Identifier(index_name),
@@ -135,6 +151,8 @@ class BackendSQL(Backend):
         limit: int | None = None,
         skip: int | None = None,
     ) -> list:
+        """Queries the database with the provided parameters and returns the result as a list of dictionaries."""
+
         postgres_query = SQL("SELECT {projection} FROM {table_name}").format(
             projection=SQL(", ").join([Identifier(projection) for projection in projection])
             if projection is not None
@@ -169,58 +187,70 @@ class BackendSQL(Backend):
     def update_one(
         self, table_name: str, query: dict[str, str | int | list], set_value: str | int | list | dict, upsert=False
     ) -> bool:
+        """Updates a single record in the specified table and returns a boolean indicating success or failure."""
+
         set_val_is_dict = isinstance(set_value, dict)
         if isinstance(set_value, dict):
             columns = set_value.keys()
             values = tuple(set_value.values())
-        postgres_update = SQL("UPDATE {table_name} SET {column} = {set_value} WHERE {column} = {value}").format(
+        postgres_update = SQL("UPDATE {table_name} SET ({columns}) = ({set_value}) WHERE {column} = {value}").format(
             table_name=Identifier(table_name),
-            column=SQL(", ").join(map(Identifier, columns)) if set_val_is_dict else Identifier(query["attribute"]),
-            value=SQL(", ").join(map(Literal, values)) if set_val_is_dict else Literal(query["value"]),
-            set_value=Literal(set_value),
+            columns=SQL(", ").join(map(Identifier, columns)) if set_val_is_dict else Identifier(columns),
+            column=Identifier(query["attribute"]),
+            value=Literal(query["value"]),
+            set_value=SQL(", ").join(map(Literal, values)) if set_val_is_dict else Literal(set_value),
         )
         self.execute(postgres_update)
         if self.dbms_db.rowcount > 0:
             return True
         else:
-            # If upsert is True and no rows were updated, insert a new row
             if upsert:
-                postgres_update = SQL("INSERT INTO {table_name} ({column}) VALUES ({set_value})").format(
-                    table_name=Identifier(table_name),
-                    column=Identifier(query["attribute"]),
-                    set_value=Literal(set_value),
-                )
-                self.execute(postgres_update)
+                if isinstance(set_value, dict):
+                    if query["attribute"] == "t":
+                        set_value["t"] = query["value"]
+                    self.insert_one(table_name, set_value)
                 if self.dbms_db.rowcount > 0:
                     return True
         return False
 
-    def insert_one(self, table_name: str, payload_insert: dict) -> bool:
-        # if filter_nan:
-        #     payload_insert = get_filtered_from_nan(payload_insert)
-        if len(payload_insert) == 0:
-            self.log.warning("No data to insert_one into DB!")
+    def _insert(self, table_name: str, columns: list, values_list: list) -> bool:
+        """A helper method for inserting data into DB. Returns a boolean indicating success or failure"""
+
+        if not values_list:
+            self.log.warning("No data to insert into DB!")
             return False
-        columns = payload_insert.keys()
-        values = tuple(payload_insert.values())
-        query = SQL("INSERT INTO {table_name} ({columns}) VALUES ({values})").format(
+
+        sql_insert = SQL("INSERT INTO {table_name} ({columns}) VALUES {values_list}").format(
             table_name=Identifier(table_name),
             columns=SQL(", ").join(map(Identifier, columns)),
-            values=SQL(", ").join(map(Literal, values)),
+            values_list=SQL(", ").join(
+                SQL("({values})").format(values=SQL(", ").join(map(Literal, values))) for values in values_list
+            ),
         )
-        return self.execute(query)
+        self.execute(sql_insert)
+        return self.dbms_db.rowcount > 0
+
+    def insert_one(self, table_name: str, payload_insert: dict) -> bool:
+        """Inserts a single record into the specified table and returns a boolean indicating success or failure."""
+
+        columns = list(payload_insert.keys())
+        values = [tuple(payload_insert.values())]
+        return self._insert(table_name, columns, values)
 
     def insert_many(self, table_name: str, payload_insert: list[dict]) -> bool:
-        # if filter_nan:
-        #     payload_insert = get_filtered_from_nan(payload_insert)
-        if len(payload_insert) == 0:
-            self.log.warning("No data to insert_many into DB!")
-            return False
-        columns = payload_insert[0].keys()
-        values = [tuple(d.values()) for d in payload_insert]
-        query = SQL("INSERT INTO {table_name} ({columns}) VALUES {values}").format(
+        """Inserts multiple records into the specified table and returns a boolean indicating success or failure."""
+
+        columns = list(payload_insert[0].keys())
+        values_list = [tuple(d.values()) for d in payload_insert]
+        return self._insert(table_name, columns, values_list)
+
+    def delete_one(self, table_name: str, query: dict[str, str | int]) -> bool:
+        """Deletes a single record from the specified table and returns a boolean indicating success or failure."""
+
+        sql_delete = SQL("DELETE FROM {table_name} WHERE {column} = {value}").format(
             table_name=Identifier(table_name),
-            columns=SQL(", ").join(map(Identifier, columns)),
-            values=SQL(", ").join(map(Literal, values)),
+            column=Identifier(query["attribute"]),
+            value=Literal(query["value"]),
         )
-        return self.execute(query)
+        self.execute(sql_delete)
+        return self.dbms_db.rowcount > 0

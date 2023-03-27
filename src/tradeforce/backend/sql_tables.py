@@ -28,9 +28,9 @@ class CreateTables:
         )
         query = SQL(
             "CREATE TABLE {table_name} (" + "t BIGINT NOT NULL," + f"{sql_columns}," + "PRIMARY KEY (t)" + ");"
-        ).format(table_name=Identifier(self.config.dbms_table_or_coll_name))
+        ).format(table_name=Identifier(self.config.dbms_entity_name))
         self.backend.execute(query)
-        self.log.info("Created table %s", self.config.dbms_table_or_coll_name)
+        self.log.info("Created table %s", self.config.dbms_entity_name)
 
     def trader_status(self) -> None:
         query = SQL(
@@ -89,7 +89,7 @@ class CreateTables:
             + "buy_fee_fiat NUMERIC(5,12) NOT NULL,"
             + "buy_volume_crypto NUMERIC(10,16) NOT NULL,"
             + "sell_order_id BIGINT,"
-            + "sell_timestamp BIGINT,"
+            + "timestamp_sell BIGINT,"
             + "price_sell NUMERIC(10,8) NOT NULL,"
             + "sell_volume_crypto NUMERIC(10,16) NOT NULL,"
             + "sell_fee_fiat NUMERIC(5,12) NOT NULL,"
