@@ -32,7 +32,7 @@ def construct_mongodb_query(query: dict | None) -> dict:
 class BackendMongoDB(Backend):
     def __init__(self, root: TradingEngine):
         super().__init__(root)
-        self.backend_client = self.connect()
+        self.backend_client = self._connect()
         self.is_new_coll_or_table = self.check_collection()
         # Only sync backend now if there is no exchange API connection.
         # In case an API connection is used, db_sync_state_trader()
@@ -41,7 +41,7 @@ class BackendMongoDB(Backend):
             self.db_sync_state_trader()
             self.db_sync_state_orders()
 
-    def connect(self) -> MongoClient:
+    def _connect(self) -> MongoClient:
         dbms_uri = self.construct_uri()
         dbms_client: MongoClient = MongoClient(dbms_uri, connect=True)
         self.dbms_db = dbms_client[self.config.dbms_db]

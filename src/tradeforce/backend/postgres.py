@@ -29,7 +29,7 @@ class BackendSQL(Backend):
         super().__init__(root)
         self.connected = False
         self.create_table = CreateTables(root, self)
-        self.establish_connection(db_name=self.config.dbms_db)
+        self._establish_connection(db_name=self.config.dbms_db)
         # Only sync state with backend now if there is no exchange API connection.
         # So in case config.run_live is True (API connection present)
         # both db_sync_state_trader() and db_sync_state_orders()
@@ -38,7 +38,7 @@ class BackendSQL(Backend):
             self.db_sync_state_trader()
             self.db_sync_state_orders()
 
-    def connect(self, db_name) -> None:
+    def _connect(self, db_name) -> None:
         """Connects to the database with given DB name."""
 
         dbms_uri = self.construct_uri(db_name)
@@ -51,10 +51,10 @@ class BackendSQL(Backend):
         else:
             self.connected = True
 
-    def establish_connection(self, db_name=None) -> None:
+    def _establish_connection(self, db_name=None) -> None:
         """Establishes a connection to the database by checking and creating necessary tables."""
 
-        self.connect(db_name)
+        self._connect(db_name)
         if self.connected:
             pool_connection: connection = self.pool.getconn()
             with pool_connection as dbms_client:
@@ -62,18 +62,18 @@ class BackendSQL(Backend):
                 self.dbms_db: cursor = dbms_client.cursor()
 
             if db_name == self.config.dbms_connect_db:
-                self.db_exists_or_create()
+                self._db_exists_or_create()
                 self.dbms_db.close()
-                self.establish_connection(self.config.dbms_db)
+                self._establish_connection(self.config.dbms_db)
             if db_name == self.config.dbms_db:
-                self.is_new_coll_or_table = self.check_table()
+                self.is_new_coll_or_table = self._check_table()
                 if self.is_new_coll_or_table:
                     self.create_table.trader_status()
                     self.create_table.open_orders()
                     self.create_table.closed_orders()
 
         else:
-            self.establish_connection(self.config.dbms_connect_db)
+            self._establish_connection(self.config.dbms_connect_db)
 
     def execute(self, query: Composed) -> bool:
         """Executes the provided SQL query and returns a boolean indicating success or failure."""
@@ -86,7 +86,10 @@ class BackendSQL(Backend):
             self.log.error("SQL execute failed!")
         return execute_ok
 
-    def db_exists_or_create(self):
+    def _has_executed(self):
+        return self.dbms_db.rowcount > 0
+
+    def _db_exists_or_create(self):
         """Checks if the database exists and creates it if not."""
 
         query = SQL("SELECT 1 FROM pg_catalog.pg_database WHERE datname = {db_name};").format(
@@ -106,7 +109,7 @@ class BackendSQL(Backend):
         else:
             self.log.info("Database %s already exists", self.config.dbms_db)
 
-    def check_table(self):
+    def _check_table(self):
         """Checks if the table exists and returns a boolean indicating the result."""
 
         query = SQL("SELECT 1 FROM pg_catalog.pg_tables WHERE tablename = {table_name};").format(
@@ -184,37 +187,43 @@ class BackendSQL(Backend):
         result = [{columns[i]: row[i] for i in range(len(columns))} for row in self.dbms_db.fetchall()]
         return list(result)
 
-    def update_one(
-        self, table_name: str, query: dict[str, str | int | list], set_value: str | int | list | dict, upsert=False
-    ) -> bool:
-        """Updates a single record in the specified table and returns a boolean indicating success or failure."""
+    def _create_update_query(
+        self, table_name: str, query: dict[str, str | int | list], set_value: str | int | list | dict
+    ) -> Composed:
+        """Helper method which creates an update query for the specified table and returns it as a Composed object."""
 
         set_val_is_dict = isinstance(set_value, dict)
+        # isinstance called again to avoid mypy error
         if isinstance(set_value, dict):
             columns = set_value.keys()
             values = tuple(set_value.values())
-        postgres_update = SQL("UPDATE {table_name} SET ({columns}) = ({set_value}) WHERE {column} = {value}").format(
+        return SQL("UPDATE {table_name} SET ({columns}) = ({set_value}) WHERE {column} = {value}").format(
             table_name=Identifier(table_name),
             columns=SQL(", ").join(map(Identifier, columns)) if set_val_is_dict else Identifier(columns),
             column=Identifier(query["attribute"]),
             value=Literal(query["value"]),
             set_value=SQL(", ").join(map(Literal, values)) if set_val_is_dict else Literal(set_value),
         )
+
+    def update_one(
+        self, table_name: str, query: dict[str, str | int | list], set_value: str | int | list | dict, upsert=False
+    ) -> bool:
+        """Updates a single record in the specified table and returns a boolean indicating success or failure."""
+
+        postgres_update = self._create_update_query(table_name, query, set_value)
         self.execute(postgres_update)
-        if self.dbms_db.rowcount > 0:
+        update_executed = self._has_executed()
+        if update_executed:
             return True
-        else:
-            if upsert:
-                if isinstance(set_value, dict):
-                    if query["attribute"] == "t":
-                        set_value["t"] = query["value"]
-                    self.insert_one(table_name, set_value)
-                if self.dbms_db.rowcount > 0:
-                    return True
+        if upsert and isinstance(set_value, dict) and query["attribute"] == "t":
+            set_value["t"] = query["value"]
+            insert_executed = self.insert_one(table_name, set_value)
+            if insert_executed:
+                return True
         return False
 
     def _insert(self, table_name: str, columns: list, values_list: list) -> bool:
-        """A helper method for inserting data into DB. Returns a boolean indicating success or failure"""
+        """Helper method for inserting data into DB. Returns a boolean indicating success or failure"""
 
         if not values_list:
             self.log.warning("No data to insert into DB!")
@@ -228,18 +237,23 @@ class BackendSQL(Backend):
             ),
         )
         self.execute(sql_insert)
-        return self.dbms_db.rowcount > 0
+        return self._has_executed()
 
     def insert_one(self, table_name: str, payload_insert: dict) -> bool:
         """Inserts a single record into the specified table and returns a boolean indicating success or failure."""
 
+        if not payload_insert:
+            self.log.warning("No data to insert into DB! [table: {table_name}]", table_name=table_name)
+            return False
         columns = list(payload_insert.keys())
         values = [tuple(payload_insert.values())]
         return self._insert(table_name, columns, values)
 
     def insert_many(self, table_name: str, payload_insert: list[dict]) -> bool:
         """Inserts multiple records into the specified table and returns a boolean indicating success or failure."""
-
+        if not payload_insert or len(payload_insert) < 1:
+            self.log.warning("No data to insert into DB! [table: {table_name}]", table_name=table_name)
+            return False
         columns = list(payload_insert[0].keys())
         values_list = [tuple(d.values()) for d in payload_insert]
         return self._insert(table_name, columns, values_list)
@@ -253,4 +267,4 @@ class BackendSQL(Backend):
             value=Literal(query["value"]),
         )
         self.execute(sql_delete)
-        return self.dbms_db.rowcount > 0
+        return self._has_executed()
