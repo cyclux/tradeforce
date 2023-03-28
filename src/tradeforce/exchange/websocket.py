@@ -47,8 +47,7 @@ def check_timestamp_difference(log: Logger, start: int, end: int, freq="5min") -
 
 
 def convert_order_to_dict(order_obj: Order) -> dict[str, int | float | str]:
-    """
-    Convert an order object into a dictionary.
+    """Convert an order object into a dictionary.
 
     :param order_obj: Order object from bitfinex to convert
     :return: The order as a dictionary
@@ -63,9 +62,16 @@ def convert_order_to_dict(order_obj: Order) -> dict[str, int | float | str]:
     return order_dict
 
 
+def get_order_type(ws_order):
+    return "buy" if ws_order.amount_orig > 0 else "sell"
+
+
+def is_order_closed_and_filled(ws_order_closed):
+    return abs(abs(ws_order_closed.amount_orig) - abs(ws_order_closed.amount_filled)) < 0.0000001
+
+
 class ExchangeWebsocket:
-    """
-    Manages the websocket connection to the Bitfinex exchange.
+    """Manages the websocket connection to the Bitfinex exchange.
 
     This class handles subscriptions to candle, order, and wallet updates, processes
     new candle data, and stores the data in the DB. It ensures that the market
@@ -73,8 +79,7 @@ class ExchangeWebsocket:
     """
 
     def __init__(self, root: TradingEngine):
-        """
-        Initialize the ExchangeWebsocket object.
+        """Initialize the ExchangeWebsocket object.
 
         :param root: The TradingEngine object providing access to the config and logging
         """
@@ -168,9 +173,7 @@ class ExchangeWebsocket:
         self.log.info("Subscribed to %s channels.", len(asset_list_bfx))
 
     async def get_latest_candle_timestamp(self):
-        """
-        Get the latest local candle timestamp, or fetch it from the remote API if not available.
-        """
+        """Get the latest local candle timestamp, or fetch it from the remote API if not available."""
         latest_candle_timestamp = self.root.market_history.get_local_candle_timestamp(position="latest")
         if latest_candle_timestamp == 0:
             latest_candle_timestamp = await self.root.exchange_api.get_latest_remote_candle_timestamp(
@@ -179,9 +182,7 @@ class ExchangeWebsocket:
         return latest_candle_timestamp
 
     async def ws_init_connection(self):
-        """
-        Initialize the public websocket connection and subscribe to candle updates.
-        """
+        """Initialize the public websocket connection and subscribe to candle updates."""
         # Get the latest candle timestamp
         self.latest_candle_timestamp = await self.get_latest_candle_timestamp()
 
@@ -196,7 +197,7 @@ class ExchangeWebsocket:
         """
         Handle new candle updates.
 
-        :param candle_obj: New candle object
+        :param candle_obj: New candle object received from the websocket.
         :type candle_obj: dict
         """
         self.current_candle_timestamp = int(candle["mts"])
@@ -262,11 +263,7 @@ class ExchangeWebsocket:
                 await self.trigger_trader_updates()
 
     def is_new_candle(self):
-        """
-        Check if the current candle is new and conditions are met to process it.
-
-        Returns:
-            bool: True if the current candle is new, False otherwise.
+        """Returns True if the current candle is new and conditions are met to process it.
 
         Return True under following conditions:
         1. The current candle timestamp is not in the race condition prevention cache,
@@ -307,30 +304,45 @@ class ExchangeWebsocket:
     # Private websocket channels #
     ##############################
 
+    # Handle order confirmed
+
     def ws_priv_order_confirmed(self, ws_confirmed):
         self.log.debug("order_confirmed: %s", str(ws_confirmed))
-        order_type = "buy" if ws_confirmed.amount_orig > 0 else "sell"
-        if order_type == "sell":
-            asset_symbol = convert_symbol_from_exchange(ws_confirmed.symbol)[0]
+        asset_symbol = convert_symbol_from_exchange(ws_confirmed.symbol)[0]
+
+        if get_order_type(ws_confirmed) == "sell":
             buy_order = {"asset": asset_symbol, "gid": ws_confirmed.gid}
-            open_order = self.root.trader.get_open_order(asset=buy_order)
-            if len(open_order) > 0:
-                open_order_edited = open_order[0]
-                open_order_edited["sell_order_id"] = ws_confirmed.id
-                self.root.trader.edit_order(open_order_edited, "open_orders")
-            else:
-                self.log.error("Cannot find open order (%s)", str(buy_order))
+            self.handle_sell_order(buy_order, ws_confirmed)
+        else:
+            self.log.error("Cannot find open order (%s)", str(buy_order))
+
+    def handle_sell_order(self, buy_order, ws_confirmed):
+        open_order = self.root.trader.get_open_order(asset=buy_order)
+        if len(open_order) > 0:
+            self.update_open_order(open_order[0], ws_confirmed)
+        else:
+            self.log.error("Cannot find open order (%s)", str(buy_order))
+
+    def update_open_order(self, open_order, ws_confirmed):
+        open_order["sell_order_id"] = ws_confirmed.id
+        self.root.trader.edit_order(open_order, "open_orders")
+
+    # Handle order closed
 
     async def ws_priv_order_closed(self, ws_order_closed):
         self.log.debug("order_closed: %s", str(ws_order_closed))
-        order_closed_and_filled = abs(abs(ws_order_closed.amount_orig) - abs(ws_order_closed.amount_filled)) < 0.0000001
-        order_type = "buy" if ws_order_closed.amount_orig > 0 else "sell"
-        if order_closed_and_filled:
-            if order_type == "buy":
-                await buy_confirmed(self.root, ws_order_closed)
-            if order_type == "sell":
-                order_closed_dict = convert_order_to_dict(ws_order_closed)
-                sell_confirmed(self.root, order_closed_dict)
+        if is_order_closed_and_filled(ws_order_closed):
+            await self.handle_order_closed(ws_order_closed)
+
+    async def handle_order_closed(self, ws_order_closed):
+        order_type = get_order_type(ws_order_closed)
+        if order_type == "buy":
+            await buy_confirmed(self.root, ws_order_closed)
+        if order_type == "sell":
+            order_closed_dict = convert_order_to_dict(ws_order_closed)
+            sell_confirmed(self.root, order_closed_dict)
+
+    # Handle wallet updates
 
     async def ws_priv_wallet_snapshot(self, ws_wallet_snapshot):
         self.log.debug("wallet_snapshot: %s", str(ws_wallet_snapshot))
