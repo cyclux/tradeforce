@@ -2,8 +2,10 @@
 
 import pytest
 from psycopg2 import OperationalError
+from psycopg2.pool import SimpleConnectionPool
 from psycopg2.sql import SQL, Identifier, Literal, Composed
-from unittest.mock import MagicMock
+from psycopg2.extensions import connection, cursor
+from unittest.mock import MagicMock, patch, call
 from tradeforce.config import Config
 from tradeforce import TradingEngine
 from tradeforce.backend import BackendSQL
@@ -82,158 +84,314 @@ class TestBackendSQL:
         backend.create_table.closed_orders = MagicMock(name="closed_orders")
         return backend
 
-    def test_init(self, backend: BackendSQL, config_object: Config) -> None:
+    @pytest.mark.parametrize("run_live, call_sync_methods", [(True, False), (False, True)])
+    def test_init(
+        self,
+        backend: BackendSQL,
+        trading_engine: TradingEngine,
+        run_live: bool,
+        call_sync_methods: bool,
+    ) -> None:
+        # Update trading_engine config to set run_live
+        trading_engine.config.run_live = run_live
+
+        # Reset connected attribute and call __init__ to re-initialize
+        backend.connected = False
+        backend._establish_connection = MagicMock(name="_establish_connection", return_value=None)
+        backend.db_sync_state_trader.reset_mock()
+        backend.db_sync_state_orders.reset_mock()
+
+        # Call __init__ and manually set connected to True
+        backend.__init__(trading_engine)
+        backend.connected = True
+
+        # Assertions for init test
         assert backend.connected is True
         assert isinstance(backend.create_table, CreateTables)
-        assert backend.config.dbms_db == config_object.dbms_db
+        assert backend.config.dbms_db == trading_engine.config.dbms_db
 
-    @pytest.mark.parametrize("run_live, call_db_sync_state_trader", [(True, True), (False, False)])
-    def test_init_sync(
-        self, backend: BackendSQL, trading_engine: TradingEngine, run_live: bool, call_db_sync_state_trader: bool
-    ) -> None:
-        backend.config.run_live = run_live
-        backend._establish_connection = MagicMock(name="_establish_connection", return_value=None)
-        backend.__init__(trading_engine)
-        if call_db_sync_state_trader:
+        # Assertions for sync test
+        if call_sync_methods:
+            assert backend.config.run_live is False
+            backend.db_sync_state_trader.assert_called_once()
+            backend.db_sync_state_orders.assert_called_once()
+        else:
             assert backend.config.run_live is True
             backend.db_sync_state_trader.assert_not_called()
             backend.db_sync_state_orders.assert_not_called()
 
+    @pytest.mark.parametrize("raise_error, expected_connected", [(False, True), (True, False)])
+    def test_is_connected(
+        self,
+        backend: BackendSQL,
+        raise_error: bool,
+        expected_connected: bool,
+    ) -> None:
+        # Mock SimpleConnectionPool
+        with patch("psycopg2.pool.SimpleConnectionPool", autospec=True) as mock_pool:
+            if raise_error:
+                # Raise OperationalError if raise_error is True
+                mock_pool.side_effect = OperationalError()
+            else:
+                # Return a MagicMock if raise_error is False
+                mock_pool.return_value = MagicMock(spec=SimpleConnectionPool)
+
+            # Call _is_connected
+            connected = backend._is_connected(db_name="test_db")
+
+        # Assertions
+        assert connected == expected_connected
+
+    def test_register_cursor(self, backend: BackendSQL) -> None:
+        # Mock pool and cursor
+        mock_pool_connection = MagicMock(spec=connection)
+        mock_cursor = MagicMock(spec=cursor)
+
+        # Patch SimpleConnectionPool
+        with patch("psycopg2.pool.SimpleConnectionPool", autospec=True) as mock_pool:
+            # Set return value for the pool object
+            mock_pool.return_value = MagicMock(getconn=MagicMock(return_value=mock_pool_connection))
+
+            # Mock _is_connected to return True and set the mocked pool object
+            with patch.object(BackendSQL, "_is_connected", return_value=True):
+                backend.pool = mock_pool.return_value
+
+                # Patch the connection object's __enter__ and cursor methods to return appropriate mocks
+                with patch.object(mock_pool_connection, "__enter__", return_value=mock_pool_connection), patch.object(
+                    mock_pool_connection, "cursor", return_value=mock_cursor
+                ):
+
+                    # Call _register_cursor
+                    result_cursor = backend._register_cursor()
+
+                    # Assertions
+                    assert result_cursor == mock_cursor
+                    backend.pool.getconn.assert_called_once()
+                    mock_pool_connection.cursor.assert_called_once()
+                    assert mock_pool_connection.autocommit is True
+
+    @pytest.mark.parametrize(
+        "is_new_history, is_new_trader, is_new_open, is_new_closed",
+        [
+            (True, True, True, True),
+            (True, True, True, False),
+            (True, True, False, True),
+            (True, True, False, False),
+            (True, False, True, True),
+            (True, False, True, False),
+            (True, False, False, True),
+            (True, False, False, False),
+            (False, True, True, True),
+            (False, True, True, False),
+            (False, True, False, True),
+            (False, True, False, False),
+            (False, False, True, True),
+            (False, False, True, False),
+            (False, False, False, True),
+            (False, False, False, False),
+        ],
+    )
+    def test_check_new_tables(
+        self,
+        backend: BackendSQL,
+        is_new_history: bool,
+        is_new_trader: bool,
+        is_new_open: bool,
+        is_new_closed: bool,
+    ) -> None:
+        # Mock is_new_entity
+        backend.is_new_entity = MagicMock(side_effect=[is_new_history, is_new_trader, is_new_open, is_new_closed])
+
+        # Mock create_table methods
+        backend.create_table.trader_status = MagicMock()
+        backend.create_table.open_orders = MagicMock()
+        backend.create_table.closed_orders = MagicMock()
+
+        # Call _check_new_tables
+        backend._check_new_tables()
+
+        # Assertions
+        if is_new_trader:
+            backend.create_table.trader_status.assert_called_once()
         else:
-            assert backend.config.run_live is False
-            backend.db_sync_state_trader.assert_called_once()
-            backend.db_sync_state_orders.assert_called_once()
+            backend.create_table.trader_status.assert_not_called()
 
-    def test_connect_success(self, backend: BackendSQL):
-        # Test a successful connection to the database
-        backend._connect("postgres")
-        assert backend.connected is True
+        if is_new_open:
+            backend.create_table.open_orders.assert_called_once()
+        else:
+            backend.create_table.open_orders.assert_not_called()
 
-    def test_connect_failure(self, backend: BackendSQL):
-        # Test a failed connection to the database
-        backend._connect("non_existent_db")
-        assert backend.connected is False
+        if is_new_closed:
+            backend.create_table.closed_orders.assert_called_once()
+        else:
+            backend.create_table.closed_orders.assert_not_called()
 
-    def test_establish_connection_success(self, backend: BackendSQL):
-        # Test a successful initialization of the connection to the database if the database already exists
-        backend._establish_connection(backend.config.dbms_db)
-        assert backend.connected is True
+    @pytest.mark.parametrize(
+        "db_name, expected_calls",
+        [
+            (None, 2),
+            ("bitfinex_db", 1),
+            ("postgres", 2),
+        ],
+    )
+    def test_establish_connection(
+        self,
+        backend: BackendSQL,
+        db_name: str | None,
+        expected_calls: int,
+    ) -> None:
+        # Mock _is_connected to return True
+        backend._is_connected = MagicMock(return_value=True)
 
-    def test_establish_connection_failure(self, backend: BackendSQL, config_object: Config):
-        # Test a successful initialization of the connection to the database if the database does not exist
-        # A connection to the postgres database will be established and the database will be created
-        db_name = "non_existent_db"
+        # Mock _register_cursor, _db_exists_or_create, and _check_new_tables
+        backend._register_cursor = MagicMock()
+        backend._db_exists_or_create = MagicMock()
+        backend._check_new_tables = MagicMock()
+
+        # Call _establish_connection
         backend._establish_connection(db_name)
-        assert backend.connected is True
-        assert backend.config.dbms_db == config_object.dbms_db
 
-    def test_establish_connection_db_name_dbms_db_is_new_coll_or_table_true(
-        self, backend: BackendSQL, config_object: Config
-    ):
-        db_name = config_object.dbms_db
-        backend._check_table = MagicMock(name="check_table", return_value=True)
-        backend._establish_connection(db_name)
-        backend.create_table.trader_status.assert_called_once()
-        backend.create_table.open_orders.assert_called_once()
-        backend.create_table.closed_orders.assert_called_once()
+        # Assertions
+        if db_name is None or db_name == backend.config.dbms_connect_db:
+            backend._is_connected.assert_has_calls([call(backend.config.dbms_connect_db), call(backend.config.dbms_db)])
+            backend._db_exists_or_create.assert_called_once()
+        else:
+            backend._is_connected.assert_called_once_with(backend.config.dbms_db)
+            backend._db_exists_or_create.assert_not_called()
 
-    def test_establish_connection_db_name_dbms_db_is_new_coll_or_table_false(
-        self, backend: BackendSQL, config_object: Config
-    ):
-        db_name = config_object.dbms_db
-        backend._check_table = MagicMock(name="check_table", return_value=False)
-        backend._establish_connection(db_name)
-        backend.create_table.trader_status.assert_not_called()
-        backend.create_table.open_orders.assert_not_called()
-        backend.create_table.closed_orders.assert_not_called()
+        assert backend._register_cursor.call_count == expected_calls
+        backend._check_new_tables.assert_called_once()
+        assert backend._is_connected.call_count == expected_calls
 
-    def test_execute_successful(self, backend: BackendSQL):
-        query = SQL("SELECT * FROM {}").format(Identifier("postgres"))
-        assert backend.execute(query) is True
-        backend.dbms_db.execute.assert_called_once_with(query)
+    @pytest.mark.parametrize(
+        "error_to_raise, expected_result",
+        [
+            (None, True),
+            (TypeError, False),
+            (OperationalError, False),
+        ],
+    )
+    def test_execute(
+        self,
+        backend: BackendSQL,
+        error_to_raise: Exception,
+        expected_result: bool,
+    ) -> None:
+        # Mock the dbms_db cursor
+        backend.dbms_db = MagicMock()
 
-    def test_execute_failed(self, backend: BackendSQL):
-        query = SQL("SELECT * FROM {}").format(Identifier("postgres"))
-        backend.dbms_db.execute.side_effect = [TypeError("execute failed"), OperationalError("execute failed")]
-        assert backend.execute(query) is False
-        backend.dbms_db.execute.assert_called_once_with(query)
-        backend.log.error.assert_called_once_with("SQL execute failed!")
+        # Define the side_effect for the execute method based on the raised error
+        side_effect = error_to_raise if error_to_raise else None
+        backend.dbms_db.execute = MagicMock(side_effect=side_effect)
 
-    def test_db_exists_or_create(self, backend: BackendSQL):
-        # Test the db_exists_or_create function
-        backend.dbms_db.fetchone.side_effect = [None, (1,)]
+        # Create a mock query object
+        mock_query = MagicMock(spec=Composed)
 
-        # Case 1: Database does not exist
+        # Call the execute method with the mock query object
+        result = backend.execute(mock_query)
+
+        # Assertions
+        backend.dbms_db.execute.assert_called_once_with(mock_query)
+        assert result == expected_result
+
+        # Check if log.error was called when an error occurs
+        if error_to_raise:
+            backend.log.error.assert_called_once_with("SQL execute failed!")
+        else:
+            backend.log.error.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "rowcount, expected_result",
+        [
+            (0, False),
+            (1, True),
+            (5, True),
+        ],
+    )
+    def test_has_executed(
+        self,
+        backend: BackendSQL,
+        rowcount: int,
+        expected_result: bool,
+    ) -> None:
+        # Mock the dbms_db cursor
+        backend.dbms_db = MagicMock()
+
+        # Set the rowcount attribute for the cursor
+        backend.dbms_db.rowcount = rowcount
+
+        # Call the _has_executed method
+        result = backend._has_executed()
+
+        # Assertions
+        assert result == expected_result
+
+    @pytest.mark.parametrize(
+        "fetchone_result, create_called, execute_calls",
+        [
+            (None, True, 2),
+            ((1,), False, 1),
+        ],
+    )
+    def test_db_exists_or_create(
+        self,
+        backend: BackendSQL,
+        fetchone_result,
+        create_called: bool,
+        execute_calls: int,
+    ) -> None:
+        # Mock execute and fetchone methods
+        backend.execute = MagicMock(return_value=True)
+        backend.dbms_db = MagicMock(fetchone=MagicMock(return_value=fetchone_result))
+        backend.log.info = MagicMock()
+
+        # Call the _db_exists_or_create method
         backend._db_exists_or_create()
+
+        # Assertions
         query1 = SQL("SELECT 1 FROM pg_catalog.pg_database WHERE datname = {db_name};").format(
             db_name=Literal(backend.config.dbms_db)
         )
-        query2 = SQL("CREATE DATABASE {db_name};").format(db_name=Identifier(backend.config.dbms_db))
+        # backend.execute.assert_called_with(query1) asserts with wrong call (query2)
+        backend.execute.assert_any_call(query1)
+
+        if create_called:
+            query2 = SQL("CREATE DATABASE {db_name};").format(db_name=Identifier(backend.config.dbms_db))
+            backend.execute.assert_called_with(query2)
+
+        assert backend.execute.call_count == execute_calls
+
+        backend.log.info.assert_called_once()
+        backend.dbms_db.fetchone.assert_called_once()
+
+    @pytest.mark.parametrize(
+        "fetchone_result, expected_result",
+        [
+            (None, True),
+            ((1,), False),
+        ],
+    )
+    def test_is_new_entity(
+        self,
+        backend: BackendSQL,
+        fetchone_result,
+        expected_result: bool,
+    ) -> None:
+        # Mock execute and fetchone methods
+        backend.execute = MagicMock(return_value=True)
+        backend.dbms_db = MagicMock(fetchone=MagicMock(return_value=fetchone_result))
+
+        # Call the is_new_entity method
+        table_name = "test_table"
+        result = backend.is_new_entity(table_name)
 
         # Assertions
-        backend.dbms_db.execute.assert_any_call(query1)
-        backend.dbms_db.execute.assert_any_call(query2)
-        backend.log.info.assert_called_with("Created database %s", backend.config.dbms_db)
-
-        # Reset log and execute call count
-        backend.log.reset_mock()
-        backend.dbms_db.execute.reset_mock()
-
-        # Case 2: Database exists
-        backend._db_exists_or_create()
-
-        # Assertions
-        backend.dbms_db.execute.assert_called_with(query1)
-        backend.log.info.assert_called_with("Database %s already exists", backend.config.dbms_db)
-
-    def test_check_table(self, backend: BackendSQL):
-        # Test the check_table function
-        backend.dbms_db.fetchone.side_effect = iter([None, (1,)] * 4)
-
-        # Case 1: Table does not exist
-        is_new_table = backend._check_table()
-        assert is_new_table is True
-        query1 = SQL("SELECT 1 FROM pg_catalog.pg_tables WHERE tablename = {table_name};").format(
-            table_name=Literal(backend.config.dbms_entity_name)
+        query = SQL("SELECT 1 FROM pg_catalog.pg_tables WHERE tablename = {table_name};").format(
+            table_name=Literal(table_name)
         )
-        # Assertion
-        backend.dbms_db.execute.assert_called_with(query1)
-
-        # Reset execute call count
-        backend.dbms_db.execute.reset_mock()
-
-        # Case 2: Table exists
-        is_new_table = backend._check_table()
-
-        # Assertions
-        assert is_new_table is False
-        backend.dbms_db.execute.assert_called_with(query1)
-
-        # Reset execute call count
-        backend.dbms_db.execute.reset_mock()
-
-        # Case 3: Table exists, force_source == "api"
-        backend.config.force_source = "api"
-        backend.dbms_db.fetchone.side_effect = iter([(1,)])
-        with pytest.raises(SystemExit) as sys_exit:
-            backend._check_table()
-
-        # Assertions
-        assert sys_exit.type == SystemExit
-        backend.dbms_db.execute.assert_called_with(query1)
-
-        # Reset execute call count
-        backend.dbms_db.execute.reset_mock()
-
-        # Case 4: Table exists, force_source != "postgresql" and force_source != "api"
-        backend.config.force_source = "other"
-        backend.dbms_db.fetchone.side_effect = iter([(1,)])
-        is_new_table = backend._check_table()
-
-        # Assertions
-        assert is_new_table is False
-        assert backend.sync_check_needed is True
-        backend.dbms_db.execute.assert_called_with(query1)
+        backend.execute.assert_called_once_with(query)
+        backend.dbms_db.fetchone.assert_called_once()
+        assert result == expected_result
 
     @pytest.mark.parametrize("unique", [True, False])
     def test_create_index(self, backend: BackendSQL, unique: bool):

@@ -5,7 +5,7 @@ This module contains the BackendSQL class which is used to handle SQL operations
 from __future__ import annotations
 import sys
 
-from psycopg2.extensions import connection, cursor
+
 from psycopg2 import OperationalError
 import psycopg2.pool as pool
 from psycopg2.sql import SQL, Composed, Identifier, Literal
@@ -18,6 +18,7 @@ from tradeforce.backend.sql_tables import CreateTables
 # Prevent circular import for type checking
 if TYPE_CHECKING:
     from tradeforce.main import TradingEngine
+    from psycopg2.extensions import connection, cursor
 
 
 class BackendSQL(Backend):
@@ -38,39 +39,56 @@ class BackendSQL(Backend):
             self.db_sync_state_trader()
             self.db_sync_state_orders()
 
-    def _connect(self, db_name) -> None:
-        """Connects to the database with given DB name."""
+    def _is_connected(self, db_name: str) -> bool:
+        """Connects to the database with the given DB name."""
 
         dbms_uri = self.construct_uri(db_name)
         try:
             self.pool = pool.SimpleConnectionPool(minconn=1, maxconn=10, dsn=dbms_uri)
-        except OperationalError:
-            self.log.info("Failed to connect to database %s. Trying again...", db_name)
-            self.connected = False
-            pass
-        else:
             self.connected = True
 
-    def _establish_connection(self, db_name=None) -> None:
+        except OperationalError:
+            self.log.info("Failed to connect to Postgres database %s.", db_name)
+            self.connected = False
+        return self.connected
+
+    def _register_cursor(self) -> cursor:
+        """Registers the cursor of the database connection.
+
+        Can be accessed via self.dbms_db.
+        """
+        pool_connection: connection = self.pool.getconn()
+        with pool_connection as dbms_client:
+            dbms_client.autocommit = True
+            dbms_db: cursor = dbms_client.cursor()
+        return dbms_db
+
+    def _check_new_tables(self) -> None:
+        self.is_new_history_entity = self.is_new_entity(self.config.dbms_history_entity_name)
+        if self.is_new_entity("trader_status"):
+            self.create_table.trader_status()
+        if self.is_new_entity("open_orders"):
+            self.create_table.open_orders()
+        if self.is_new_entity("closed_orders"):
+            self.create_table.closed_orders()
+
+    def _establish_connection(self, db_name: str | None = None) -> None:
         """Establishes a connection to the database by checking and creating necessary tables."""
 
-        self._connect(db_name)
-        if self.connected:
-            pool_connection: connection = self.pool.getconn()
-            with pool_connection as dbms_client:
-                dbms_client.autocommit = True
-                self.dbms_db: cursor = dbms_client.cursor()
+        if db_name is None:
+            db_name = self.config.dbms_connect_db
+
+        if self._is_connected(db_name):
+            self.log.info("Connected to database %s.", db_name)
+            self.dbms_db = self._register_cursor()
 
             if db_name == self.config.dbms_connect_db:
                 self._db_exists_or_create()
                 self.dbms_db.close()
                 self._establish_connection(self.config.dbms_db)
+
             if db_name == self.config.dbms_db:
-                self.is_new_coll_or_table = self._check_table()
-                if self.is_new_coll_or_table:
-                    self.create_table.trader_status()
-                    self.create_table.open_orders()
-                    self.create_table.closed_orders()
+                self._check_new_tables()
 
         else:
             self._establish_connection(self.config.dbms_connect_db)
@@ -102,33 +120,29 @@ class BackendSQL(Backend):
                 + "Choose different dbms_connect_db."
             )
         db_exists = self.dbms_db.fetchone()
-        if db_exists is None:
+        if not db_exists:
             query = SQL("CREATE DATABASE {db_name};").format(db_name=Identifier(self.config.dbms_db))
             self.execute(query)
             self.log.info("Created database %s", self.config.dbms_db)
         else:
-            self.log.info("Database %s already exists", self.config.dbms_db)
+            self.log.info("Database already exists. Switching to %s ...", self.config.dbms_db)
 
-    def _check_table(self):
-        """Checks if the table exists and returns a boolean indicating the result."""
+    def is_new_entity(self, table_name: str):
+        """Checks if the table exists and returns a boolean indicating the result.
+        Note: "Entity" is either a SQL table or a MongoDB collection.
+        is_new_entity method is also implemented in the BackendMongoDB interface.
+
+        """
 
         query = SQL("SELECT 1 FROM pg_catalog.pg_tables WHERE tablename = {table_name};").format(
-            table_name=Literal(self.config.dbms_entity_name)
+            table_name=Literal(table_name)
         )
         self.execute(query)
         table_exists = self.dbms_db.fetchone()
-        if table_exists is None:
-            is_new_table = True
+        if not table_exists:
+            return True
         else:
-            is_new_table = False
-            if self.config.force_source != "postgresql":
-                if self.config.force_source == "api":
-                    sys.exit(
-                        f"[ERROR] PostgreSQL history '{self.config.dbms_entity_name}' already exists. "
-                        + "Cannot load history via API. Choose different history DB name or loading method."
-                    )
-                self.sync_check_needed = True
-        return is_new_table
+            return False
 
     ##################################
     # PostgreSQL specific operations #

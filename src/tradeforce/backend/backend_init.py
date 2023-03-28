@@ -71,9 +71,6 @@ class Backend(ABC):
         self.root = root
         self.config = root.config
         self.log = root.logging.getLogger(__name__)
-        # TODO: sync_check_needed always True?
-        self.sync_check_needed = True
-        self.is_new_coll_or_table = True
         self.is_filled_na = False
 
     def construct_uri(self, db_name: str | None = None) -> str:
@@ -142,7 +139,7 @@ class Backend(ABC):
     ###############################
 
     def get_external_db_index(self) -> np.ndarray:
-        query_result = self.query(self.config.dbms_entity_name, projection={"t": True}, sort=[("t", 1)])
+        query_result = self.query(self.config.dbms_history_entity_name, projection={"t": True}, sort=[("t", 1)])
         return np.array([index_dict["t"] for index_dict in query_result])
 
     ##################################
@@ -187,7 +184,7 @@ class Backend(ABC):
 
     def sync_from_external_db(self, only_exist_in_external_db: np.ndarray) -> None:
         external_db_entries_to_sync = self.query(
-            self.config.dbms_entity_name,
+            self.config.dbms_history_entity_name,
             query={"attribute": "t", "in": True, "value": only_exist_in_external_db.tolist()},
         )
         df_external_db_entries = pd.DataFrame(external_db_entries_to_sync).set_index("t")
@@ -207,7 +204,7 @@ class Backend(ABC):
             drop_dict_na_values(record, self.config.dbms)
             for record in internal_db_entries.reset_index(drop=False).to_dict("records")
         ]
-        self.insert_many(self.config.dbms_entity_name, internal_db_entries_to_sync)
+        self.insert_many(self.config.dbms_history_entity_name, internal_db_entries_to_sync)
         self.log.info(
             "%s candles synced from internal to external DB (%s to %s)",
             len(only_exist_in_internal_db),
@@ -291,12 +288,12 @@ class Backend(ABC):
         if len(payload_update) <= 1:
             self.update_exchange_history(payload_update[0], upsert=True)
         else:
-            self.insert_many(self.config.dbms_entity_name, payload_update)
+            self.insert_many(self.config.dbms_history_entity_name, payload_update)
 
     def update_exchange_history(self, payload_update: dict, upsert=False, filter_nan=False) -> bool:
         t_index, payload_update_copy = prepare_payload_update_copy(payload_update, filter_nan)
         update_success = self.update_one(
-            self.config.dbms_entity_name,
+            self.config.dbms_history_entity_name,
             query={"attribute": "t", "value": t_index},
             set_value=payload_update_copy,
             upsert=upsert,

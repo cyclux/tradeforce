@@ -74,7 +74,6 @@ def backend():
 
 
 def test_init(backend):
-    assert backend.sync_check_needed is True
     assert backend.is_new_coll_or_table is True
     assert backend.is_filled_na is False
 

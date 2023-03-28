@@ -4,7 +4,6 @@ This module contains the BackendMongoDB class which is used to handle operations
 """
 
 from __future__ import annotations
-import sys
 from typing import TYPE_CHECKING
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure, CollectionInvalid, OperationFailure, ConfigurationError
@@ -14,8 +13,6 @@ from tradeforce.backend import Backend
 # Prevent circular import for type checking
 if TYPE_CHECKING:
     from tradeforce.main import TradingEngine
-
-# TODO: self.config.use_dbms is not needed. If self.config.dbms is None, then no DBMS is used??
 
 
 def construct_mongodb_query(query: dict | None) -> dict:
@@ -33,7 +30,7 @@ class BackendMongoDB(Backend):
     def __init__(self, root: TradingEngine):
         super().__init__(root)
         self.backend_client = self._connect()
-        self.is_new_coll_or_table = self.check_collection()
+        self.is_new_history_entity = self.is_new_entity(self.config.dbms_history_entity_name)
         # Only sync backend now if there is no exchange API connection.
         # In case an API connection is used, db_sync_state_trader()
         # will be called once by exchange_ws -> ws_priv_wallet_snapshot()
@@ -57,22 +54,20 @@ class BackendMongoDB(Backend):
             self.log.info("Successfully connected to MongoDB backend (%s)", self.config.dbms_host)
         return dbms_client
 
-    def check_collection(self) -> bool:
-        collection = self.get_collection(self.config.dbms_entity_name)
+    def is_new_entity(self, collection_name) -> bool:
+        """Checks if the collection exists and returns a boolean indicating the result.
+
+        Note: "Entity" is either a SQL table or a MongoDB collection.
+        is_new_entity method is also implemented in the BackendSQL interface.
+
+        """
+        collection = self.get_collection(collection_name)
         try:
             self.dbms_db.validate_collection(collection)
         except (CollectionInvalid, OperationFailure):
-            is_new_collection = True
+            return True
         else:
-            is_new_collection = False
-            if self.config.force_source != "mongodb":
-                if self.config.force_source == "api":
-                    sys.exit(
-                        f"[ERROR] MongoDB history '{self.config.dbms_entity_name}' already exists. "
-                        + "Cannot load history via API. Choose different history DB name or loading method."
-                    )
-                self.sync_check_needed = True
-        return is_new_collection
+            return False
 
     ###############################
     # MongoDB specific operations #

@@ -28,9 +28,9 @@ class CreateTables:
         )
         query = SQL(
             "CREATE TABLE {table_name} (" + "t BIGINT NOT NULL," + f"{sql_columns}," + "PRIMARY KEY (t)" + ");"
-        ).format(table_name=Identifier(self.config.dbms_entity_name))
+        ).format(table_name=Identifier(self.config.dbms_history_entity_name))
         self.backend.execute(query)
-        self.log.info("Created table %s", self.config.dbms_entity_name)
+        self.log.info("Created table %s", self.config.dbms_history_entity_name)
 
     def trader_status(self) -> None:
         query = SQL(

@@ -90,7 +90,7 @@ class MarketHistory:
             self.path_current / "data/inputs" if path_history_dumps is None else self.path_current / path_history_dumps
         )
         Path(self.path_local_cache).mkdir(parents=True, exist_ok=True)
-        self.local_cache_filename = f"{self.config.dbms_entity_name}.arrow"
+        self.local_cache_filename = f"{self.config.dbms_history_entity_name}.arrow"
 
     async def load_history(self) -> pd.DataFrame:
         load_method = self.config.force_source
@@ -138,19 +138,15 @@ class MarketHistory:
         return try_next_method
 
     def load_via_backend(self, try_next_method: bool) -> bool:
-        if not self.root.backend.is_new_coll_or_table:
-            # exchange_market_history =
-            # self.root.backend.exchange_history_entity.find({}, sort=[("t", 1)], projection={"_id": False})
-            exchange_market_history = self.root.backend.query(self.config.dbms_entity_name)
-
+        if not self.root.backend.is_new_history_entity:
+            exchange_market_history = self.root.backend.query(self.config.dbms_history_entity_name, sort=[("t", 1)])
             self.df_market_history = pd.DataFrame(exchange_market_history)
         else:
-            dbms_name = ""
             if self.config.dbms == "mongodb":
                 dbms_name = "MongoDB Collection"
             if self.config.dbms == "postgresql":
                 dbms_name = "PostgreSQL Table"
-            self.log.info("%s '%s' does not exist!", dbms_name, self.config.dbms_entity_name)
+            self.log.info("%s '%s' does not exist!", dbms_name, self.config.dbms_history_entity_name)
         if not self.df_market_history.empty:
             self.config.force_source = self.config.dbms
             try_next_method = False
@@ -160,7 +156,7 @@ class MarketHistory:
 
         if not self.root.exchange_api.bfx_api_pub:
             sys.exit(
-                f"[ERROR] No local_cache or DB storage found for '{self.config.dbms_entity_name}'. "
+                f"[ERROR] No local_cache or DB storage found for '{self.config.dbms_history_entity_name}'. "
                 + f"No API connection ({self.config.exchange}) to fetch new exchange history: "
                 + "Set update_mode to 'once' or 'live' or check your internet connection."
             )
@@ -208,13 +204,13 @@ class MarketHistory:
         if self.root.assets_list_symbols is None:
             self.get_asset_symbols(updated=True)
 
-        if self.root.backend.is_new_coll_or_table:
+        if self.root.backend.is_new_history_entity:
             if self.config.dbms == "postgresql":
                 self.root.backend.create_table.history(self.root.assets_list_symbols)
-            self.root.backend.create_index(self.config.dbms_entity_name, "t", unique=True)
+            self.root.backend.create_index(self.config.dbms_history_entity_name, "t", unique=True)
 
-        if self.root.backend.sync_check_needed:
-            self.root.backend.db_sync_check()
+        # if self.root.backend.sync_check_needed:
+        self.root.backend.db_sync_check()
 
         if self.config.update_mode == "once":
             start = self.get_local_candle_timestamp(position="latest", offset=1)
@@ -338,13 +334,15 @@ class MarketHistory:
         latest_candle_timestamp = 0
         if not self.df_market_history.empty:
             latest_candle_timestamp = int(self.df_market_history.index[idx])
-        elif self.config.dbms == "mongodb" and not self.root.backend.is_new_coll_or_table:
+        elif self.config.dbms == "mongodb" and not self.root.backend.is_new_history_entity:
             sort_id = -1 if position == "latest" else 1
             # cursor = self.root.backend.exchange_history_entity.find(
             #     {}, sort=[("t", sort_id)], skip=skip, limit=1
             # )
             latest_candle_timestamp = int(
-                self.root.backend.query(self.config.dbms_entity_name, sort=[("t", sort_id)], skip=skip, limit=1)[0]["t"]
+                self.root.backend.query(
+                    self.config.dbms_history_entity_name, sort=[("t", sort_id)], skip=skip, limit=1
+                )[0]["t"]
             )
             # latest_candle_timestamp = int(cursor[0]["t"])
 
