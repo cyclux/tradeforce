@@ -15,7 +15,7 @@ class CreateTables:
         self.root = root
         self.backend = backend
         self.config = root.config
-        self.log = root.logging.getLogger(__name__)
+        self.log = root.logging.get_logger(__name__)
 
     def history(self, asset_symbols) -> None:
         ohlcv = ("_o", "_h", "_l", "_c", "_v")

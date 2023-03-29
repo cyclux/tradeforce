@@ -5,7 +5,7 @@ websockets tensorflow-probability numexpr Bottleneck numba pyyaml
 
 from __future__ import annotations
 import os
-import logging
+
 import asyncio
 import numpy as np
 import optuna
@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 from tradeforce.simulator import hyperparam_search
 from tradeforce.config import Config
 
-# from tradeforce.backend import Backend
+from tradeforce.logger import Logger
 from tradeforce.backend import BackendMongoDB, BackendSQL
 from tradeforce.market.history import MarketHistory
 from tradeforce.market.updater import MarketUpdater
@@ -26,15 +26,14 @@ from tradeforce import simulator
 if TYPE_CHECKING:
     from bfxapi import Client  # type: ignore
 
+
 # TODO: add support for variable candle_interval
 class TradingEngine:
     """_summary_"""
 
     def __init__(self, config=None, assets=None):
-        self.logging = logging
         self.log = self._register_logger()
-        self.log.info("Fast Trading Simulator Beta 0.4.0")
-        self.assets_list_symbols = None if assets is None or len(assets) == 0 else assets
+        self.assets_list_symbols = None if not assets or len(assets) == 0 else assets
         self.config = self._register_config(config)
         self.trader = self._register_trader()
         self.backend = self._register_backend()
@@ -44,13 +43,18 @@ class TradingEngine:
         self.exchange_api = self._register_exchange_api()
         self.exchange_ws = self._register_exchange_ws()
 
+    def __post__init__(self):
+        self.log.info("Fast Trading Simulator Beta 0.4.0")
+
     #############################
     # Init and register modules #
     #############################
 
-    def _register_logger(self) -> logging.Logger:
-        logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO"), format="%(asctime)s [%(levelname)s] %(message)s")
-        return logging.getLogger(__name__)
+    def _register_logger(self):
+        # self.logging = Logger()
+        self.logging = Logger()
+        log = self.logging.get_logger(__name__)
+        return log
 
     def _register_config(self, user_config: dict) -> Config:
         return Config(root=self, config_input=user_config)
@@ -108,17 +112,15 @@ class TradingEngine:
             self._market_live_updates()
         return self
 
-    # TODO: add pre_process to monkey_patch
     def run_sim(self, pre_process=None, buy_strategy=None, sell_strategy=None) -> dict[str, int | np.ndarray]:
-        monkey_patch(self, buy_strategy, sell_strategy)
+        monkey_patch(self, pre_process, buy_strategy, sell_strategy)
         asyncio.run(self._init(is_sim=True))
-        return simulator.run(self, pre_process=pre_process)
+        return simulator.run(self)
 
-    # TODO: add pre_process to monkey_patch
     def run_sim_optuna(
         self, optuna_config=None, pre_process=None, buy_strategy=None, sell_strategy=None
     ) -> optuna.Study:
-        monkey_patch(self, buy_strategy, sell_strategy)
+        monkey_patch(self, pre_process, buy_strategy, sell_strategy)
         asyncio.run(self._init(is_sim=True))
         return hyperparam_search.run(self, optuna_config)
 
@@ -134,10 +136,9 @@ class TradingEngine:
             self._market_live_updates(run_in_jupyter=True)
         return self
 
-    # TODO: add pre_process to monkey_patch
     async def run_sim_optuna_jupyter(
         self, optuna_config=None, pre_process=None, buy_strategy=None, sell_strategy=None
     ) -> optuna.Study:
-        monkey_patch(self, buy_strategy, sell_strategy)
+        monkey_patch(self, pre_process, buy_strategy, sell_strategy)
         await self.market_history.load_history()
         return hyperparam_search.run(self, optuna_config)

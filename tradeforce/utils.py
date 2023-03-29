@@ -180,8 +180,16 @@ def calc_fee(config, volume_crypto, price_current, order_type):
     return volume_crypto_incl_fee, amount_fee_crypto, amount_fee_fiat
 
 
-def monkey_patch(root: TradingEngine, buy_strategy, sell_strategy) -> None:
+def monkey_patch(root: TradingEngine, pre_process, buy_strategy, sell_strategy) -> None:
     """Monkey patch user defined buy and sell strategies if provided"""
+
+    if pre_process is not None:
+        root.log.info("Custom pre_process loaded")
+        # nb.njit(cache=False)(buy_strategy)
+        strategies.pre_process = pre_process
+    else:
+        root.log.info("Default pre_process loaded")
+
     if buy_strategy is not None:
         root.log.info("Custom buy_strategy loaded")
         # nb.njit(cache=False)(buy_strategy)

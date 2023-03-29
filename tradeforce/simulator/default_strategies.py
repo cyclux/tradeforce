@@ -1,5 +1,43 @@
+from __future__ import annotations
+
 import numpy as np
 import numba as nb  # type: ignore
+
+from typing import TYPE_CHECKING
+
+# Prevent circular import for type checking
+if TYPE_CHECKING:
+    from tradeforce.config import Config
+    from tradeforce.market.history import MarketHistory
+    from pandas import DataFrame
+
+
+def pre_process(config: Config, market_history: MarketHistory) -> dict[str, DataFrame]:
+    # TODO: provide start and timeframe for simulation: sim_start_delta ?
+    sim_start_delta = config.sim_start_delta
+    asset_prices = market_history.get_market_history(start=sim_start_delta, metrics=["o"], fill_na=True)
+
+    asset_prices_pct = market_history.get_market_history(
+        start=sim_start_delta, metrics=["o"], fill_na=True, pct_change=True, pct_as_factor=False, pct_first_row=0
+    )
+
+    lower_threshold = 0.000005
+    upper_threshold = 0.999995
+    quantiles = asset_prices_pct.stack().quantile([lower_threshold, upper_threshold])
+    asset_prices_pct[asset_prices_pct > quantiles[upper_threshold]] = quantiles[upper_threshold]
+    asset_prices_pct[asset_prices_pct < quantiles[lower_threshold]] = quantiles[lower_threshold]
+
+    moving_window_increments = int(config.moving_window_increments)
+    asset_market_performance = asset_prices_pct.rolling(
+        window=moving_window_increments, step=1, min_periods=moving_window_increments
+    ).sum(engine="numba", engine_kwargs={"parallel": True, "cache": True})[moving_window_increments - 1 :]
+
+    preprocess_return = {
+        "asset_prices": asset_prices,
+        "asset_prices_pct": asset_prices_pct,
+        "asset_performance": asset_market_performance,
+    }
+    return preprocess_return
 
 
 @nb.njit(cache=True, parallel=False)

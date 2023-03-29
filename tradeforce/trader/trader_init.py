@@ -25,7 +25,7 @@ class Trader:
     def __init__(self, root: TradingEngine):
         self.root = root
         self.config = root.config
-        self.log = root.logging.getLogger(__name__)
+        self.log = root.logging.get_logger(__name__)
 
         self.wallets: dict[str, Wallet] = {}
         self.open_orders: list[dict] = []

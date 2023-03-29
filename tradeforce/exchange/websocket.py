@@ -6,6 +6,10 @@ Returns:
 
 from __future__ import annotations
 from typing import TYPE_CHECKING
+
+from asyncio import sleep as asyncio_sleep
+from tqdm.asyncio import tqdm
+
 import numpy as np
 import pandas as pd
 
@@ -85,7 +89,7 @@ class ExchangeWebsocket:
         """
         self.root = root
         self.config = root.config
-        self.log = root.logging.getLogger(__name__)
+        self.log = root.logging.get_logger(__name__)
         self.bfx_api_priv = root.api.get("bfx_api_priv", None)
         self.bfx_api_pub = root.api.get("bfx_api_pub", None)
 
@@ -164,11 +168,21 @@ class ExchangeWebsocket:
         # Check availability of exchange periodically ?!
         self.log.warning("Exchange status: %s", ws_status)
 
+    # async def ws_subscribe_candles(self, asset_list):
+    #     asset_list_bfx = convert_symbol_to_exchange(asset_list)
+    #     for symbol in asset_list_bfx:
+    #         # candle_interval[:-2] to convert "5min" -> "5m"
+    #         await self.bfx_api_pub.ws.subscribe_candles(symbol, self.config.candle_interval[:-2])
+    #         await asyncio_sleep(0.1)
+    #     self.ws_subs_finished = True
+    #     self.log.info("Subscribed to %s channels.", len(asset_list_bfx))
+
     async def ws_subscribe_candles(self, asset_list):
         asset_list_bfx = convert_symbol_to_exchange(asset_list)
-        for symbol in asset_list_bfx:
+        async for symbol in tqdm(asset_list_bfx, desc="Subscribing to candles"):
             # candle_interval[:-2] to convert "5min" -> "5m"
             await self.bfx_api_pub.ws.subscribe_candles(symbol, self.config.candle_interval[:-2])
+            await asyncio_sleep(0.1)
         self.ws_subs_finished = True
         self.log.info("Subscribed to %s channels.", len(asset_list_bfx))
 

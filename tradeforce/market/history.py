@@ -7,8 +7,10 @@ from __future__ import annotations
 import sys
 import os
 from pathlib import Path
+
 import numpy as np
 import pandas as pd
+
 from typing import TYPE_CHECKING
 from tradeforce.custom_types import DictRelevantAssets
 from tradeforce.utils import ms_to_ns, get_col_names, ns_to_ms, ns_to_ms_array, get_time_minus_delta
@@ -79,7 +81,7 @@ class MarketHistory:
 
         self.root = root
         self.config = root.config
-        self.log = root.logging.getLogger(__name__)
+        self.log = root.logging.get_logger(__name__)
         self.df_market_history = pd.DataFrame()
 
         # Set paths
@@ -336,15 +338,11 @@ class MarketHistory:
             latest_candle_timestamp = int(self.df_market_history.index[idx])
         elif self.config.dbms == "mongodb" and not self.root.backend.is_new_history_entity:
             sort_id = -1 if position == "latest" else 1
-            # cursor = self.root.backend.exchange_history_entity.find(
-            #     {}, sort=[("t", sort_id)], skip=skip, limit=1
-            # )
             latest_candle_timestamp = int(
                 self.root.backend.query(
                     self.config.dbms_history_entity_name, sort=[("t", sort_id)], skip=skip, limit=1
                 )[0]["t"]
             )
-            # latest_candle_timestamp = int(cursor[0]["t"])
 
         latest_candle_timestamp += offset * 300000
         return latest_candle_timestamp

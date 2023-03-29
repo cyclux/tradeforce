@@ -25,7 +25,7 @@ class ExchangeAPI:
     def __init__(self, root: TradingEngine):
         self.root = root
         self.config = root.config
-        self.log = root.logging.getLogger(__name__)
+        self.log = root.logging.get_logger(__name__)
         self.bfx_api_priv = root.api.get("bfx_api_priv", None)
         self.bfx_api_pub = root.api.get("bfx_api_pub", None)
 

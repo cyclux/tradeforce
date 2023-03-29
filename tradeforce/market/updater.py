@@ -1,19 +1,22 @@
-"""_summary_
-
-Returns:
-    _type_: _description_
+""" /src/tradeforce/market/updater.py
 """
 
 from __future__ import annotations
-from time import sleep, process_time
+
+from asyncio import sleep as asyncio_sleep
+from tqdm.asyncio import tqdm
+from time import process_time
+
 from functools import reduce
-from typing import TYPE_CHECKING
+
+from typing import TYPE_CHECKING, AsyncIterator
 import pandas as pd
 
 # Prevent circular import for type checking
 if TYPE_CHECKING:
     from tradeforce.main import TradingEngine
 
+from tradeforce.custom_types import DictTimeframe, DictTimeframeExtended, DictMarketHistoryUpdate
 from tradeforce.utils import (
     get_now,
     get_timedelta,
@@ -40,61 +43,85 @@ def append_market_history_update(assets_hist_update: dict, assets_candles: list,
     return current_asset
 
 
-class MarketUpdater:
-    """_summary_"""
+def calculate_ms_until_wait_over(start_timestamp: int, end_timestamp: int) -> int:
+    ms_additional_wait = get_timedelta("2min")["timestamp"]
+    return end_timestamp - (start_timestamp + ms_additional_wait)
 
+
+async def get_start_timestamp(self: MarketUpdater, start: int | None = None) -> int:
+    if start:
+        return start
+
+    start_timestamp = self.root.market_history.get_local_candle_timestamp(position="latest")
+    if start_timestamp == 0:
+        start_timestamp = await self.root.exchange_api.get_latest_remote_candle_timestamp(
+            minus_delta=self.root.market_history.history_timeframe
+        )
+    else:
+        candle_freq_in_ms = get_timedelta(self.config.candle_interval)["timestamp"]
+        start_timestamp += candle_freq_in_ms
+
+    return start_timestamp
+
+
+def get_end_timestamp(end: int | None = None) -> int:
+    if end:
+        return end
+
+    now = get_now()
+    return now["timestamp"]
+
+
+class MarketUpdater:
     def __init__(self, root: TradingEngine):
         self.root = root
         self.config = root.config
-        self.log = root.logging.getLogger(__name__)
+        self.log = root.logging.get_logger(__name__)
 
-    async def get_timeframe(self, start: int | None = None, end: int | None = None) -> dict[str, dict[str, int] | int]:
-        candle_freq_in_ms = get_timedelta(self.config.candle_interval)["timestamp"]
-        timeframe = {}
+    async def get_timeframe(self, start: int | None = None, end: int | None = None) -> DictTimeframeExtended:
+        start_timestamp = await get_start_timestamp(self, start)
+        start_datetime = pd.to_datetime(start_timestamp, unit="ms", utc=True)
 
-        timeframe["start_timestamp"] = (
-            start if start else self.root.market_history.get_local_candle_timestamp(position="latest")
-        )
-        if timeframe["start_timestamp"] == 0:
-            timeframe["start_timestamp"] = await self.root.exchange_api.get_latest_remote_candle_timestamp(
-                minus_delta=self.root.market_history.history_timeframe
-            )
-        elif not start:
-            # only needed when fetching as update to existing history
-            timeframe["start_timestamp"] += candle_freq_in_ms
+        end_timestamp = get_end_timestamp(end)
+        end_datetime = pd.to_datetime(end_timestamp, unit="ms", utc=True)
 
-        timeframe["start_datetime"] = pd.to_datetime(timeframe["start_timestamp"], unit="ms", utc=True)
+        ms_until_wait_over = calculate_ms_until_wait_over(start_timestamp, end_timestamp)
 
-        if end:
-            timeframe["end_timestamp"] = int(end)
-            timeframe["end_datetime"] = pd.to_datetime(timeframe["end_timestamp"], unit="ms", utc=True)
-        else:
-            now = get_now()
-            timeframe["end_datetime"] = now["datetime"]
-            timeframe["end_timestamp"] = int(now["timestamp"])
+        timeframe: DictTimeframe = {
+            "start_timestamp": start_timestamp,
+            "start_datetime": start_datetime,
+            "end_timestamp": end_timestamp,
+            "end_datetime": end_datetime,
+        }
 
-        ms_additional_wait = get_timedelta("2min")["timestamp"]
-        ms_until_wait_over = timeframe["end_timestamp"] - (timeframe["start_timestamp"] + ms_additional_wait)
         return {"timeframe": timeframe, "ms_until_wait_over": ms_until_wait_over}
 
-    async def fetch_market_history(self, timeframe):
-        market_history_update = {}
-        for symbol in self.root.assets_list_symbols:
+    async def _fetch_candles(self, symbol: str, timeframe: dict) -> list:
+        return await self.root.exchange_api.get_public_candles(
+            symbol=symbol,
+            timestamp_start=timeframe["start_timestamp"],
+            timestamp_end=timeframe["end_timestamp"],
+        )
+
+    async def get_symbols_async(self, symbols: list[str]) -> AsyncIterator[str]:
+        for symbol in tqdm(symbols, desc="Fetching market history"):
+            yield symbol
+
+    async def fetch_market_history(self, timeframe: dict) -> DictMarketHistoryUpdate:
+        market_history_update: DictMarketHistoryUpdate = {}
+
+        async for symbol in self.get_symbols_async(self.root.assets_list_symbols):
             time_start = process_time()
-            candle_update = await self.root.exchange_api.get_public_candles(
-                symbol=symbol,
-                timestamp_start=timeframe["start_timestamp"],
-                timestamp_end=timeframe["end_timestamp"],
-            )
+            candle_update = await self._fetch_candles(symbol, timeframe)
             if len(candle_update) > 0:
                 market_history_update[symbol] = append_market_history_update(
                     market_history_update, candle_update, symbol
                 )
-                self.log.info("Fetched updated history for %s (%s candles)", symbol, len(candle_update))
 
             time_elapsed_difference = 1 - (process_time() - time_start)
             if time_elapsed_difference > 0:
-                sleep(time_elapsed_difference)
+                await asyncio_sleep(time_elapsed_difference)
+
         return market_history_update
 
     def convert_market_history_to_df(

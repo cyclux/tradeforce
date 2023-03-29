@@ -34,14 +34,35 @@ def add_pct_change_cols(assets_history_asset, inplace=True):
     return pd.DataFrame(cols_pct_change)
 
 
+def nanmax_with_check(x):
+    if np.count_nonzero(~np.isnan(x)) > 1:
+        return np.nanmax(x, initial=-np.inf)
+    else:
+        return x[0]
+
+
+def nanmin_with_check(x):
+    if np.count_nonzero(~np.isnan(x)) > 1:
+        return np.nanmin(x, initial=np.inf)
+    else:
+        return x[0]
+
+
 def aggregate_history(df_input, agg_timeframe="1h"):
     # TODO: add support for other timeframes than 5min
     amount_five_min_intervals = pd.Timedelta(agg_timeframe).value // 10**9 // 60 // 5
+    # agg_func_map = {
+    #     "o": lambda row: row[0],
+    #     "h": lambda x: np.nanmax(x, initial=-np.inf),  # TODO: check if this is correct:
+    #     "l": lambda x: np.nanmin(x, initial=np.inf),  # should prevent RuntimeWarning:
+    #     "c": lambda row: row[-1],  # Degrees of freedom <= 0 for slice.
+    #     "v": np.nansum,
+    # }
     agg_func_map = {
         "o": lambda row: row[0],
-        "h": lambda x: np.nanmax(x, initial=-np.inf),  # TODO: check if this is correct:
-        "l": lambda x: np.nanmin(x, initial=np.inf),  # should prevent RuntimeWarning:
-        "c": lambda row: row[-1],  # Degrees of freedom <= 0 for slice.
+        "h": nanmax_with_check,
+        "l": nanmin_with_check,
+        "c": lambda row: row[-1],
         "v": np.nansum,
     }
     forward_indexer = pd.api.indexers.FixedForwardWindowIndexer(window_size=amount_five_min_intervals)

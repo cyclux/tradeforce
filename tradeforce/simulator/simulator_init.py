@@ -21,16 +21,14 @@ Returns:
 """
 
 # from time import perf_counter
-from typing import Union, Tuple, Callable, Optional
+from typing import Union, Tuple
 import numpy as np
 import numba as nb  # type: ignore
-import pandas as pd
 import tradeforce.simulator.utils as sim_utils
-from tradeforce.config import Config
-from tradeforce.market.history import MarketHistory
 from tradeforce.utils import get_timedelta
 from tradeforce.simulator.buys import check_buy
 from tradeforce.simulator.sells import check_sell
+from tradeforce.simulator.default_strategies import pre_process
 
 
 # type_int = nb.typeof(1)
@@ -115,6 +113,8 @@ def simulate_trading(
     profit_total_std = np.std(profit_snapshot_list)
     profit_total = np.int64(np.mean(profit_snapshot_list) - profit_total_std)
 
+    print("profit_total:", profit_total)
+
     return profit_total, soldbag_all_snapshots, buybag
 
 
@@ -132,36 +132,9 @@ def print_sim_details(root, asset_prices):
     )
 
 
-def pre_process_default(config: Config, market_history: MarketHistory) -> dict[str, pd.DataFrame]:
-    # TODO: provide start and timeframe for simulation: sim_start_delta ?
-    sim_start_delta = config.sim_start_delta
-    asset_prices = market_history.get_market_history(start=sim_start_delta, metrics=["o"], fill_na=True)
-
-    asset_prices_pct = market_history.get_market_history(
-        start=sim_start_delta, metrics=["o"], fill_na=True, pct_change=True, pct_as_factor=False, pct_first_row=0
-    )
-
-    lower_threshold = 0.000005
-    upper_threshold = 0.999995
-    quantiles = asset_prices_pct.stack().quantile([lower_threshold, upper_threshold])
-    asset_prices_pct[asset_prices_pct > quantiles[upper_threshold]] = quantiles[upper_threshold]
-    asset_prices_pct[asset_prices_pct < quantiles[lower_threshold]] = quantiles[lower_threshold]
-
-    moving_window_increments = int(config.moving_window_increments)
-    asset_market_performance = asset_prices_pct.rolling(
-        window=moving_window_increments, step=1, min_periods=moving_window_increments
-    ).sum(engine="numba", engine_kwargs={"parallel": True, "cache": True})[moving_window_increments - 1 :]
-
-    preprocess_return = {
-        "asset_prices": asset_prices,
-        "asset_prices_pct": asset_prices_pct,
-        "asset_performance": asset_market_performance,
-    }
-    return preprocess_return
-
-
-def run(root, pre_process: Optional[Callable] = None) -> dict[str, Union[int, np.ndarray, np.ndarray]]:
-    pre_process = pre_process_default if pre_process is None else pre_process
+def run(root) -> dict[str, Union[int, np.ndarray, np.ndarray]]:
+    # pre_process: Optional[Callable] = None
+    # pre_process = pre_process_default if pre_process is None else pre_process
     preprocess_result = pre_process(root.config, root.market_history)
     sim_config = sim_utils.to_numba_dict(root.config.to_dict())
 

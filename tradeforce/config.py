@@ -51,7 +51,7 @@ class Config:
 
     # TODO: Add sanity check
     def __init__(self, root: TradingEngine, config_input):
-        self.log = root.logging.getLogger(__name__)
+        self.log = root.logging.get_logger(__name__)
         config_type = "config.yaml" if config_input is None else "dict"
         self.log.info("Loading config via %s", config_type)
 
@@ -143,6 +143,8 @@ class Config:
         attr_to_dict = self.__dict__
         sim_dict_exclusions = [
             "log",
+            "log_level_ws_update",
+            "log_level_live",
             "working_dir",
             "run_live",
             "update_mode",
@@ -155,6 +157,7 @@ class Config:
             "history_timeframe",
             "dbms",
             "dbms_host",
+            "dbms_port",
             "dbms_user",
             "dbms_pw",
             "dbms_connect_db",
@@ -164,6 +167,7 @@ class Config:
             "creds_path",
             "relevant_assets_cap",
             "id",
+            "trader_id",
             "use_dbms",
             "dry_run",
             "is_simulation",
@@ -171,4 +175,7 @@ class Config:
         ]
         if for_sim:
             attr_to_dict = {key: val for (key, val) in attr_to_dict.items() if key not in sim_dict_exclusions}
+
+        # if for_sim:
+        #     attr_to_dict = {key: val for (key, val) in attr_to_dict.items() if isinstance(val, int | float | bool)}
         return attr_to_dict

@@ -11,17 +11,17 @@ tradeforce_config = {
     "trader": {
         "id": 1,
         "run_live": False,
-        "budget": 100,
+        "budget": 10000,
         "maker_fee": 0.10,
         "taker_fee": 0.20,
         "strategy": {
-            "amount_invest_fiat": 1000,
+            "amount_invest_fiat": 100,
             "investment_cap": 0,
             "buy_opportunity_factor": 0.10,
             "buy_opportunity_boundary": 0.05,
             "prefer_performance": 1,
             "hold_time_limit": 1000,
-            "profit_factor": 1.70,
+            "profit_factor": 1.10,
             "profit_ratio_limit": 1.01,
             "moving_window_hours": 180,
         },
@@ -33,7 +33,7 @@ tradeforce_config = {
         "dbms_user": "tradeforce",
         "dbms_pw": "tradeforce",
         "dbms_connect_db": "admin",
-        "local_cache": False,
+        "local_cache": True,
     },
     # "backend": {
     #     "dbms": "postgresql",
@@ -45,13 +45,13 @@ tradeforce_config = {
     #     "local_cache": False,
     # },
     "market_history": {
-        "name": "bfx_history_docker_60days",
+        "name": "test_simulator",
         "exchange": "bitfinex",
         "base_currency": "USD",
         "candle_interval": "5min",
         "history_timeframe": "60days",
         "update_mode": "none",
-        # "force_source": "mongodb",
+        # "force_source": "local_cache",
     },
     "simulation": {
         "snapshot_size": 100000,
@@ -132,7 +132,5 @@ def sell_strategy(params, buybag, history_prices_row):
     return sell_assets, prices_current
 
 
-sim_result = TradingEngine(config=tradeforce_config).run_sim(
-    pre_process=pre_process, buy_strategy=buy_strategy, sell_strategy=sell_strategy
-)
+sim_result = TradingEngine(config=tradeforce_config).run_sim(pre_process=None, buy_strategy=None, sell_strategy=None)
 print(sim_result["profit"])

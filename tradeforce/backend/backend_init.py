@@ -70,7 +70,7 @@ class Backend(ABC):
     def __init__(self, root: TradingEngine):
         self.root = root
         self.config = root.config
-        self.log = root.logging.getLogger(__name__)
+        self.log = root.logging.get_logger(__name__)
         self.is_filled_na = False
 
     def construct_uri(self, db_name: str | None = None) -> str:

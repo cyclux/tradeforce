@@ -257,7 +257,7 @@ class BackendSQL(Backend):
         """Inserts a single record into the specified table and returns a boolean indicating success or failure."""
 
         if not payload_insert:
-            self.log.warning("No data to insert into DB! [table: {table_name}]", table_name=table_name)
+            self.log.warning("No data to insert into DB! [table: %s]", table_name)
             return False
         columns = list(payload_insert.keys())
         values = [tuple(payload_insert.values())]
@@ -266,7 +266,7 @@ class BackendSQL(Backend):
     def insert_many(self, table_name: str, payload_insert: list[dict]) -> bool:
         """Inserts multiple records into the specified table and returns a boolean indicating success or failure."""
         if not payload_insert or len(payload_insert) < 1:
-            self.log.warning("No data to insert into DB! [table: {table_name}]", table_name=table_name)
+            self.log.warning("No data to insert into DB! [table: %s]", table_name)
             return False
         columns = list(payload_insert[0].keys())
         values_list = [tuple(d.values()) for d in payload_insert]

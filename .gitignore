@@ -5,7 +5,6 @@
 exchange_creds.cfg
 archive
 analysis
-docker
 misc
 plots
 profiling

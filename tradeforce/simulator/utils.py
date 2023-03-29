@@ -31,6 +31,33 @@ def to_numba_dict(sim_params):
     return sim_params_numba
 
 
+# TODO: Do this before numba compilation and pre_process
+@nb.njit(cache=NB_CACHE, parallel=False)
+def check_min_snapshot_size(snapshot_size, snapshot_amount, snapshot_idx_boundary):
+    if snapshot_size < 100:
+        print("[WARNING]: snapshot_size is very small: ", snapshot_size)
+    if snapshot_size < 1:
+        print(
+            "[ERROR] snapshot_size is",
+            int(snapshot_size),
+            ".Please check your parameters.",
+            "snapshot_amount:",
+            int(snapshot_amount),
+            "| snapshot_idx_boundary: ",
+            int(snapshot_idx_boundary),
+        )
+    if snapshot_size > snapshot_idx_boundary:
+        print(
+            "[ERROR] snapshot_size > snapshot_idx_boundary:",
+            int(snapshot_size),
+            ">",
+            int(snapshot_idx_boundary),
+            "| snapshot_amount:",
+            int(snapshot_amount),
+        )
+    return snapshot_size
+
+
 @nb.njit(cache=NB_CACHE, parallel=False)
 def sanitize_snapshot_params(params, snapshot_idx_boundary):
     snapshot_size = params["snapshot_size"]
@@ -43,6 +70,7 @@ def sanitize_snapshot_params(params, snapshot_idx_boundary):
         snapshot_size = snapshot_idx_boundary
     if snapshot_amount > 1 and snapshot_size == -1:
         snapshot_size = snapshot_idx_boundary // snapshot_amount
+    check_min_snapshot_size(snapshot_size, snapshot_amount, snapshot_idx_boundary)
     return snapshot_size, snapshot_amount
 
 
