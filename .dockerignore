@@ -1,0 +1,47 @@
+# Python / Git / Docker
+.dockerignore
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/*.pyc
+**/*.cfg
+**/*.ipynb
+.git
+.gitignore
+.pylintrc
+
+
+# Development and build artifacts
+*.egg-info/
+dist/
+*.log
+
+# Virtual environments
+venv/
+*.venv
+
+# Unit test and coverage files
+.coverage
+.tox
+.pytest_cache
+
+# Project configuration files
+.editorconfig
+.vscode/
+*.swp
+*.code-workspace
+
+# Documentation
+*.rst
+*.md
+
+# Project folder
+
+.ipynb_checkpoints/
+analysis/
+archive/
+data/
+misc/
+plots/
+profiling/

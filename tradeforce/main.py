@@ -1,6 +1,5 @@
 """_summary_
-pip install numpy pandas pyarrow pymongo bitfinex-api-py
-websockets tensorflow-probability numexpr Bottleneck numba pyyaml
+
 """
 
 from __future__ import annotations

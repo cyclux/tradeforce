@@ -105,7 +105,6 @@ class BackendMongoDB(Backend):
     def update_one(
         self, collection_name: str, query: dict[str, str | int | list], set_value: str | int | list | dict, upsert=False
     ) -> bool:
-
         collection = self.get_collection(collection_name)
         mongo_query = construct_mongodb_query(query)
         try:
