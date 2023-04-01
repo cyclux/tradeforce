@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 
 
 # TODO: add support for variable candle_interval
-class TradingEngine:
+class Tradeforce:
     """_summary_"""
 
     def __init__(self, config=None, assets=None):
@@ -89,7 +89,7 @@ class TradingEngine:
     def _register_trader(self) -> Trader:
         return Trader(root=self)
 
-    async def _init(self, is_sim=False) -> "TradingEngine":
+    async def _init(self, is_sim=False) -> "Tradeforce":
         await self.market_history.load_history()
         if self.config.run_live and not is_sim:
             self.exchange_ws.ws_priv_run()
@@ -105,7 +105,7 @@ class TradingEngine:
     # Run modes #
     #############
 
-    def run(self) -> "TradingEngine":
+    def run(self) -> "Tradeforce":
         asyncio.run(self._init())
         if self.config.update_mode == "live":
             self._market_live_updates()
@@ -127,7 +127,7 @@ class TradingEngine:
     # Jupyter specific run modes #
     ##############################
 
-    async def run_jupyter(self) -> "TradingEngine":
+    async def run_jupyter(self) -> "Tradeforce":
         await self.market_history.load_history()
         if self.config.run_live:
             self.exchange_ws.ws_priv_run()

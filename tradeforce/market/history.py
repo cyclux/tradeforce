@@ -4,7 +4,6 @@ Returns:
 """
 
 from __future__ import annotations
-import sys
 import os
 from pathlib import Path
 
@@ -18,7 +17,7 @@ from tradeforce.market.metrics import get_init_relevant_assets
 
 # Prevent circular import for type checking
 if TYPE_CHECKING:
-    from tradeforce import TradingEngine
+    from tradeforce import Tradeforce
 
 
 def get_pct_change(df_history: pd.DataFrame, pct_first_row: int, as_factor: bool = True) -> pd.DataFrame:
@@ -77,22 +76,37 @@ class MarketHistory:
         _type_: _description_
     """
 
-    def __init__(self, root: TradingEngine, path_current=None, path_history_dumps=None):
-
+    def __init__(self, root: Tradeforce, path_current=None, path_history_dumps=None):
         self.root = root
         self.config = root.config
         self.log = root.logging.get_logger(__name__)
         self.df_market_history = pd.DataFrame()
 
         # Set paths
-        self.path_current = (
-            Path(os.path.dirname(os.path.abspath(__file__))) if path_current is None else Path(path_current)
-        )
+        self.path_current = Path(os.path.dirname(os.path.abspath(""))) if path_current is None else Path(path_current)
         self.path_local_cache = (
-            self.path_current / "data/inputs" if path_history_dumps is None else self.path_current / path_history_dumps
+            Path(self.path_current, "data")
+            if path_history_dumps is None
+            else Path(self.path_current, path_history_dumps)
         )
-        Path(self.path_local_cache).mkdir(parents=True, exist_ok=True)
+        # Path(self.path_local_cache).mkdir(parents=True, exist_ok=True)
         self.local_cache_filename = f"{self.config.dbms_history_entity_name}.arrow"
+
+    def _create_index(self):
+        if self.root.backend.is_new_history_entity:
+            self.root.backend.is_new_history_entity = False
+            self.root.backend.create_index(self.config.dbms_history_entity_name, "t", unique=True)
+
+    def _inmemory_db_set_index(self):
+        try:
+            self.df_market_history.set_index("t", inplace=True)
+        except (KeyError, ValueError, TypeError, AttributeError):
+            pass
+
+    def update_internal_db_market_history(self, df_history_update: pd.DataFrame) -> None:
+        self.df_market_history = pd.concat([self.root.market_history.df_market_history, df_history_update], axis=0)
+        self._inmemory_db_set_index()
+        self.df_market_history.sort_index(inplace=True)
 
     async def load_history(self) -> pd.DataFrame:
         load_method = self.config.force_source
@@ -117,24 +131,23 @@ class MarketHistory:
             )
         else:
             if load_method == "none":
-                sys.exit(
+                raise SystemExit(
                     "[ERROR] Was not able to load market history via local or remote db storage nor remote api fetch.\n"
                     + "Check your local file paths, DB connection or internet connection."
                 )
             else:
-                sys.exit(f"[ERROR] Was not able to load market history via {load_method}.")
+                raise SystemExit(f"[ERROR] Was not able to load market history via {load_method}.")
         return self.df_market_history
 
     def load_via_local_cache(self, try_next_method: bool) -> bool:
+        # read_feather_path = os.path.normpath(self.path_local_cache / self.local_cache_filename)
+        read_feather_path = Path(self.path_local_cache, self.local_cache_filename)
         try:
-            self.df_market_history = pd.read_feather(self.path_local_cache / self.local_cache_filename)
+            df_market_history = pd.read_feather(read_feather_path)
         except Exception:
-            self.log.info(
-                "No local_cache of market history found at: %s", self.path_local_cache / self.local_cache_filename
-            )
+            self.log.info("No local_cache of market history found at: %s", read_feather_path)
         else:
-            self.df_market_history.set_index("t", inplace=True)
-            self.df_market_history.sort_index(inplace=True)
+            self.update_internal_db_market_history(df_market_history)
             self.config.force_source = "local_cache"
             try_next_method = False
         return try_next_method
@@ -142,7 +155,8 @@ class MarketHistory:
     def load_via_backend(self, try_next_method: bool) -> bool:
         if not self.root.backend.is_new_history_entity:
             exchange_market_history = self.root.backend.query(self.config.dbms_history_entity_name, sort=[("t", 1)])
-            self.df_market_history = pd.DataFrame(exchange_market_history)
+            df_market_history = pd.DataFrame(exchange_market_history)
+            self.update_internal_db_market_history(df_market_history)
         else:
             if self.config.dbms == "mongodb":
                 dbms_name = "MongoDB Collection"
@@ -155,9 +169,8 @@ class MarketHistory:
         return try_next_method
 
     async def load_via_api(self, try_next_method: bool) -> bool:
-
         if not self.root.exchange_api.bfx_api_pub:
-            sys.exit(
+            raise SystemExit(
                 f"[ERROR] No local_cache or DB storage found for '{self.config.dbms_history_entity_name}'. "
                 + f"No API connection ({self.config.exchange}) to fetch new exchange history: "
                 + "Set update_mode to 'once' or 'live' or check your internet connection."
@@ -172,6 +185,12 @@ class MarketHistory:
                 f"{asset}_{metric}" for asset in relevant_assets["assets"] for metric in ["o", "h", "l", "c", "v"]
             ]
             history_data = relevant_assets["data"][filtered_assets]
+
+            if self.config.dbms == "postgresql":
+                if self.root.backend.is_new_history_entity:
+                    self.root.backend.create_table.history(self.root.assets_list_symbols)
+                    self._create_index()
+
             await self.update(history_data=history_data)
             latest_local_candle_timestamp = self.get_local_candle_timestamp(position="latest")
             start_time = get_time_minus_delta(latest_local_candle_timestamp, delta=self.config.history_timeframe)
@@ -194,11 +213,6 @@ class MarketHistory:
         return try_next_method
 
     async def post_process(self) -> None:
-        try:
-            self.df_market_history.set_index("t", inplace=True)
-        except (KeyError, ValueError, TypeError, AttributeError):
-            pass
-
         if self.config.force_source in ("api", "mongodb", "postgresql"):
             if self.config.local_cache is True:
                 self.save_to_local_cache()
@@ -206,10 +220,11 @@ class MarketHistory:
         if self.root.assets_list_symbols is None:
             self.get_asset_symbols(updated=True)
 
-        if self.root.backend.is_new_history_entity:
-            if self.config.dbms == "postgresql":
+        if self.config.dbms == "postgresql":
+            if self.root.backend.is_new_history_entity:
                 self.root.backend.create_table.history(self.root.assets_list_symbols)
-            self.root.backend.create_index(self.config.dbms_history_entity_name, "t", unique=True)
+
+        self._create_index()
 
         # if self.root.backend.sync_check_needed:
         self.root.backend.db_sync_check()
@@ -244,7 +259,6 @@ class MarketHistory:
         fill_na=False,
         uniform_cols=False,
     ):
-
         metrics = metrics if metrics else ["o", "h", "l", "c", "v"]
         assets = assets if assets else self.get_asset_symbols(updated=True)
 

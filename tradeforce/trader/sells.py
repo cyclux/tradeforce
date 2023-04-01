@@ -8,10 +8,10 @@ from tradeforce.utils import calc_fee, convert_symbol_from_exchange
 
 # Prevent circular import for type checking
 if TYPE_CHECKING:
-    from tradeforce.main import TradingEngine
+    from tradeforce.main import Tradeforce
 
 
-def check_sell_options(root: TradingEngine, latest_prices=None, timestamp=None):
+def check_sell_options(root: Tradeforce, latest_prices=None, timestamp=None):
     # TODO: Reconsider the "ok_to_sell logic". Maybe adapt/edit price_profit to check if it was already reduced?
     # Also consider future feature of "dynamic price decay"
     sell_options = []
@@ -60,7 +60,7 @@ def check_sell_options(root: TradingEngine, latest_prices=None, timestamp=None):
     return sell_options
 
 
-async def sell_assets(root: TradingEngine, sell_options):
+async def sell_assets(root: Tradeforce, sell_options):
     for sell_option in sell_options:
         open_order = root.trader.get_open_order(asset=sell_option)
         if len(open_order) < 1:
@@ -106,7 +106,7 @@ async def sell_assets(root: TradingEngine, sell_options):
                 )
 
 
-async def submit_sell_order(root: TradingEngine, open_order):
+async def submit_sell_order(root: Tradeforce, open_order):
     volatility_buffer = 0.00000002
     sell_order = {
         "asset": open_order["asset"],
@@ -119,7 +119,7 @@ async def submit_sell_order(root: TradingEngine, open_order):
         root.log.error("Sell order execution failed! -> %s", str(sell_order))
 
 
-def sell_confirmed(root: TradingEngine, sell_order):
+def sell_confirmed(root: Tradeforce, sell_order):
     root.log.debug("sell_order confirmed: %s", sell_order)
     asset_symbol = convert_symbol_from_exchange(sell_order["symbol"])[0]
     open_order = root.trader.get_open_order(asset={"asset": asset_symbol, "gid": sell_order["gid"]})

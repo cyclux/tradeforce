@@ -14,7 +14,7 @@ import pandas as pd
 
 # Prevent circular import for type checking
 if TYPE_CHECKING:
-    from tradeforce.main import TradingEngine
+    from tradeforce.main import Tradeforce
 
 from tradeforce.custom_types import DictTimeframe, DictTimeframeExtended, DictMarketHistoryUpdate
 from tradeforce.utils import (
@@ -73,7 +73,7 @@ def get_end_timestamp(end: int | None = None) -> int:
 
 
 class MarketUpdater:
-    def __init__(self, root: TradingEngine):
+    def __init__(self, root: Tradeforce):
         self.root = root
         self.config = root.config
         self.log = root.logging.get_logger(__name__)

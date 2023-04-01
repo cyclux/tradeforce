@@ -6,12 +6,13 @@ from psycopg2.sql import SQL, Identifier
 
 # Prevent circular import for type checking
 if TYPE_CHECKING:
-    from tradeforce.main import TradingEngine
+    from tradeforce.main import Tradeforce
     from tradeforce.backend import BackendSQL
+    from psycopg2.extensions import cursor
 
 
 class CreateTables:
-    def __init__(self, root: TradingEngine, backend: BackendSQL) -> None:
+    def __init__(self, root: Tradeforce, backend: BackendSQL) -> None:
         self.root = root
         self.backend = backend
         self.config = root.config
@@ -19,12 +20,10 @@ class CreateTables:
 
     def history(self, asset_symbols) -> None:
         ohlcv = ("_o", "_h", "_l", "_c", "_v")
+        psycopg2_cursor: cursor = self.backend.dbms_db
         asset_symbols_ohlcv = [symbol + suffix for symbol in asset_symbols for suffix in ohlcv]
         sql_columns = ", ".join(
-            [
-                f"{Identifier(column_name).as_string(self.backend.dbms_db)} NUMERIC"
-                for column_name in asset_symbols_ohlcv
-            ]
+            [f"{Identifier(column_name).as_string(psycopg2_cursor)} NUMERIC" for column_name in asset_symbols_ohlcv]
         )
         query = SQL(
             "CREATE TABLE {table_name} (" + "t BIGINT NOT NULL," + f"{sql_columns}," + "PRIMARY KEY (t)" + ");"

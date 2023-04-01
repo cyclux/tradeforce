@@ -7,7 +7,7 @@ from psycopg2.sql import SQL, Identifier, Literal, Composed
 from psycopg2.extensions import connection, cursor
 from unittest.mock import MagicMock, patch, call
 from tradeforce.config import Config
-from tradeforce import TradingEngine
+from tradeforce import Tradeforce
 from tradeforce.backend import BackendSQL
 from tradeforce.backend.sql_tables import CreateTables
 
@@ -33,7 +33,7 @@ config = {
     },
     "backend": {
         "dbms": "postgresql",
-        "dbms_host": "localhost",
+        "dbms_host": "docker_postgres",
         "dbms_port": 5432,
         "dbms_connect_db": "postgres",
         "dbms_user": "postgres",
@@ -46,7 +46,7 @@ config = {
         "base_currency": "USD",
         "candle_interval": "5min",
         "history_timeframe": "60days",
-        "update_mode": "live",  # none, once or live
+        "update_mode": "none",  # none, once or live
         # "force_source": "postgresql",
     },
 }
@@ -58,18 +58,18 @@ def mock_config() -> dict:
 
 
 @pytest.fixture
-def trading_engine(mock_config: dict) -> TradingEngine:
-    return TradingEngine(config=mock_config)
+def trading_engine(mock_config: dict) -> Tradeforce:
+    return Tradeforce(config=mock_config)
 
 
 @pytest.fixture
-def config_object(trading_engine: TradingEngine, mock_config: dict) -> Config:
+def config_object(trading_engine: Tradeforce, mock_config: dict) -> Config:
     return Config(root=trading_engine, config_input=mock_config)
 
 
 class TestBackendSQL:
     @pytest.fixture()
-    def backend(self, trading_engine: TradingEngine) -> BackendSQL:
+    def backend(self, trading_engine: Tradeforce) -> BackendSQL:
         backend = BackendSQL(trading_engine)
         backend.log = MagicMock(info=MagicMock(), error=MagicMock())
         backend.dbms_db = MagicMock(
@@ -88,7 +88,7 @@ class TestBackendSQL:
     def test_init(
         self,
         backend: BackendSQL,
-        trading_engine: TradingEngine,
+        trading_engine: Tradeforce,
         run_live: bool,
         call_sync_methods: bool,
     ) -> None:
@@ -545,7 +545,7 @@ class TestBackendSQL:
             ("test_table", ["column1", "column2"], [], False, False),
         ],
     )
-    def test__insert(
+    def test_insert(
         self,
         backend: BackendSQL,
         table_name: str,
@@ -560,71 +560,64 @@ class TestBackendSQL:
         result = backend._insert(table_name, columns, values_list)
         assert result == expected_result
 
-    # Tests for insert_one
     @pytest.mark.parametrize(
-        "table_name, payload_insert, _insert_result, expected_result",
+        "table_name, payload_insert, expected_result",
         [
-            ("test_table", {"column1": 1, "column2": "A"}, True, True),
-            ("test_table", {}, False, False),
+            ("test_table", {"col1": 1, "col2": 2}, True),
+            ("test_table", {}, False),
+            ("test_table", None, False),
         ],
     )
-    def test_insert_one(
-        self,
-        backend: BackendSQL,
-        table_name: str,
-        payload_insert: dict,
-        _insert_result: bool,
-        expected_result: bool,
-    ):
-        backend._insert = MagicMock(return_value=_insert_result)
-        backend.log.warning = MagicMock()
+    def test_insert_one(self, backend, table_name, payload_insert, expected_result):
+        # Mock the _insert method
+        backend._insert = MagicMock(return_value=expected_result)
 
+        # Call the insert_one method with the given parameters
         result = backend.insert_one(table_name, payload_insert)
+
+        # Assert if the result is as expected
         assert result == expected_result
 
+        # Check if the _insert method was called with the correct arguments
         if payload_insert:
             columns = list(payload_insert.keys())
             values = [tuple(payload_insert.values())]
             backend._insert.assert_called_once_with(table_name, columns, values)
-            backend.log.warning.assert_not_called()
         else:
             backend._insert.assert_not_called()
-            backend.log.warning.assert_called_once_with(
-                "No data to insert into DB! [table: {table_name}]", table_name=table_name
-            )
 
-    # Tests for insert_many
+    # Sample data for testing
+    sample_data = [
+        {"id": 1, "name": "Alice", "age": 30},
+        {"id": 2, "name": "Bob", "age": 35},
+        {"id": 3, "name": "Charlie", "age": 25},
+    ]
+
     @pytest.mark.parametrize(
-        "table_name, payload_insert, _insert_result, expected_result",
+        "table_name, payload_insert, expected_result",
         [
-            ("test_table", [{"column1": 1, "column2": "A"}, {"column1": 2, "column2": "B"}], True, True),
-            ("test_table", [], False, False),
+            ("test_table", sample_data, True),
+            ("test_table", [], False),
+            ("test_table", None, False),
         ],
     )
-    def test_insert_many(
-        self,
-        backend: BackendSQL,
-        table_name: str,
-        payload_insert: list[dict],
-        _insert_result: bool,
-        expected_result: bool,
-    ):
-        backend._insert = MagicMock(return_value=_insert_result)
-        backend.log.warning = MagicMock()
+    def test_insert_many(self, backend, table_name, payload_insert, expected_result):
+        # Mock the _insert method
+        backend._insert = MagicMock(return_value=expected_result)
 
+        # Call the insert_many method with the given parameters
         result = backend.insert_many(table_name, payload_insert)
+
+        # Assert if the result is as expected
         assert result == expected_result
 
-        if payload_insert:
+        # Check if the _insert method was called with the correct arguments
+        if payload_insert and len(payload_insert) > 0:
             columns = list(payload_insert[0].keys())
             values_list = [tuple(d.values()) for d in payload_insert]
             backend._insert.assert_called_once_with(table_name, columns, values_list)
-            backend.log.warning.assert_not_called()
         else:
             backend._insert.assert_not_called()
-            backend.log.warning.assert_called_once_with(
-                "No data to insert into DB! [table: {table_name}]", table_name=table_name
-            )
 
     @pytest.mark.parametrize(
         "table_name, query, success",

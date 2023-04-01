@@ -15,14 +15,14 @@ from tradeforce.trader.sells import check_sell_options, sell_assets, sell_confir
 
 # Prevent circular import for type checking
 if TYPE_CHECKING:
-    from tradeforce.main import TradingEngine
+    from tradeforce.main import Tradeforce
 # TODO: switch order["buy_order_id"] to order["gid"]
 
 
 class Trader:
     """_summary_"""
 
-    def __init__(self, root: TradingEngine):
+    def __init__(self, root: Tradeforce):
         self.root = root
         self.config = root.config
         self.log = root.logging.get_logger(__name__)

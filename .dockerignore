@@ -34,10 +34,10 @@ venv/
 
 # Documentation
 *.rst
-*.md
+#*.md
 
 # Project folder
-
+**/*.arrow
 .ipynb_checkpoints/
 analysis/
 archive/

@@ -3,9 +3,9 @@
 
 
 import numpy as np
-
 import numba as nb  # type: ignore
-from tradeforce import TradingEngine
+
+from tradeforce import Tradeforce
 
 tradeforce_config = {
     "trader": {
@@ -27,23 +27,14 @@ tradeforce_config = {
         },
     },
     "backend": {
-        "dbms": "mongodb",
+        "dbms": "postgresql",
         "dbms_host": "localhost",
-        "dbms_port": 27017,
-        "dbms_user": "tradeforce",
-        "dbms_pw": "tradeforce",
-        "dbms_connect_db": "admin",
-        "local_cache": True,
+        "dbms_port": 5432,
+        "dbms_connect_db": "postgres",
+        "dbms_user": "postgres",
+        "dbms_pw": "postgres",
+        "local_cache": False,
     },
-    # "backend": {
-    #     "dbms": "postgresql",
-    #     "dbms_host": "localhost",
-    #     "dbms_port": 5432,
-    #     "dbms_connect_db": "postgres",
-    #     "dbms_user": "postgres",
-    #     "dbms_pw": "postgres",
-    #     "local_cache": False,
-    # },
     "market_history": {
         "name": "test_simulator",
         "exchange": "bitfinex",
@@ -60,11 +51,11 @@ tradeforce_config = {
 }
 
 
-def pre_process(config, market_history):
+def pre_process(config, market_engine):
     sim_start_delta = config.sim_start_delta
-    asset_prices = market_history.get_market_history(start=sim_start_delta, metrics=["o"], fill_na=True)
+    asset_prices = market_engine.get_market_history(start=sim_start_delta, metrics=["o"], fill_na=True)
 
-    asset_prices_pct = market_history.get_market_history(
+    asset_prices_pct = market_engine.get_market_history(
         start=sim_start_delta, metrics=["o"], fill_na=True, pct_change=True, pct_as_factor=False, pct_first_row=0
     )
 
@@ -132,5 +123,5 @@ def sell_strategy(params, buybag, history_prices_row):
     return sell_assets, prices_current
 
 
-sim_result = TradingEngine(config=tradeforce_config).run_sim(pre_process=None, buy_strategy=None, sell_strategy=None)
+sim_result = Tradeforce(config=tradeforce_config).run_sim(pre_process=None, buy_strategy=None, sell_strategy=None)
 print(sim_result["profit"])

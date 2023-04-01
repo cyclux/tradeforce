@@ -12,7 +12,7 @@ from tradeforce.backend import Backend
 
 # Prevent circular import for type checking
 if TYPE_CHECKING:
-    from tradeforce.main import TradingEngine
+    from tradeforce.main import Tradeforce
 
 
 def construct_mongodb_query(query: dict | None) -> dict:
@@ -27,7 +27,7 @@ def construct_mongodb_query(query: dict | None) -> dict:
 
 
 class BackendMongoDB(Backend):
-    def __init__(self, root: TradingEngine):
+    def __init__(self, root: Tradeforce):
         super().__init__(root)
         self.backend_client = self._connect()
         self.is_new_history_entity = self.is_new_entity(self.config.dbms_history_entity_name)

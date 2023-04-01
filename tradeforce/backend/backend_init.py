@@ -20,7 +20,7 @@ from tradeforce.utils import get_reference_index, drop_dict_na_values
 
 # Prevent circular import for type checking
 if TYPE_CHECKING:
-    from tradeforce.main import TradingEngine
+    from tradeforce.main import Tradeforce
 
 ############################
 # General helper functions #
@@ -67,11 +67,13 @@ def prepare_payload_update_copy(payload_update: dict, filter_nan: bool) -> tuple
 class Backend(ABC):
     """Fetch market history from local or remote database and store in DataFrame"""
 
-    def __init__(self, root: TradingEngine):
+    def __init__(self, root: Tradeforce):
         self.root = root
         self.config = root.config
         self.log = root.logging.get_logger(__name__)
         self.is_filled_na = False
+        self.reconnect_max_attempts = -1
+        self.reconnect_delay_sec = 10
 
     def construct_uri(self, db_name: str | None = None) -> str:
         """Construct the URI for the DBMS connection."""
@@ -129,10 +131,10 @@ class Backend(ABC):
         """Get index of internal in-memory DB history in sorted order"""
         return self.root.market_history.df_market_history.sort_index().index
 
-    def update_internal_db_market_history(self, df_history_update: pd.DataFrame) -> None:
-        self.root.market_history.df_market_history = pd.concat(
-            [self.root.market_history.df_market_history, df_history_update], axis=0
-        ).sort_index()
+    # def update_internal_db_market_history(self, df_history_update: pd.DataFrame) -> None:
+    #     self.root.market_history.df_market_history = pd.concat(
+    #         [self.root.market_history.df_market_history, df_history_update], axis=0
+    #     ).sort_index()
 
     ###############################
     # External DB-related methods #
@@ -183,6 +185,12 @@ class Backend(ABC):
             self.root.market_history.save_to_local_cache()
 
     def sync_from_external_db(self, only_exist_in_external_db: np.ndarray) -> None:
+        self.log.info(
+            "Syncing %s candles from external to internal DB (%s to %s) ...",
+            len(only_exist_in_external_db),
+            min(only_exist_in_external_db),
+            max(only_exist_in_external_db),
+        )
         external_db_entries_to_sync = self.query(
             self.config.dbms_history_entity_name,
             query={"attribute": "t", "in": True, "value": only_exist_in_external_db.tolist()},
@@ -191,26 +199,20 @@ class Backend(ABC):
         self.root.market_history.df_market_history = pd.concat(
             [self.root.market_history.df_market_history, df_external_db_entries]
         ).sort_values("t")
-        self.log.info(
-            "%s candles synced from external to internal DB (%s to %s)",
-            len(only_exist_in_external_db),
-            min(only_exist_in_external_db),
-            max(only_exist_in_external_db),
-        )
 
     def sync_from_internal_db(self, only_exist_in_internal_db: np.ndarray) -> None:
+        self.log.info(
+            "Syncing %s candles from internal to external DB (%s to %s)",
+            len(only_exist_in_internal_db),
+            min(only_exist_in_internal_db),
+            max(only_exist_in_internal_db),
+        )
         internal_db_entries = self.root.market_history.get_market_history(from_list=only_exist_in_internal_db)
         internal_db_entries_to_sync: list[dict] = [
             drop_dict_na_values(record, self.config.dbms)
             for record in internal_db_entries.reset_index(drop=False).to_dict("records")
         ]
         self.insert_many(self.config.dbms_history_entity_name, internal_db_entries_to_sync)
-        self.log.info(
-            "%s candles synced from internal to external DB (%s to %s)",
-            len(only_exist_in_internal_db),
-            min(only_exist_in_internal_db),
-            max(only_exist_in_internal_db),
-        )
 
     #################################
     # Trader status synchronization #
@@ -272,10 +274,9 @@ class Backend(ABC):
             )
 
     def db_add_history(self, df_history_update: pd.DataFrame) -> None:
-        self.update_internal_db_market_history(df_history_update)
+        self.root.market_history.update_internal_db_market_history(df_history_update)
         if self.config.use_dbms:
-            df_history_update.sort_index(inplace=True)
-            payload_update = self.prepare_payload_update(df_history_update)
+            payload_update = self.prepare_payload_update(df_history_update.sort_index())
             self.update_or_insert_history(payload_update)
 
     def prepare_payload_update(self, df_history_update: pd.DataFrame) -> list[dict]:

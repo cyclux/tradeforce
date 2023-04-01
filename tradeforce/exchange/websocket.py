@@ -21,7 +21,7 @@ from tradeforce.custom_types import DictCandle
 
 # Prevent circular import for type checking
 if TYPE_CHECKING:
-    from tradeforce.main import TradingEngine
+    from tradeforce.main import Tradeforce
     from logging import Logger
     from bfxapi.models.order import Order  # type: ignore
     from bfxapi.models.wallet import Wallet  # type: ignore
@@ -82,10 +82,10 @@ class ExchangeWebsocket:
     history remains up-to-date and provides real-time information for the trading engine.
     """
 
-    def __init__(self, root: TradingEngine):
+    def __init__(self, root: Tradeforce):
         """Initialize the ExchangeWebsocket object.
 
-        :param root: The TradingEngine object providing access to the config and logging
+        :param root: The Tradeforce object providing access to the config and logging
         """
         self.root = root
         self.config = root.config

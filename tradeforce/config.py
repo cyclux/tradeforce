@@ -4,20 +4,44 @@ which can get passed to all other modules, classes and functions.
 """
 
 from __future__ import annotations
+import os
 import yaml
 from typing import TYPE_CHECKING
 from tradeforce.utils import candle_interval_to_min
 
 # Prevent circular import for type checking
 if TYPE_CHECKING:
-    from tradeforce.main import TradingEngine
+    from tradeforce.main import Tradeforce
+
+config_paths = [
+    "config.yaml",
+    "config.yml",
+    "config/config.yaml",
+    "config/config.yml",
+    "../user_code/config.yaml",
+    "../user_code/config.yml",
+    "../config/config.yaml",
+    "../config/config.yml",
+]
 
 
-def load_yaml_config() -> dict:
+def load_yaml_config(config_path) -> dict:
     """Load config.yaml file"""
-    with open("config.yaml", "r", encoding="utf8") as stream:
-        yaml_config = yaml.safe_load(stream)
+    try:
+        with open(config_path, "r", encoding="utf8") as stream:
+            yaml_config = yaml.safe_load(stream)
+    except FileNotFoundError:
+        return {}
     return dict(yaml_config)
+
+
+def try_config_paths(config_paths: list) -> tuple[dict, str]:
+    while len(config_paths) > 0:
+        current_config_path = config_paths.pop(0)
+        config_input = load_yaml_config(current_config_path)
+        if config_input:
+            return config_input, current_config_path
+    return {}, current_config_path
 
 
 def flatten_dict(input_config_dict: dict) -> dict:
@@ -50,16 +74,24 @@ class Config:
     """
 
     # TODO: Add sanity check
-    def __init__(self, root: TradingEngine, config_input):
+    def __init__(self, root: Tradeforce, config_input: dict | None = None):
         self.log = root.logging.get_logger(__name__)
-        config_type = "config.yaml" if config_input is None else "dict"
-        self.log.info("Loading config via %s", config_type)
+
+        config_input = config_input if config_input else {}
+        config_type = "dict"
 
         # Load config.yaml file if no config dict is provided
-        if config_input is None:
-            config_input = load_yaml_config()
+        if not config_input:
+            config_input, config_type = try_config_paths(config_paths)
+        if not config_input:
+            raise SystemExit(
+                "No config file found. Please provide a config.yaml file or a config dict. "
+                + f"Current search path: {os.path.abspath('')}/config.yaml"
+            )
 
         config_input = flatten_dict(config_input)
+
+        self.log.info("Loading config via %s", config_type)
 
         # Set all config values as attributes. This ensures that user defined config keys are also accessible.
         for config_key, config_val in config_input.items():
@@ -70,7 +102,9 @@ class Config:
         self.run_live = config_input.get("run_live", False)
         self.update_mode = config_input.get("update_mode", "None").lower()
         self.log_level_live = config_input.get("log_level_live", "ERROR").upper()
-        self.log_level_ws_update = config_input.get("log_level_ws_update", "ERROR").upper()
+        self.log_level_ws_update = config_input.get(
+            "log_level_ws_update", "ERROR"
+        ).upper()
 
         self.exchange = config_input.get("exchange", "bitfinex")
         self.force_source = config_input.get("force_source", "none").lower()
@@ -86,17 +120,23 @@ class Config:
         self.dbms_pw = config_input.get("dbms_pw", None)
         self.dbms_connect_db = config_input.get("dbms_connect_db", "postgres")
         self.dbms_db = config_input.get("dbms_db", f"{self.exchange}_db")
-        self.dbms_history_entity_name = config_input.get("name", f"{self.exchange}_history_{self.history_timeframe}")
+        self.dbms_history_entity_name = config_input.get(
+            "name", f"{self.exchange}_history_{self.history_timeframe}"
+        )
 
         self.creds_path = config_input.get("creds_path", "")
         self.relevant_assets_cap = config_input.get("relevant_assets_cap", 100)
 
         self.trader_id = config_input.get("id", 1)
         self.moving_window_hours = config_input.get("moving_window_hours", 20)
-        self.moving_window_increments = hours_to_increments(self.moving_window_hours, self.candle_interval)
+        self.moving_window_increments = hours_to_increments(
+            self.moving_window_hours, self.candle_interval
+        )
         self.budget = float(config_input.get("budget", 0))
         self.buy_opportunity_factor = config_input.get("buy_opportunity_factor", 0.0)
-        self.buy_opportunity_boundary = config_input.get("buy_opportunity_boundary", 0.02)
+        self.buy_opportunity_boundary = config_input.get(
+            "buy_opportunity_boundary", 0.02
+        )
         self.profit_factor = config_input.get("profit_factor", 0.05)
         self.profit_ratio_limit = config_input.get("profit_ratio_limit", 1.01)
         self.prefer_performance = config_input.get("prefer_performance", 0)
@@ -174,7 +214,11 @@ class Config:
             "assets_excluded",
         ]
         if for_sim:
-            attr_to_dict = {key: val for (key, val) in attr_to_dict.items() if key not in sim_dict_exclusions}
+            attr_to_dict = {
+                key: val
+                for (key, val) in attr_to_dict.items()
+                if key not in sim_dict_exclusions
+            }
 
         # if for_sim:
         #     attr_to_dict = {key: val for (key, val) in attr_to_dict.items() if isinstance(val, int | float | bool)}

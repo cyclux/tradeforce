@@ -12,7 +12,7 @@ from tradeforce.utils import convert_symbol_from_exchange, convert_symbol_to_exc
 
 # Prevent circular import for type checking
 if TYPE_CHECKING:
-    from tradeforce.main import TradingEngine
+    from tradeforce.main import Tradeforce
 
 
 class ExchangeAPI:
@@ -22,7 +22,7 @@ class ExchangeAPI:
         _type_: _description_
     """
 
-    def __init__(self, root: TradingEngine):
+    def __init__(self, root: Tradeforce):
         self.root = root
         self.config = root.config
         self.log = root.logging.get_logger(__name__)

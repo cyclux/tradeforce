@@ -12,14 +12,14 @@ from tradeforce.trader.sells import submit_sell_order
 
 # Prevent circular import for type checking
 if TYPE_CHECKING:
-    from tradeforce.main import TradingEngine
+    from tradeforce.main import Tradeforce
 
 
 def get_significant_digits(num, digits) -> int:
     return round(num, digits - int(np.floor(np.log10(abs(num)))) - 1)
 
 
-def check_buy_options(root: TradingEngine, latest_prices=None, timestamp=None):
+def check_buy_options(root: Tradeforce, latest_prices=None, timestamp=None):
     buy_options = []
     if latest_prices is None:
         df_latest_prices = root.market_history.get_market_history(latest_candle=True, metrics=["o"], uniform_cols=True)
@@ -65,7 +65,7 @@ def check_buy_options(root: TradingEngine, latest_prices=None, timestamp=None):
     return buy_options
 
 
-async def buy_assets(root: TradingEngine, buy_options):
+async def buy_assets(root: Tradeforce, buy_options):
     compensate_rate_limit = bool(len(buy_options) > 9)
     assets_out_of_funds_to_buy = []
     assets_max_amount_bought = []
@@ -140,7 +140,7 @@ async def buy_assets(root: TradingEngine, buy_options):
         )
 
 
-async def buy_confirmed(root: TradingEngine, buy_order) -> None:
+async def buy_confirmed(root: Tradeforce, buy_order) -> None:
     asset_price_profit = get_significant_digits(buy_order.price * root.config.profit_factor, 5)
     buy_order_fee = np.round(abs(buy_order.fee), 5)
     asset_symbol = convert_symbol_from_exchange(buy_order.symbol)[0]

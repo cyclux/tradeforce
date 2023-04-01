@@ -1,7 +1,7 @@
 """_summary_
 """
 
-from tradeforce import TradingEngine
+from tradeforce import Tradeforce
 
 config = {
     "trader": {
@@ -60,4 +60,4 @@ hyperparam_search = {
     },
 }
 
-sim_result = TradingEngine(config=config).run_sim_optuna(hyperparam_search)
+sim_result = Tradeforce(config=config).run_sim_optuna(hyperparam_search)

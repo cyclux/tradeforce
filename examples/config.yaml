@@ -1,36 +1,42 @@
 %YAML 1.2
 ---
-trader:
-  id: 1
-  run_live: True
-  creds_path: "exchange_creds.cfg"
-  dry_run: False
-  maker_fee: 0.10
-  taker_fee: 0.20
-  budget: 1100
-  strategy:
-    amount_invest_fiat: 100
-    investment_cap: 0
-    buy_opportunity_factor: 0.10
-    buy_opportunity_boundary: 0.05
-    prefer_performance: 1
-    hold_time_limit: 1000
-    profit_factor: 1.70
-    profit_ratio_limit: 1.01
-    moving_window_hours: 180
-
-backend:
-  dbms: "mongodb"
-  dbms_host: "localhost:1234"
-  local_cache: True
 
 market_history:
-  name: "bfx_history_2y"
-  exchange: "bitfinex"
-  base_currency: "USD"
-  candle_interval: "5min"
-  history_timeframe: "60days"
-  update_mode: "live"
+  base_currency: USD
+  candle_interval: 5min
+  exchange: bitfinex
+  history_timeframe: 60days
+  name: bfx_history_docker_test
+  update_mode: live
+  force_source: local_cache
+
+backend:
+  dbms: postgresql
+  dbms_connect_db: postgres
+  dbms_host: docker_postgres
+  dbms_port: 5432
+  dbms_pw: postgres
+  dbms_user: postgres
+  local_cache: false
+
+trader:
+  id: 3
+  budget: 0
+  creds_path: exchange_creds.cfg
+  maker_fee: 0.1
+  taker_fee: 0.2
+  run_live: false
+
+  strategy:
+    amount_invest_fiat: 1000
+    buy_opportunity_boundary: 0.05
+    buy_opportunity_factor: 0.1
+    hold_time_limit: 1000
+    investment_cap: 0
+    moving_window_hours: 160
+    prefer_performance: 1
+    profit_factor: 1.1
+    profit_ratio_limit: 1.01
 
 simulation:
   sim_start:

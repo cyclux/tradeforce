@@ -13,7 +13,7 @@ from tradeforce.utils import get_col_names
 
 # Prevent circular import for type checking
 if TYPE_CHECKING:
-    from tradeforce.main import TradingEngine
+    from tradeforce.main import Tradeforce
 
 
 ###########################
@@ -88,7 +88,7 @@ def get_asset_performance_metrics(df_input):
     return asset_metrics
 
 
-async def get_init_relevant_assets(root: TradingEngine, capped=-1) -> DictRelevantAssets:
+async def get_init_relevant_assets(root: Tradeforce, capped=-1) -> DictRelevantAssets:
     # 34 days ~ 10000 candles limit
     root.log.info("Analyzing market for relevant assets...")
     init_market_history = await root.market_updater_api.update_market_history(init_timespan="34days")
@@ -144,7 +144,7 @@ def get_asset_volatility(df_input):
     ).sort_values()
 
 
-def get_asset_buy_performance(root: TradingEngine, moving_window_increments=1800, timestamp=None):
+def get_asset_buy_performance(root: Tradeforce, moving_window_increments=1800, timestamp=None):
     start = -1 * moving_window_increments
     end = None
     idx_type = "iloc"

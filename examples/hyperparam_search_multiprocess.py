@@ -2,7 +2,7 @@
 """
 
 import concurrent.futures
-from tradeforce import TradingEngine
+from tradeforce import Tradeforce
 
 
 config = {
@@ -70,7 +70,7 @@ N_WORKERS = 8
 
 
 def run_wrapper():
-    return TradingEngine(config=config).run_sim_optuna(hyperparam_search)
+    return Tradeforce(config=config).run_sim_optuna(hyperparam_search)
 
 
 if __name__ == "__main__":

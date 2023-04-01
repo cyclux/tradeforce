@@ -19,7 +19,7 @@ from tradeforce.custom_types import DictTimedelta, DictTimestamp
 # Prevent circular import for type checking
 if TYPE_CHECKING:
     from tradeforce.config import Config
-    from tradeforce import TradingEngine
+    from tradeforce import Tradeforce
 
 
 def get_col_names(idx: pd.Index, specific_col: str = "") -> list[str]:
@@ -180,7 +180,7 @@ def calc_fee(config, volume_crypto, price_current, order_type):
     return volume_crypto_incl_fee, amount_fee_crypto, amount_fee_fiat
 
 
-def monkey_patch(root: TradingEngine, pre_process, buy_strategy, sell_strategy) -> None:
+def monkey_patch(root: Tradeforce, pre_process, buy_strategy, sell_strategy) -> None:
     """Monkey patch user defined buy and sell strategies if provided"""
 
     if pre_process is not None:

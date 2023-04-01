@@ -3,8 +3,7 @@
 This module contains the BackendSQL class which is used to handle SQL operations with PostgreSQL backend.
 """
 from __future__ import annotations
-import sys
-
+from time import sleep
 
 from psycopg2 import OperationalError
 import psycopg2.pool as pool
@@ -17,18 +16,19 @@ from tradeforce.backend.sql_tables import CreateTables
 
 # Prevent circular import for type checking
 if TYPE_CHECKING:
-    from tradeforce.main import TradingEngine
+    from tradeforce.main import Tradeforce
     from psycopg2.extensions import connection, cursor
 
 
 class BackendSQL(Backend):
     """Interface to handle SQL operations with PostgreSQL backend."""
 
-    def __init__(self, root: TradingEngine):
+    def __init__(self, root: Tradeforce):
         """Initializes the BackendSQL object and establishes a connection to the database."""
 
         super().__init__(root)
         self.connected = False
+        self.reconnect_count = 0
         self.create_table = CreateTables(root, self)
         self._establish_connection(db_name=self.config.dbms_db)
         # Only sync state with backend now if there is no exchange API connection.
@@ -72,6 +72,28 @@ class BackendSQL(Backend):
         if self.is_new_entity("closed_orders"):
             self.create_table.closed_orders()
 
+    def _try_reconnect(self, db_name: str):
+        """Tries to reconnect to the database."""
+
+        self.reconnect_count += 1
+
+        if self.reconnect_max_attempts == 0:
+            raise SystemExit(f"[ERROR] Max tries reached to connect to {db_name}.")
+
+        if self.reconnect_max_attempts != 0:
+            if self.reconnect_max_attempts > 0:
+                self.reconnect_max_attempts -= 1
+
+            is_cool_down = self.reconnect_count > 3
+
+            self.log.info(
+                "Retrying connection to %s in %s seconds...", db_name, self.reconnect_delay_sec if is_cool_down else 0
+            )
+            if is_cool_down:
+                sleep(self.reconnect_delay_sec)
+
+            self._establish_connection(db_name)
+
     def _establish_connection(self, db_name: str | None = None) -> None:
         """Establishes a connection to the database by checking and creating necessary tables."""
 
@@ -89,9 +111,8 @@ class BackendSQL(Backend):
 
             if db_name == self.config.dbms_db:
                 self._check_new_tables()
-
         else:
-            self._establish_connection(self.config.dbms_connect_db)
+            self._try_reconnect(self.config.dbms_connect_db)
 
     def execute(self, query: Composed) -> bool:
         """Executes the provided SQL query and returns a boolean indicating success or failure."""
@@ -115,7 +136,7 @@ class BackendSQL(Backend):
         )
         execute_ok = self.execute(query)
         if not execute_ok:
-            sys.exit(
+            raise SystemExit(
                 f"[ERROR] Failed to check pg_catalog.pg_database of {self.config.dbms_db}. "
                 + "Choose different dbms_connect_db."
             )
