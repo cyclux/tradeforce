@@ -12,7 +12,7 @@ ARG APP_PATH=/opt/${APP_NAME}
 # Stage 1: staging #
 ####################
 
-FROM python:${PYTHON_VERSION} AS staging
+FROM python:${PYTHON_VERSION}-bullseye AS staging
 
 ENV POETRY_HOME="/opt/poetry" \
     #POETRY_VIRTUALENVS_IN_PROJECT=false \
@@ -61,23 +61,26 @@ COPY pyproject.toml poetry.lock ./
 COPY --from=development $APP_PATH $APP_PATH
 
 RUN --mount=type=cache,target=/root/.cache \
-    poetry install --without dev \
+    poetry install --without dev --with prod \
     && poetry build --format wheel
 
 #######################
 # Stage 4: production #
 #######################
 
-FROM python:${PYTHON_VERSION} AS production
+FROM python:${PYTHON_VERSION}-slim-bullseye AS production
 ENV PIP_DISABLE_PIP_VERSION_CHECK=on
 ARG APP_NAME
 ARG APP_PATH
+
+RUN apt-get update && apt-get install --no-install-recommends -y \
+    git
 
 COPY --from=build ${APP_PATH}/dist/*.whl ./
 RUN pip install ./${APP_NAME}*.whl \
     && rm ./${APP_NAME}*.whl
 
-COPY ./docker/* /docker/
-WORKDIR /docker
+# COPY ./docker/* /user_code/
+WORKDIR /user_code
 
 ENTRYPOINT ["python"]

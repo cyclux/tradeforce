@@ -88,10 +88,14 @@ def get_asset_performance_metrics(df_input):
     return asset_metrics
 
 
+# TODO: add support for other timeframes than 5min
+# TODO: "amount_candles > 2000 & candle_density < 500" -> add to config
 async def get_init_relevant_assets(root: Tradeforce, capped=-1) -> DictRelevantAssets:
-    # 34 days ~ 10000 candles limit
     root.log.info("Analyzing market for relevant assets...")
-    init_market_history = await root.market_updater_api.update_market_history(init_timespan="34days")
+    # Max cap is 34 days which is ~ 10000 [5 min candle increments] candles.
+    # This is the limit of the Bitfinex REST API for one request.
+    init_timespan = "34days" if int(root.config.history_timeframe[:-4]) >= 34 else root.config.history_timeframe
+    init_market_history = await root.market_updater_api.update_market_history(init_timespan=init_timespan)
     df_relevant_assets_metrics = get_asset_performance_metrics(init_market_history).query(
         "amount_candles > 2000 & candle_density < 500"
     )

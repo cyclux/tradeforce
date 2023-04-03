@@ -394,7 +394,7 @@ class TestBackendSQL:
         assert result == expected_result
 
     @pytest.mark.parametrize("unique", [True, False])
-    def test_create_index(self, backend: BackendSQL, unique: bool):
+    def test_create_backend_db_index(self, backend: BackendSQL, unique: bool):
         table_name = "test_table"
         index_name = "test_index"
 

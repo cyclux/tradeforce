@@ -31,13 +31,6 @@ class BackendSQL(Backend):
         self.reconnect_count = 0
         self.create_table = CreateTables(root, self)
         self._establish_connection(db_name=self.config.dbms_db)
-        # Only sync state with backend now if there is no exchange API connection.
-        # So in case config.run_live is True (API connection present)
-        # both db_sync_state_trader() and db_sync_state_orders()
-        # will be called by ExchangeWebsocket.ws_priv_wallet_snapshot()
-        if self.config.use_dbms and not self.config.run_live:
-            self.db_sync_state_trader()
-            self.db_sync_state_orders()
 
     def _is_connected(self, db_name: str) -> bool:
         """Connects to the database with the given DB name."""
@@ -87,7 +80,9 @@ class BackendSQL(Backend):
             is_cool_down = self.reconnect_count > 3
 
             self.log.info(
-                "Retrying connection to %s in %s seconds...", db_name, self.reconnect_delay_sec if is_cool_down else 0
+                "Retrying connection to %s in %s seconds...",
+                db_name,
+                self.reconnect_delay_sec if is_cool_down else 0,
             )
             if is_cool_down:
                 sleep(self.reconnect_delay_sec)
@@ -223,25 +218,35 @@ class BackendSQL(Backend):
         return list(result)
 
     def _create_update_query(
-        self, table_name: str, query: dict[str, str | int | list], set_value: str | int | list | dict
+        self,
+        table_name: str,
+        query: dict[str, str | int | list],
+        set_value: str | int | list | dict,
     ) -> Composed:
         """Helper method which creates an update query for the specified table and returns it as a Composed object."""
 
-        set_val_is_dict = isinstance(set_value, dict)
-        # isinstance called again to avoid mypy error
         if isinstance(set_value, dict):
             columns = set_value.keys()
             values = tuple(set_value.values())
-        return SQL("UPDATE {table_name} SET ({columns}) = ({set_value}) WHERE {column} = {value}").format(
+            set_expr = SQL(", ").join(
+                SQL("{} = {}").format(Identifier(col), Literal(val)) for col, val in zip(columns, values)
+            )
+        else:
+            set_expr = SQL("{} = {}").format(Identifier(query["attribute"]), Literal(set_value))
+
+        return SQL("UPDATE {table_name} SET {set_expr} WHERE {column} = {value}").format(
             table_name=Identifier(table_name),
-            columns=SQL(", ").join(map(Identifier, columns)) if set_val_is_dict else Identifier(columns),
+            set_expr=set_expr,
             column=Identifier(query["attribute"]),
             value=Literal(query["value"]),
-            set_value=SQL(", ").join(map(Literal, values)) if set_val_is_dict else Literal(set_value),
         )
 
     def update_one(
-        self, table_name: str, query: dict[str, str | int | list], set_value: str | int | list | dict, upsert=False
+        self,
+        table_name: str,
+        query: dict[str, str | int | list],
+        set_value: str | int | list | dict,
+        upsert=False,
     ) -> bool:
         """Updates a single record in the specified table and returns a boolean indicating success or failure."""
 

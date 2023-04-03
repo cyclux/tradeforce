@@ -16,6 +16,7 @@ import numpy as np
 import pandas as pd
 from typing import TYPE_CHECKING
 from urllib.parse import quote_plus
+from tradeforce.market.history import set_internal_db_column_type
 from tradeforce.utils import get_reference_index, drop_dict_na_values
 
 # Prevent circular import for type checking
@@ -129,19 +130,18 @@ class Backend(ABC):
 
     def get_internal_db_index(self) -> pd.DatetimeIndex:
         """Get index of internal in-memory DB history in sorted order"""
-        return self.root.market_history.df_market_history.sort_index().index
-
-    # def update_internal_db_market_history(self, df_history_update: pd.DataFrame) -> None:
-    #     self.root.market_history.df_market_history = pd.concat(
-    #         [self.root.market_history.df_market_history, df_history_update], axis=0
-    #     ).sort_index()
+        return self.root.market_history.internal_history_db.sort_index().index
 
     ###############################
     # External DB-related methods #
     ###############################
 
     def get_external_db_index(self) -> np.ndarray:
-        query_result = self.query(self.config.dbms_history_entity_name, projection={"t": True}, sort=[("t", 1)])
+        query_result = self.query(
+            self.config.dbms_history_entity_name,
+            projection={"t": True},
+            sort=[("t", 1)],
+        )
         return np.array([index_dict["t"] for index_dict in query_result])
 
     ##################################
@@ -193,11 +193,16 @@ class Backend(ABC):
         )
         external_db_entries_to_sync = self.query(
             self.config.dbms_history_entity_name,
-            query={"attribute": "t", "in": True, "value": only_exist_in_external_db.tolist()},
+            query={
+                "attribute": "t",
+                "in": True,
+                "value": only_exist_in_external_db.tolist(),
+            },
         )
         df_external_db_entries = pd.DataFrame(external_db_entries_to_sync).set_index("t")
-        self.root.market_history.df_market_history = pd.concat(
-            [self.root.market_history.df_market_history, df_external_db_entries]
+        df_external_db_entries = set_internal_db_column_type(df_external_db_entries)
+        self.root.market_history.internal_history_db = pd.concat(
+            [self.root.market_history.internal_history_db, df_external_db_entries]
         ).sort_values("t")
 
     def sync_from_internal_db(self, only_exist_in_internal_db: np.ndarray) -> None:

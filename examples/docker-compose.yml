@@ -3,17 +3,13 @@ version: "3.9"
 services:
 
   docker_tradeforce:
-    container_name: tradeforce_dev
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: development
+    container_name: tradeforce
+    image: tradeforce:prod
     depends_on:
       - docker_postgres
     volumes:
-      - ./:/opt/tradeforce
-      - ./examples/:/user_code
-    entrypoint: [ "/bin/bash" ]
+      - ./:/user_code
+    entrypoint: [ "python", "simple.py" ]
 
   docker_postgres:
     image: postgres:15.2-bullseye
@@ -22,8 +18,8 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
     ports:
-      - 5432:5432
-
+      - 5433:5433
+    command: -p 5433
   # docker_mongodb:
   #   container_name: mongodb
   #   image: mongo:6.0.4-jammy
@@ -33,6 +29,5 @@ services:
   #     MONGO_INITDB_ROOT_PASSWORD: tradeforce
   #   ports:
   #     - 27017:27017
-    # volumes:
-    #   - /data/tradeforce_db:/data/db
-
+  #   volumes:
+  #     - /data/tradeforce_db:/data/db

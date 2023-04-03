@@ -5,6 +5,7 @@ which can get passed to all other modules, classes and functions.
 
 from __future__ import annotations
 import os
+from pathlib import Path
 import yaml
 from typing import TYPE_CHECKING
 from tradeforce.utils import candle_interval_to_min
@@ -13,16 +14,7 @@ from tradeforce.utils import candle_interval_to_min
 if TYPE_CHECKING:
     from tradeforce.main import Tradeforce
 
-config_paths = [
-    "config.yaml",
-    "config.yml",
-    "config/config.yaml",
-    "config/config.yml",
-    "../user_code/config.yaml",
-    "../user_code/config.yml",
-    "../config/config.yaml",
-    "../config/config.yml",
-]
+config_paths = ["config.yaml", "config.yml", "config/config.yaml", "config/config.yml"]
 
 
 def load_yaml_config(config_path) -> dict:
@@ -38,10 +30,11 @@ def load_yaml_config(config_path) -> dict:
 def try_config_paths(config_paths: list) -> tuple[dict, str]:
     while len(config_paths) > 0:
         current_config_path = config_paths.pop(0)
-        config_input = load_yaml_config(current_config_path)
+        congig_path_absolute = os.path.join(os.path.abspath(""), current_config_path)
+        config_input = load_yaml_config(congig_path_absolute)
         if config_input:
-            return config_input, current_config_path
-    return {}, current_config_path
+            break
+    return config_input, congig_path_absolute
 
 
 def flatten_dict(input_config_dict: dict) -> dict:
@@ -86,7 +79,8 @@ class Config:
         if not config_input:
             raise SystemExit(
                 "No config file found. Please provide a config.yaml file or a config dict. "
-                + f"Current search path: {os.path.abspath('')}/config.yaml"
+                + f"Current search paths: {os.path.abspath('')}/config.yaml "
+                + f"and {os.path.abspath('')}/config/config.yaml"
             )
 
         config_input = flatten_dict(config_input)
@@ -98,13 +92,11 @@ class Config:
             setattr(self, config_key, config_val)
 
         # If not specified, use default value.
-        self.working_dir = config_input.get("working_dir", None)
+        self.working_dir = Path(config_input.get("working_dir", os.path.abspath("")))
         self.run_live = config_input.get("run_live", False)
         self.update_mode = config_input.get("update_mode", "None").lower()
         self.log_level_live = config_input.get("log_level_live", "ERROR").upper()
-        self.log_level_ws_update = config_input.get(
-            "log_level_ws_update", "ERROR"
-        ).upper()
+        self.log_level_ws_update = config_input.get("log_level_ws_update", "ERROR").upper()
 
         self.exchange = config_input.get("exchange", "bitfinex")
         self.force_source = config_input.get("force_source", "none").lower()
@@ -120,23 +112,17 @@ class Config:
         self.dbms_pw = config_input.get("dbms_pw", None)
         self.dbms_connect_db = config_input.get("dbms_connect_db", "postgres")
         self.dbms_db = config_input.get("dbms_db", f"{self.exchange}_db")
-        self.dbms_history_entity_name = config_input.get(
-            "name", f"{self.exchange}_history_{self.history_timeframe}"
-        )
+        self.dbms_history_entity_name = config_input.get("name", f"{self.exchange}_history_{self.history_timeframe}")
 
-        self.creds_path = config_input.get("creds_path", "")
+        self.creds_path = config_input.get("creds_path", self.working_dir / "exchange_creds.cfg")
         self.relevant_assets_cap = config_input.get("relevant_assets_cap", 100)
 
         self.trader_id = config_input.get("id", 1)
         self.moving_window_hours = config_input.get("moving_window_hours", 20)
-        self.moving_window_increments = hours_to_increments(
-            self.moving_window_hours, self.candle_interval
-        )
+        self.moving_window_increments = hours_to_increments(self.moving_window_hours, self.candle_interval)
         self.budget = float(config_input.get("budget", 0))
         self.buy_opportunity_factor = config_input.get("buy_opportunity_factor", 0.0)
-        self.buy_opportunity_boundary = config_input.get(
-            "buy_opportunity_boundary", 0.02
-        )
+        self.buy_opportunity_boundary = config_input.get("buy_opportunity_boundary", 0.02)
         self.profit_factor = config_input.get("profit_factor", 0.05)
         self.profit_ratio_limit = config_input.get("profit_ratio_limit", 1.01)
         self.prefer_performance = config_input.get("prefer_performance", 0)
@@ -181,45 +167,6 @@ class Config:
         If for_sim is True, exclude attributes that are not used in the simulator (and not convertable to float).
         """
         attr_to_dict = self.__dict__
-        sim_dict_exclusions = [
-            "log",
-            "log_level_ws_update",
-            "log_level_live",
-            "working_dir",
-            "run_live",
-            "update_mode",
-            "exchange",
-            "force_source",
-            "check_db_consistency",
-            "local_cache",
-            "candle_interval",
-            "base_currency",
-            "history_timeframe",
-            "dbms",
-            "dbms_host",
-            "dbms_port",
-            "dbms_user",
-            "dbms_pw",
-            "dbms_connect_db",
-            "dbms_db",
-            "name",
-            "dbms_history_entity_name",
-            "creds_path",
-            "relevant_assets_cap",
-            "id",
-            "trader_id",
-            "use_dbms",
-            "dry_run",
-            "is_simulation",
-            "assets_excluded",
-        ]
         if for_sim:
-            attr_to_dict = {
-                key: val
-                for (key, val) in attr_to_dict.items()
-                if key not in sim_dict_exclusions
-            }
-
-        # if for_sim:
-        #     attr_to_dict = {key: val for (key, val) in attr_to_dict.items() if isinstance(val, int | float | bool)}
+            attr_to_dict = {key: val for (key, val) in attr_to_dict.items() if isinstance(val, int | float | bool)}
         return attr_to_dict

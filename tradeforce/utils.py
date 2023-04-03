@@ -18,7 +18,6 @@ from tradeforce.custom_types import DictTimedelta, DictTimestamp
 
 # Prevent circular import for type checking
 if TYPE_CHECKING:
-    from tradeforce.config import Config
     from tradeforce import Tradeforce
 
 
@@ -139,23 +138,26 @@ def load_credentials(creds_path) -> dict[str, str] | None:
         credentials["auth_key"] = creds_store["api_cred"]["auth_key"]
         credentials["auth_sec"] = creds_store["api_cred"]["auth_sec"]
     except (TypeError, KeyError):
-        return None
+        pass
     return credentials
 
 
-def connect_api(config: Config, api_type=None) -> Client | None:
+def connect_api(root: Tradeforce, api_type=None) -> Client | None:
     """Connect to Bitfinex API.
     Returns None if credentials are not valid.
     """
-    credentials = load_credentials(config.creds_path)
     bfx_api = None
-    if credentials is not None and api_type == "priv":
+    if api_type == "priv":
+        credentials = load_credentials(root.config.creds_path)
+        if not credentials:
+            return None
+        root.log.info("%s credentials loaded from path: %s", root.config.exchange, root.config.creds_path)
         bfx_api = Client(
             credentials["auth_key"],
             credentials["auth_sec"],
             ws_host=WS_HOST,
             rest_host=REST_HOST,
-            logLevel=config.log_level_live,
+            logLevel=root.config.log_level_live,
         )
     if api_type == "pub":
         bfx_api = Client(
@@ -163,7 +165,7 @@ def connect_api(config: Config, api_type=None) -> Client | None:
             rest_host=PUB_REST_HOST,
             ws_capacity=25,
             max_retries=100,
-            logLevel=config.log_level_ws_update,
+            logLevel=root.config.log_level_ws_update,
         )
 
     return bfx_api

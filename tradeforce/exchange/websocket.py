@@ -109,8 +109,9 @@ class ExchangeWebsocket:
     # Init websockets #
     ###################
 
-    def ws_run(self):
+    async def ws_run(self):
         """Subscribe to public events and run the public websocket."""
+        # print("[DEBUG] Starting websocket PUB")
         self.bfx_api_pub.ws.on("connected", self.ws_init_connection)
         self.bfx_api_pub.ws.on("new_candle", self.ws_new_candle)
         self.bfx_api_pub.ws.on("error", self.ws_error)
@@ -119,9 +120,11 @@ class ExchangeWebsocket:
         self.bfx_api_pub.ws.on("status_update", self.ws_status)
         self.bfx_api_pub.ws.run()
 
-    def ws_priv_run(self):
+    async def ws_priv_run(self):
         """Subscribe to private events and run the private websocket."""
         if self.bfx_api_priv is not None:
+            # print("[DEBUG] Starting websocket PRIV")
+            self.bfx_api_priv.ws.on("connected", self.ws_priv_init_connection)
             self.bfx_api_priv.ws.on("wallet_snapshot", self.ws_priv_wallet_snapshot)
             self.bfx_api_priv.ws.on("wallet_update", self.ws_priv_wallet_update)
             self.bfx_api_priv.ws.on("order_confirmed", self.ws_priv_order_confirmed)
@@ -168,15 +171,6 @@ class ExchangeWebsocket:
         # Check availability of exchange periodically ?!
         self.log.warning("Exchange status: %s", ws_status)
 
-    # async def ws_subscribe_candles(self, asset_list):
-    #     asset_list_bfx = convert_symbol_to_exchange(asset_list)
-    #     for symbol in asset_list_bfx:
-    #         # candle_interval[:-2] to convert "5min" -> "5m"
-    #         await self.bfx_api_pub.ws.subscribe_candles(symbol, self.config.candle_interval[:-2])
-    #         await asyncio_sleep(0.1)
-    #     self.ws_subs_finished = True
-    #     self.log.info("Subscribed to %s channels.", len(asset_list_bfx))
-
     async def ws_subscribe_candles(self, asset_list):
         asset_list_bfx = convert_symbol_to_exchange(asset_list)
         async for symbol in tqdm(asset_list_bfx, desc="Subscribing to candles"):
@@ -206,6 +200,10 @@ class ExchangeWebsocket:
 
         # Subscribe to candle updates for the specified asset list
         await self.ws_subscribe_candles(self.root.assets_list_symbols)
+
+    async def ws_priv_init_connection(self):
+        """Initialize the private websocket connection and subscribe to wallet updates."""
+        self.log.info("Live Trading API initialized")
 
     async def ws_new_candle(self, candle: DictCandle):
         """

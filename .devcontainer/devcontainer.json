@@ -18,7 +18,9 @@
   "customizations": {
     "vscode": {
       "settings": {
-        "python.pythonPath": "/usr/local/bin/python"
+        "python.pythonPath": "/usr/local/bin/python",
+        "mypy.runUsingActiveInterpreter": false,
+        "mypy.dmypyExecutable": "/usr/local/bin/dmypy"
       },
       "extensions": [
         "ms-python.python",

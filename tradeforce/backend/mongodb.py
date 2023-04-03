@@ -31,12 +31,6 @@ class BackendMongoDB(Backend):
         super().__init__(root)
         self.backend_client = self._connect()
         self.is_new_history_entity = self.is_new_entity(self.config.dbms_history_entity_name)
-        # Only sync backend now if there is no exchange API connection.
-        # In case an API connection is used, db_sync_state_trader()
-        # will be called once by exchange_ws -> ws_priv_wallet_snapshot()
-        if self.config.use_dbms and not self.config.run_live:
-            self.db_sync_state_trader()
-            self.db_sync_state_orders()
 
     def _connect(self) -> MongoClient:
         dbms_uri = self.construct_uri()

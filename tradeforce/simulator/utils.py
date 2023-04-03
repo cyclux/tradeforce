@@ -25,7 +25,9 @@ def numba_dict_defaults(sim_params):
 
 def to_numba_dict(sim_params):
     # sim_params = numba_dict_defaults(sim_params)
-    sim_params_numba = nb_types.Dict.empty(key_type=types.unicode_type, value_type=types.float64)
+    sim_params_numba = nb_types.Dict.empty(
+        key_type=types.unicode_type, value_type=types.float64
+    )
     for key, val in sim_params.items():
         sim_params_numba[key] = np.float64(val)
     return sim_params_numba
@@ -103,9 +105,16 @@ def calc_fee(volume_crypto, maker_fee, taker_fee, prices_current, order_type):
 
 
 @nb.njit(cache=NB_CACHE, parallel=False)
-def get_snapshot_indices(moving_window_increments, snapshot_idx_boundary, snapshot_amount=10, snapshot_size=10000):
+def get_snapshot_indices(
+    moving_window_increments,
+    snapshot_idx_boundary,
+    snapshot_amount=10,
+    snapshot_size=10000,
+):
     snapshot_idx_boundary = np.int64(snapshot_idx_boundary - snapshot_size)
-    snapshot_idxs = np.linspace(moving_window_increments, snapshot_idx_boundary, snapshot_amount).astype(np.int64)
+    snapshot_idxs = np.linspace(
+        moving_window_increments, snapshot_idx_boundary, snapshot_amount
+    ).astype(np.int64)
     return snapshot_idxs
 
 
@@ -117,7 +126,9 @@ def calc_metrics(soldbag):
 
 @nb.njit(cache=NB_CACHE, parallel=True)
 def get_pct_change(df_history_prices):
-    df_history_prices_pct = (df_history_prices[1:, :] - df_history_prices[:-1, :]) / df_history_prices[1:, :]
+    df_history_prices_pct = (
+        df_history_prices[1:, :] - df_history_prices[:-1, :]
+    ) / df_history_prices[1:, :]
     amount_zeros = df_history_prices_pct.shape[-1]
     zeros = np.zeros((1, amount_zeros))
     df_history_prices_pct = np.vstack((zeros, df_history_prices_pct))
@@ -126,7 +137,11 @@ def get_pct_change(df_history_prices):
 
 @nb.njit(cache=NB_CACHE, parallel=False)
 def get_current_window(params, df_history_prices_pct):
-    moving_window_start = np.int64(params["row_idx"] - params["moving_window_increments"])
+    moving_window_start = np.int64(
+        params["row_idx"] - params["moving_window_increments"]
+    )
     moving_window_end = np.int64(params["row_idx"])
-    moving_window_history_prices_pct = df_history_prices_pct[moving_window_start:moving_window_end]
+    moving_window_history_prices_pct = df_history_prices_pct[
+        moving_window_start:moving_window_end
+    ]
     return moving_window_history_prices_pct

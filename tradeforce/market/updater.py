@@ -140,12 +140,12 @@ class MarketUpdater:
                 df_hist.sort_values("t", inplace=True, ascending=True)
                 history_df_list.append(df_hist)
 
-        df_market_history_update = reduce(
+        internal_history_db_update = reduce(
             lambda df_left, df_right: pd.merge_asof(df_left, df_right, on="t", direction="nearest", tolerance=60000),
             history_df_list,
         )
-        df_market_history_update.set_index("t", inplace=True)
-        return df_market_history_update
+        internal_history_db_update.set_index("t", inplace=True)
+        return internal_history_db_update
 
     async def update_market_history(self, start=None, end=None, init_timespan=None):
         if init_timespan is not None:
@@ -160,7 +160,7 @@ class MarketUpdater:
         if timeframe["ms_until_wait_over"] > 0:
             market_history_update = await self.fetch_market_history(timeframe["timeframe"])
             if len(market_history_update) > 1:
-                df_market_history_update = self.convert_market_history_to_df(
+                internal_history_db_update = self.convert_market_history_to_df(
                     market_history_update, timeframe=timeframe["timeframe"]
                 )
             else:
@@ -174,4 +174,4 @@ class MarketUpdater:
                 self.config.candle_interval,
                 int(abs(timeframe["ms_until_wait_over"]) / 1000 // 60),
             )
-        return df_market_history_update
+        return internal_history_db_update

@@ -1,10 +1,14 @@
-"""_summary_
+""" /main.py
+
+Tradeforce class orchestrates all modules
+and provides a single interface to all features and various components.
 
 """
 
 from __future__ import annotations
-import os
 
+
+import importlib
 import asyncio
 import numpy as np
 import optuna
@@ -25,6 +29,8 @@ from tradeforce import simulator
 if TYPE_CHECKING:
     from bfxapi import Client  # type: ignore
 
+# Get current version from pyproject.toml
+VERSION = importlib.metadata.version("tradeforce")
 
 # TODO: add support for variable candle_interval
 class Tradeforce:
@@ -42,21 +48,20 @@ class Tradeforce:
         self.exchange_api = self._register_exchange_api()
         self.exchange_ws = self._register_exchange_ws()
 
-    def __post__init__(self):
-        self.log.info("Fast Trading Simulator Beta 0.4.0")
-
     #############################
     # Init and register modules #
     #############################
 
     def _register_logger(self):
-        # self.logging = Logger()
         self.logging = Logger()
         log = self.logging.get_logger(__name__)
+        log.info(f"Fast Trading Simulator Beta {VERSION}")
         return log
 
     def _register_config(self, user_config: dict) -> Config:
-        return Config(root=self, config_input=user_config)
+        config = Config(root=self, config_input=user_config)
+        self.log.info("Current working directory: %s", config.working_dir)
+        return config
 
     def _register_backend(self) -> BackendMongoDB | BackendSQL | None:
         if self.config.dbms == "postgresql":
@@ -69,15 +74,14 @@ class Tradeforce:
         return MarketUpdater(root=self)
 
     def _register_market_history(self) -> MarketHistory:
-        working_dir = os.getcwd() if self.config.working_dir is None else self.config.working_dir
-        return MarketHistory(root=self, path_current=working_dir)
+        return MarketHistory(root=self)
 
     def _register_api(self) -> dict[str, Client | None]:
         api = {}
         if self.config.update_mode in ("once", "live"):
-            api["bfx_api_pub"] = connect_api(self.config, "pub")
+            api["bfx_api_pub"] = connect_api(self, "pub")
         if self.config.run_live:
-            api["bfx_api_priv"] = connect_api(self.config, "priv")
+            api["bfx_api_priv"] = connect_api(self, "priv")
         return api
 
     def _register_exchange_api(self) -> ExchangeAPI:
@@ -89,51 +93,68 @@ class Tradeforce:
     def _register_trader(self) -> Trader:
         return Trader(root=self)
 
-    async def _init(self, is_sim=False) -> "Tradeforce":
-        await self.market_history.load_history()
-        if self.config.run_live and not is_sim:
-            self.exchange_ws.ws_priv_run()
-        return self
-
-    def _market_live_updates(self, run_in_jupyter=False) -> None:
-        if not run_in_jupyter:
-            loop_ws_updater = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop_ws_updater)
-        self.exchange_ws.ws_run()
-
     #############
     # Run modes #
     #############
 
-    def run(self) -> "Tradeforce":
-        asyncio.run(self._init())
+    def exec(self) -> "Tradeforce":
+        asyncio.create_task(self.market_history.load_history())
         if self.config.update_mode == "live":
-            self._market_live_updates()
+            asyncio.create_task(self.exchange_ws.ws_run())
+        if self.config.run_live:
+            asyncio.create_task(self.exchange_ws.ws_priv_run())
+        return self
+
+    async def async_exec(self):
+        self.exec()
+
+    def loop_handler(self):
+        loop = asyncio.get_event_loop()
+        # Create a future and ensure that it's run within the event loop
+        future = loop.create_future()
+        asyncio.ensure_future(self.async_exec(), loop=loop)
+
+        try:
+            loop.run_until_complete(future)
+        except KeyboardInterrupt:
+            print("KeyboardInterrupt received, stopping tasks...")
+
+        tasks = asyncio.all_tasks(loop)
+        for task in tasks:
+            task.cancel()
+
+        loop.run_until_complete(asyncio.gather(*tasks, return_exceptions=True))
+        loop.close()
+        return self
+
+    def run(self) -> "Tradeforce":
+        try:
+            get_ipython  # type: ignore
+            is_jupyter = True
+        except NameError:
+            is_jupyter = False
+
+        if is_jupyter:
+            self.exec()
+        else:
+            self.loop_handler()
         return self
 
     def run_sim(self, pre_process=None, buy_strategy=None, sell_strategy=None) -> dict[str, int | np.ndarray]:
         monkey_patch(self, pre_process, buy_strategy, sell_strategy)
-        asyncio.run(self._init(is_sim=True))
+        asyncio.run(self.market_history.load_history())
         return simulator.run(self)
 
     def run_sim_optuna(
         self, optuna_config=None, pre_process=None, buy_strategy=None, sell_strategy=None
     ) -> optuna.Study:
         monkey_patch(self, pre_process, buy_strategy, sell_strategy)
-        asyncio.run(self._init(is_sim=True))
+        asyncio.run(self.market_history.load_history())
         return hyperparam_search.run(self, optuna_config)
 
     ##############################
     # Jupyter specific run modes #
     ##############################
-
-    async def run_jupyter(self) -> "Tradeforce":
-        await self.market_history.load_history()
-        if self.config.run_live:
-            self.exchange_ws.ws_priv_run()
-        if self.config.update_mode == "live":
-            self._market_live_updates(run_in_jupyter=True)
-        return self
 
     async def run_sim_optuna_jupyter(
         self, optuna_config=None, pre_process=None, buy_strategy=None, sell_strategy=None

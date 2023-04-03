@@ -9,8 +9,6 @@ from tradeforce import Tradeforce
 
 tradeforce_config = {
     "trader": {
-        "id": 1,
-        "run_live": False,
         "budget": 10000,
         "maker_fee": 0.10,
         "taker_fee": 0.20,
@@ -28,7 +26,7 @@ tradeforce_config = {
     },
     "backend": {
         "dbms": "postgresql",
-        "dbms_host": "localhost",
+        "dbms_host": "docker_postgres",
         "dbms_port": 5432,
         "dbms_connect_db": "postgres",
         "dbms_user": "postgres",
@@ -36,7 +34,7 @@ tradeforce_config = {
         "local_cache": False,
     },
     "market_history": {
-        "name": "test_simulator",
+        "name": "bfx_history_docker_test",
         "exchange": "bitfinex",
         "base_currency": "USD",
         "candle_interval": "5min",
@@ -45,7 +43,7 @@ tradeforce_config = {
         # "force_source": "local_cache",
     },
     "simulation": {
-        "snapshot_size": 100000,
+        "snapshot_size": 10000,
         "snapshot_amount": 10,
     },
 }
@@ -56,7 +54,12 @@ def pre_process(config, market_engine):
     asset_prices = market_engine.get_market_history(start=sim_start_delta, metrics=["o"], fill_na=True)
 
     asset_prices_pct = market_engine.get_market_history(
-        start=sim_start_delta, metrics=["o"], fill_na=True, pct_change=True, pct_as_factor=False, pct_first_row=0
+        start=sim_start_delta,
+        metrics=["o"],
+        fill_na=True,
+        pct_change=True,
+        pct_as_factor=False,
+        pct_first_row=0,
     )
 
     lower_threshold = 0.000005
@@ -123,5 +126,7 @@ def sell_strategy(params, buybag, history_prices_row):
     return sell_assets, prices_current
 
 
-sim_result = Tradeforce(config=tradeforce_config).run_sim(pre_process=None, buy_strategy=None, sell_strategy=None)
+sim_result = Tradeforce(config=tradeforce_config).run_sim(
+    pre_process=pre_process, buy_strategy=buy_strategy, sell_strategy=sell_strategy
+)
 print(sim_result["profit"])
