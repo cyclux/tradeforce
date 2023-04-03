@@ -66,7 +66,7 @@ class BackendMongoDB(Backend):
     ###############################
     # MongoDB specific operations #
     ###############################
-    def create_index(self, collection_name, index_name, unique=False) -> None:
+    def create_index(self, collection_name: str, index_name: str, unique=False) -> None:
         collection = self.get_collection(collection_name)
         collection.create_index(index_name, unique=unique)
 

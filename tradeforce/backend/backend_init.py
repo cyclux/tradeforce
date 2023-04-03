@@ -95,6 +95,10 @@ class Backend(ABC):
     ##########################################################################
 
     @abstractmethod
+    def create_index(self, entity_name: str, index_name: str, unique=False) -> None:
+        pass
+
+    @abstractmethod
     def query(
         self,
         entity_name: str,
@@ -122,6 +126,10 @@ class Backend(ABC):
 
     @abstractmethod
     def insert_many(self, entity_name: str, payload_insert: list[dict]) -> bool:
+        pass
+
+    @abstractmethod
+    def delete_one(self, entity_name: str, query: dict[str, str | int]) -> bool:
         pass
 
     #########################################

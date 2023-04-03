@@ -19,6 +19,8 @@ class CreateTables:
         self.log = root.logging.get_logger(__name__)
 
     def history(self, asset_symbols) -> None:
+        if not self.backend.is_new_history_entity:
+            return
         ohlcv = ("_o", "_h", "_l", "_c", "_v")
         psycopg2_cursor: cursor = self.backend.dbms_db
         asset_symbols_ohlcv = [symbol + suffix for symbol in asset_symbols for suffix in ohlcv]
@@ -29,6 +31,7 @@ class CreateTables:
             "CREATE TABLE {table_name} (" + "t BIGINT NOT NULL," + f"{sql_columns}," + "PRIMARY KEY (t)" + ");"
         ).format(table_name=Identifier(self.config.dbms_history_entity_name))
         self.backend.execute(query)
+        self.backend.is_new_history_entity = False
         self.log.info("Created table %s", self.config.dbms_history_entity_name)
 
     def trader_status(self) -> None:

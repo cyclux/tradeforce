@@ -63,54 +63,71 @@ def df_fill_na(df_input):
 
 
 class MarketHistory:
-    """Fetch market history from disk and store in DataFrame
+    """
+    MarketHistory is the central unit for fetching and storing market history data.
+    It keeps a local cache of the candle history data in memory (pd.DataFrame) and on disk (feather file).
+    It provides methods for data retrieval, updates, and caching.
+    It interacts with various backends via interfaces: Currently MongoDB and PostgreSQL.
+    Bitfinex is the only supported exchange at the moment.
 
-    Returns:
-        _type_: _description_
+    Attributes:
+        root (Tradeforce): A reference to the main Tradeforce instance.
+        config (Config): A reference to the configuration object.
+        log (Logger): A reference to the logger object.
+        internal_history_db (pd.DataFrame): Stores market history data in memory.
+        path_current (Path): The current working directory.
+        path_local_cache (Path): The path to the local cache.
+        local_cache_filename (str): The filename for the local cache.
     """
 
-    def __init__(self, root: Tradeforce, path_current=None, path_history_dumps=None):
+    def __init__(self, root: Tradeforce, path_current: str | None = None, path_history_dumps: str | None = None):
         self.root = root
         self.config = root.config
         self.log = root.logging.get_logger(__name__)
         self.internal_history_db = pd.DataFrame()
-        self.path_current = path_current if path_current else self.config.working_dir
 
         # Set paths
-        self.path_local_cache = (
-            Path(self.path_current, "data")
-            if path_history_dumps is None
-            else Path(self.path_current, path_history_dumps)
-        )
+        self.path_current = Path(path_current) if path_current else self.config.working_dir
+        history_dumps_dir = path_history_dumps if path_history_dumps else "data"
+        self.path_local_cache = self.path_current / history_dumps_dir
         self.local_cache_filename = f"{self.config.dbms_history_entity_name}.arrow"
 
-    def _create_backend_db_index(self):
-        if self.root.backend.is_new_history_entity:
-            self.root.backend.is_new_history_entity = False
-            self.root.backend.create_index(self.config.dbms_history_entity_name, "t", unique=True)
+    def _create_backend_db_index(self) -> None:
+        if not self.root.backend.is_new_history_entity:
+            return
 
-    def _inmemory_db_set_index(self):
+        self.root.backend.is_new_history_entity = False
+        self.root.backend.create_index(self.config.dbms_history_entity_name, "t", unique=True)
+
+    def _inmemory_db_set_index(self) -> None:
+        if "t" not in self.internal_history_db.columns:
+            self.log.debug("Cannot set index for internal history db. Column 't' not found.")
+            return
+
         try:
             self.internal_history_db.set_index("t", inplace=True)
+            self.log.info("[DEBUG]: Set index for internal history db. _inmemory_db_set_index needed")
         except (KeyError, ValueError, TypeError, AttributeError):
             pass
 
     def update_internal_db_market_history(self, df_history_update: pd.DataFrame) -> None:
-        self.internal_history_db = pd.concat([self.root.market_history.internal_history_db, df_history_update], axis=0)
+        self.internal_history_db = pd.concat([self.internal_history_db, df_history_update], axis=0)
+        # TODO: Check if _inmemory_db_set_index is necessary here
         self._inmemory_db_set_index()
         self.internal_history_db = set_internal_db_column_type(self.internal_history_db)
         self.internal_history_db.sort_index(inplace=True)
 
     async def load_history(self) -> pd.DataFrame:
         load_method = self.config.force_source
-        try_next_method = True if load_method == "none" else False
 
-        if try_next_method or load_method == "local_cache":
-            try_next_method = self.load_via_local_cache(try_next_method)
-        if try_next_method or load_method in ("mongodb", "postgresql"):
-            try_next_method = self.load_via_backend(try_next_method)
-        if try_next_method or load_method == "api":
-            try_next_method = await self.load_via_api(try_next_method)
+        if load_method == "none":
+            await self._try_all_load_methods()
+        elif load_method == "local_cache":
+            self.load_via_local_cache(raise_on_failure=True)
+        elif load_method in ("mongodb", "postgresql"):
+            self.load_via_backend(raise_on_failure=True)
+        elif load_method == "api":
+            await self.load_via_api(raise_on_failure=True)
 
         if not self.internal_history_db.empty:
             await self.post_process()
@@ -123,45 +140,56 @@ class MarketHistory:
                 self.config.exchange,
             )
         else:
-            if load_method == "none":
-                raise SystemExit(
-                    "[ERROR] Was not able to load market history via local or remote db storage nor remote api fetch.\n"
-                    + "Check your local file paths, DB connection or internet connection."
-                )
-            else:
-                raise SystemExit(f"[ERROR] Was not able to load market history via {load_method}.")
+            raise SystemExit(f"[ERROR] Was not able to load market history via {load_method}.")
+
         return self.internal_history_db
 
-    def load_via_local_cache(self, try_next_method: bool) -> bool:
-        # read_feather_path = os.path.normpath(self.path_local_cache / self.local_cache_filename)
-        read_feather_path = Path(".", self.path_local_cache, self.local_cache_filename)
+    async def _try_all_load_methods(self) -> None:
+        try_next_method = self.load_via_local_cache(raise_on_failure=False)
+        if try_next_method:
+            try_next_method = self.load_via_backend(raise_on_failure=False)
+        if try_next_method:
+            try_next_method = await self.load_via_api(raise_on_failure=False)
+
+        if try_next_method:
+            raise SystemExit(
+                "[ERROR] Was not able to load market history via local or remote db storage nor remote api fetch.\n"
+                + "Check your local file paths, DB connection or internet connection."
+            )
+
+    def load_via_local_cache(self, raise_on_failure=False) -> bool:
+        read_feather_path = Path(self.path_local_cache, self.local_cache_filename)
+
         try:
             internal_history_db = pd.read_feather(read_feather_path)
         except Exception:
             self.log.info("No local_cache of market history found at: %s", read_feather_path)
+            if raise_on_failure:
+                raise SystemExit("[ERROR] Was not able to load market history via local_cache.")
+            return True
         else:
             self.update_internal_db_market_history(internal_history_db)
             self.config.force_source = "local_cache"
-            try_next_method = False
-        return try_next_method
+            return False
 
-    def load_via_backend(self, try_next_method: bool) -> bool:
+    def load_via_backend(self, raise_on_failure: bool = False) -> bool:
         if not self.root.backend.is_new_history_entity:
             exchange_market_history = self.root.backend.query(self.config.dbms_history_entity_name, sort=[("t", 1)])
             internal_history_db = pd.DataFrame(exchange_market_history)
             self.update_internal_db_market_history(internal_history_db)
         else:
-            if self.config.dbms == "mongodb":
-                dbms_name = "MongoDB Collection"
-            if self.config.dbms == "postgresql":
-                dbms_name = "PostgreSQL Table"
+            dbms_name = {"mongodb": "MongoDB Collection", "postgresql": "PostgreSQL Table"}.get(self.config.dbms)
             self.log.info("%s '%s' does not exist!", dbms_name, self.config.dbms_history_entity_name)
+            if raise_on_failure:
+                raise SystemExit(f"[ERROR] Was not able to load market history via {self.config.dbms}.")
+            return True
+
         if not self.internal_history_db.empty:
             self.config.force_source = self.config.dbms
-            try_next_method = False
-        return try_next_method
+            return False
+        return True
 
-    async def load_via_api(self, try_next_method: bool) -> bool:
+    async def load_via_api(self, raise_on_failure: bool = False) -> bool:
         if not self.root.exchange_api.bfx_api_pub:
             raise SystemExit(
                 f"[ERROR] No local_cache or DB storage found for '{self.config.dbms_history_entity_name}'. "
@@ -169,28 +197,24 @@ class MarketHistory:
                 + "Set update_mode to 'once' or 'live' or check your internet connection."
             )
         self.log.info("Fetching market history via API from %s.", self.config.exchange)
+
         if self.root.assets_list_symbols is not None:
             end = await self.root.exchange_api.get_latest_remote_candle_timestamp()
             start = get_time_minus_delta(end, delta=self.config.history_timeframe)["timestamp"]
+
+            if self.config.dbms == "postgresql" and self.root.backend.is_new_history_entity:
+                self.root.backend.create_table.history(self.root.assets_list_symbols)
         else:
-            relevant_assets = await self.get_init_relevant_assets()
-            filtered_assets = [
-                f"{asset}_{metric}" for asset in relevant_assets["assets"] for metric in ["o", "h", "l", "c", "v"]
-            ]
-            history_data = relevant_assets["data"][filtered_assets]
+            await self._fetch_market_history_and_update()
 
-            if self.config.dbms == "postgresql":
-                if self.root.backend.is_new_history_entity:
-                    self.root.backend.create_table.history(self.root.assets_list_symbols)
-                    self._create_backend_db_index()
-
-            await self.update(history_data=history_data)
             latest_local_candle_timestamp = self.get_local_candle_timestamp(position="latest")
             start_time = get_time_minus_delta(latest_local_candle_timestamp, delta=self.config.history_timeframe)
             start = start_time["timestamp"]
+
             first_local_candle_timestamp = self.get_local_candle_timestamp(position="first")
             end_time = get_time_minus_delta(first_local_candle_timestamp, delta=self.config.candle_interval)
             end = end_time["timestamp"]
+
         self.log.info(
             "Fetching %s (%s - %s) of market history from %s assets",
             self.config.history_timeframe,
@@ -198,12 +222,28 @@ class MarketHistory:
             end,
             len(self.root.assets_list_symbols),
         )
+
         if start < end:
             await self.update(start=start, end=end)
+
         if not self.internal_history_db.empty:
-            try_next_method = False
             self.config.force_source = "api"
-        return try_next_method
+            return False
+        if raise_on_failure:
+            raise SystemExit("[ERROR] Was not able to load market history via API.")
+        return True
+
+    async def _fetch_market_history_and_update(self):
+        relevant_assets = await self.get_init_relevant_assets()
+        filtered_assets = [
+            f"{asset}_{metric}" for asset in relevant_assets["assets"] for metric in ["o", "h", "l", "c", "v"]
+        ]
+        history_data = relevant_assets["data"][filtered_assets]
+
+        if self.config.dbms == "postgresql" and self.root.backend.is_new_history_entity:
+            self.root.backend.create_table.history(self.root.assets_list_symbols)
+
+        await self.update(history_data=history_data)
 
     async def post_process(self) -> None:
         self.internal_history_db = set_internal_db_column_type(self.internal_history_db)
@@ -215,11 +255,12 @@ class MarketHistory:
         if self.root.assets_list_symbols is None:
             self.get_asset_symbols(updated=True)
 
-        if self.config.dbms == "postgresql":
-            if self.root.backend.is_new_history_entity:
-                self.root.backend.create_table.history(self.root.assets_list_symbols)
+        if self.config.dbms == "postgresql" and self.root.backend.is_new_history_entity:
+            self.root.backend.create_table.history(self.root.assets_list_symbols)
 
-        self._create_backend_db_index()
+        # Postgres does not need an index, as it is created automatically on the primary key
+        if not self.config.dbms == "postgresql":
+            self._create_backend_db_index()
 
         self.root.backend.db_sync_check()
 

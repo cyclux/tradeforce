@@ -164,7 +164,7 @@ class BackendSQL(Backend):
     # PostgreSQL specific operations #
     ##################################
 
-    def create_index(self, table_name, index_name, unique=False) -> None:
+    def create_index(self, table_name: str, index_name: str, unique=False) -> None:
         """Creates an index on the specified table with the given index_name and optional unique constraint."""
 
         query = SQL("CREATE {unique} INDEX {index_name} ON {table_name} ({index_name});").format(
