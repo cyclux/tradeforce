@@ -90,8 +90,8 @@ class ExchangeWebsocket:
         self.root = root
         self.config = root.config
         self.log = root.logging.get_logger(__name__)
-        self.bfx_api_priv = root.api.get("bfx_api_priv", None)
-        self.bfx_api_pub = root.api.get("bfx_api_pub", None)
+        self.bfx_api_priv = root.exchange_api.api.get("bfx_api_priv", None)
+        self.bfx_api_pub = root.exchange_api.api.get("bfx_api_pub", None)
 
         self.ws_candle_cache: dict[int, dict[str, float]] = {}
         self.asset_candle_subs: dict[str, Subscription] = {}
@@ -307,7 +307,7 @@ class ExchangeWebsocket:
     async def trigger_trader_updates(self):
         if self.root.exchange_api.bfx_api_priv is not None:
             await self.root.trader.check_sold_orders()
-        if not self.history_sync_patch_running and not self.config.is_simulation:
+        if not self.history_sync_patch_running and not self.config.is_sim:
             await self.root.trader.update()
             current_total_profit = self.root.trader.get_profit()
             self.log.info("Current total profit: $%s", current_total_profit)

@@ -114,7 +114,7 @@ class Config:
         self.dbms_db = config_input.get("dbms_db", f"{self.exchange}_db")
         self.dbms_history_entity_name = config_input.get("name", f"{self.exchange}_history_{self.history_timeframe}")
 
-        self.creds_path = config_input.get("creds_path", self.working_dir / "exchange_creds.cfg")
+        self.creds_path = config_input.get("creds_path", self.working_dir)
         self.relevant_assets_cap = config_input.get("relevant_assets_cap", 100)
 
         self.trader_id = config_input.get("id", 1)
@@ -134,7 +134,7 @@ class Config:
         self.maker_fee = config_input.get("maker_fee", 0.10)
         self.taker_fee = config_input.get("taker_fee", 0.20)
         self.use_dbms = config_input.get("use_dbms", True)
-        self.is_simulation = config_input.get("dry_run", False)
+        self.is_sim = config_input.get("dry_run", False)
         # Simulator specific
         self.index_start = config_input.get("index_start", 0)
         self.snapshot_size = config_input.get("snapshot_size", -1)

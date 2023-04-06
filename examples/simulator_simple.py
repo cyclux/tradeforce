@@ -1,9 +1,10 @@
-"""_summary_
+"""A simple example of how to use Tradeforce in simulation mode.
+
 """
 
 from tradeforce import Tradeforce
 
-tradeforce_config = {
+CONFIG = {
     "trader": {
         "budget": 10000,
         "maker_fee": 0.10,
@@ -30,11 +31,11 @@ tradeforce_config = {
         "local_cache": False,
     },
     "market_history": {
-        "name": "bfx_history_docker_test",
+        "name": "bfx_history_docker_test2",
         "exchange": "bitfinex",
         "base_currency": "USD",
         "candle_interval": "5min",
-        "history_timeframe": "60days",
+        "history_timeframe": "20days",
         "update_mode": "none",
         # "force_source": "local_cache",
     },
@@ -44,5 +45,11 @@ tradeforce_config = {
     },
 }
 
-sim_result = Tradeforce(config=tradeforce_config).run_sim()
-print(sim_result["profit"])
+
+def main():
+    sim_result = Tradeforce(config=CONFIG).run_sim()
+    print(sim_result)
+
+
+if __name__ == "__main__":
+    main()

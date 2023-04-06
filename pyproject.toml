@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "tradeforce"
-version = "0.1.0"
+version = "0.2.0"
 description = "Framework for Backtesting and Live-Trading. Hyperparameter-Optimization of Trading-Strategies through performant simulations."
 authors = ["cyclux <nevermind@cyclux.de>"]
 license = "MIT"
@@ -22,6 +22,7 @@ tensorflow-probability = "^0.19.0"
 numexpr = { version = "^2.8.4", optional = true }
 bottleneck = { version = "^1.3.7", optional = true }
 bitfinex-api-py = { git = "https://github.com/cyclux/bitfinex-api-py.git" }
+cryptography = "^40.0.1"
 
 [tool.poetry.group.dev]
 optional = true
@@ -37,6 +38,8 @@ types-tqdm = "^4.65.0.1"
 pytest = "^7.2.2"
 pytest-cov = "^4.0.0"
 pandas-stubs = "^1.5.3.230321"
+ipykernel = "^6.22.0"
+ipywidgets = "^8.0.6"
 
 [build-system]
 requires = ["poetry-core"]

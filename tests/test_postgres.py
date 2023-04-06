@@ -245,7 +245,7 @@ class TestBackendSQL:
 
         # Mock _register_cursor, _db_exists_or_create, and _check_new_tables
         backend._register_cursor = MagicMock()
-        backend._db_exists_or_create = MagicMock()
+        backend.db_exists_or_create = MagicMock()
         backend._check_new_tables = MagicMock()
 
         # Call _establish_connection
@@ -254,10 +254,10 @@ class TestBackendSQL:
         # Assertions
         if db_name is None or db_name == backend.config.dbms_connect_db:
             backend._is_connected.assert_has_calls([call(backend.config.dbms_connect_db), call(backend.config.dbms_db)])
-            backend._db_exists_or_create.assert_called_once()
+            backend.db_exists_or_create.assert_called_once()
         else:
             backend._is_connected.assert_called_once_with(backend.config.dbms_db)
-            backend._db_exists_or_create.assert_not_called()
+            backend.db_exists_or_create.assert_not_called()
 
         assert backend._register_cursor.call_count == expected_calls
         backend._check_new_tables.assert_called_once()
@@ -346,7 +346,7 @@ class TestBackendSQL:
         backend.log.info = MagicMock()
 
         # Call the _db_exists_or_create method
-        backend._db_exists_or_create()
+        backend.db_exists_or_create()
 
         # Assertions
         query1 = SQL("SELECT 1 FROM pg_catalog.pg_database WHERE datname = {db_name};").format(

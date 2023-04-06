@@ -1,15 +1,12 @@
 """_summary_
 """
 
-import concurrent.futures
+from concurrent import futures
 from tradeforce import Tradeforce
 
-
-config = {
+CONFIG = {
     "trader": {
-        "id": 1,
-        "run_live": False,
-        "budget": 1100,
+        "budget": 10000,
         "maker_fee": 0.10,
         "taker_fee": 0.20,
         "strategy": {
@@ -19,41 +16,46 @@ config = {
             "buy_opportunity_boundary": 0.05,
             "prefer_performance": 1,
             "hold_time_limit": 1000,
-            "profit_factor": 1.70,
+            "profit_factor": 1.10,
             "profit_ratio_limit": 1.01,
             "moving_window_hours": 180,
         },
     },
     "backend": {
-        "dbms": "mongodb",
-        "dbms_host": "localhost:1234",
+        "dbms": "postgresql",
+        "dbms_host": "docker_postgres",
+        "dbms_port": 5432,
+        "dbms_connect_db": "postgres",
+        "dbms_user": "postgres",
+        "dbms_pw": "postgres",
         "local_cache": True,
     },
     "market_history": {
-        "name": "bfx_history_2y",
+        "name": "bitfinex_USD_bfx_history_2y",
+        # "name": "bfx_history_docker_test2",
         "exchange": "bitfinex",
         "base_currency": "USD",
         "candle_interval": "5min",
-        "history_timeframe": "720days",
-        "update_mode": "None",
-        "force_source": "local_cache",
+        "history_timeframe": "20days",
+        "update_mode": "none",
+        # "force_source": "local_cache",
     },
     "simulation": {
-        "snapshot_size": 100000,
+        "snapshot_size": 10000,
         "snapshot_amount": 10,
     },
 }
 
-hyperparam_search = {
+HYPERPARAM_SEARCH = {
     "config": {
-        "study_name": "test10",
-        "n_trials": 2,
+        "study_name": "test_study_multiprocess",
+        "n_trials": 12,
         "n_jobs": 1,
         "direction": "maximize",
-        "storage": "JournalStorage",
+        "storage": "backend",
         "load_if_exists": True,
         "sampler": "RandomSampler",
-        "pruner": "HyperbandPruner",
+        # "pruner": "HyperbandPruner",
     },
     "params": {
         "moving_window_increments": {"min": 20, "max": 220, "step": 20},
@@ -65,18 +67,17 @@ hyperparam_search = {
         "profit_ratio_limit": {"min": 0.85, "max": 1.1, "step": 0.05},
     },
 }
-
 N_WORKERS = 8
 
 
 def run_wrapper():
-    return Tradeforce(config=config).run_sim_optuna(hyperparam_search)
+    return Tradeforce(config=CONFIG).run_sim_optuna(HYPERPARAM_SEARCH)
 
 
 if __name__ == "__main__":
 
-    with concurrent.futures.ProcessPoolExecutor() as executor:
+    with futures.ProcessPoolExecutor() as executor:
         pool = [executor.submit(run_wrapper) for worker in range(N_WORKERS)]
 
-        for i in concurrent.futures.as_completed(pool):
+        for i in futures.as_completed(pool):
             print(f"Return Value: {i.result()}")

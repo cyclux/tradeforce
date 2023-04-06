@@ -20,6 +20,11 @@ if TYPE_CHECKING:
     from psycopg2.extensions import connection, cursor
 
 
+def chunk_data(data, chunk_size):
+    for i in range(0, len(data), chunk_size):
+        yield data[i : i + chunk_size]
+
+
 class BackendSQL(Backend):
     """Interface to handle SQL operations with PostgreSQL backend."""
 
@@ -35,9 +40,9 @@ class BackendSQL(Backend):
     def _is_connected(self, db_name: str) -> bool:
         """Connects to the database with the given DB name."""
 
-        dbms_uri = self.construct_uri(db_name)
+        self.dbms_uri = self.construct_uri(db_name)
         try:
-            self.pool = pool.SimpleConnectionPool(minconn=1, maxconn=10, dsn=dbms_uri)
+            self.pool = pool.SimpleConnectionPool(minconn=1, maxconn=10, dsn=self.dbms_uri)
             self.connected = True
 
         except OperationalError:
@@ -100,7 +105,7 @@ class BackendSQL(Backend):
             self.dbms_db = self._register_cursor()
 
             if db_name == self.config.dbms_connect_db:
-                self._db_exists_or_create()
+                self.db_exists_or_create()
                 self.dbms_db.close()
                 self._establish_connection(self.config.dbms_db)
 
@@ -117,31 +122,31 @@ class BackendSQL(Backend):
             execute_ok = True
         except (TypeError, OperationalError):
             execute_ok = False
-            self.log.error("SQL execute failed!")
+            self.log.error("SQL execute failed!", exc_info=True)
+            self.log.error("SQL query: %s", query.as_string(self.dbms_db))
         return execute_ok
 
     def _has_executed(self):
         return self.dbms_db.rowcount > 0
 
-    def _db_exists_or_create(self):
+    def db_exists_or_create(self, db_name: str | None = None):
         """Checks if the database exists and creates it if not."""
 
-        query = SQL("SELECT 1 FROM pg_catalog.pg_database WHERE datname = {db_name};").format(
-            db_name=Literal(self.config.dbms_db)
-        )
+        db_name = db_name or self.config.dbms_db
+
+        query = SQL("SELECT 1 FROM pg_catalog.pg_database WHERE datname = {db_name};").format(db_name=Literal(db_name))
         execute_ok = self.execute(query)
         if not execute_ok:
             raise SystemExit(
-                f"[ERROR] Failed to check pg_catalog.pg_database of {self.config.dbms_db}. "
-                + "Choose different dbms_connect_db."
+                f"[ERROR] Failed to check pg_catalog.pg_database of {db_name}. " + "Choose different dbms_connect_db."
             )
         db_exists = self.dbms_db.fetchone()
         if not db_exists:
-            query = SQL("CREATE DATABASE {db_name};").format(db_name=Identifier(self.config.dbms_db))
+            query = SQL("CREATE DATABASE {db_name};").format(db_name=Identifier(db_name))
             self.execute(query)
-            self.log.info("Created database %s", self.config.dbms_db)
+            self.log.info("Created database %s", db_name)
         else:
-            self.log.info("Database already exists. Switching to %s ...", self.config.dbms_db)
+            self.log.info("Database already exists. Switching to %s ...", db_name)
 
     def is_new_entity(self, table_name: str):
         """Checks if the table exists and returns a boolean indicating the result.
@@ -223,7 +228,9 @@ class BackendSQL(Backend):
         query: dict[str, str | int | list],
         set_value: str | int | list | dict,
     ) -> Composed:
-        """Helper method which creates an update query for the specified table and returns it as a Composed object."""
+        """Helper method which creates an update query for the specified table
+        and returns it as a Composed object.
+        """
 
         if isinstance(set_value, dict):
             columns = set_value.keys()
@@ -248,7 +255,9 @@ class BackendSQL(Backend):
         set_value: str | int | list | dict,
         upsert=False,
     ) -> bool:
-        """Updates a single record in the specified table and returns a boolean indicating success or failure."""
+        """Updates a single record in the specified table
+        and returns a boolean indicating success or failure.
+        """
 
         postgres_update = self._create_update_query(table_name, query, set_value)
         self.execute(postgres_update)
@@ -263,7 +272,9 @@ class BackendSQL(Backend):
         return False
 
     def _insert(self, table_name: str, columns: list, values_list: list) -> bool:
-        """Helper method for inserting data into DB. Returns a boolean indicating success or failure"""
+        """Helper method for inserting data into DB.
+        Returns a boolean indicating success or failure.
+        """
 
         if not values_list:
             self.log.warning("No data to insert into DB!")
@@ -280,7 +291,9 @@ class BackendSQL(Backend):
         return self._has_executed()
 
     def insert_one(self, table_name: str, payload_insert: dict) -> bool:
-        """Inserts a single record into the specified table and returns a boolean indicating success or failure."""
+        """Inserts a single record into the specified table
+        and returns a boolean indicating success or failure.
+        """
 
         if not payload_insert:
             self.log.warning("No data to insert into DB! [table: %s]", table_name)
@@ -289,17 +302,27 @@ class BackendSQL(Backend):
         values = [tuple(payload_insert.values())]
         return self._insert(table_name, columns, values)
 
-    def insert_many(self, table_name: str, payload_insert: list[dict]) -> bool:
-        """Inserts multiple records into the specified table and returns a boolean indicating success or failure."""
+    def insert_many(self, table_name: str, payload_insert: list[dict], chunk_size: int = 1000) -> bool:
+        """Inserts multiple records into the specified table in chunks
+        and returns a boolean indicating success or failure.
+        """
         if not payload_insert or len(payload_insert) < 1:
             self.log.warning("No data to insert into DB! [table: %s]", table_name)
             return False
+
         columns = list(payload_insert[0].keys())
         values_list = [tuple(d.values()) for d in payload_insert]
-        return self._insert(table_name, columns, values_list)
+
+        success = True
+        for chunk in chunk_data(values_list, chunk_size):
+            success &= self._insert(table_name, columns, chunk)
+
+        return success
 
     def delete_one(self, table_name: str, query: dict[str, str | int]) -> bool:
-        """Deletes a single record from the specified table and returns a boolean indicating success or failure."""
+        """Deletes a single record from the specified table
+        and returns a boolean indicating success or failure.
+        """
 
         sql_delete = SQL("DELETE FROM {table_name} WHERE {column} = {value}").format(
             table_name=Identifier(table_name),

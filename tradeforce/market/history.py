@@ -106,9 +106,17 @@ class MarketHistory:
 
         try:
             self.internal_history_db.set_index("t", inplace=True)
-            self.log.info("[DEBUG]: Set index for internal history db. _inmemory_db_set_index needed")
         except (KeyError, ValueError, TypeError, AttributeError):
             pass
+
+    def _postgres_create_history_table(self) -> None:
+        """Creates the history table in the database if it does not exist yet.
+
+        This helper method is only used for PostgreSQL
+        as it needs existing table / columns before the first insert.
+        """
+        if self.config.dbms == "postgresql" and self.root.backend.is_new_history_entity:
+            self.root.backend.create_table.history(self.root.assets_list_symbols)
 
     def update_internal_db_market_history(self, df_history_update: pd.DataFrame) -> None:
         self.internal_history_db = pd.concat([self.internal_history_db, df_history_update], axis=0)
@@ -123,11 +131,11 @@ class MarketHistory:
         if load_method == "none":
             await self._try_all_load_methods()
         elif load_method == "local_cache":
-            self.load_via_local_cache(raise_on_failure=True)
+            self._load_via_local_cache(raise_on_failure=True)
         elif load_method in ("mongodb", "postgresql"):
-            self.load_via_backend(raise_on_failure=True)
+            self._load_via_backend(raise_on_failure=True)
         elif load_method == "api":
-            await self.load_via_api(raise_on_failure=True)
+            await self._load_via_api(raise_on_failure=True)
 
         if not self.internal_history_db.empty:
             await self.post_process()
@@ -145,11 +153,11 @@ class MarketHistory:
         return self.internal_history_db
 
     async def _try_all_load_methods(self) -> None:
-        try_next_method = self.load_via_local_cache(raise_on_failure=False)
+        try_next_method = self._load_via_local_cache(raise_on_failure=False)
         if try_next_method:
-            try_next_method = self.load_via_backend(raise_on_failure=False)
+            try_next_method = self._load_via_backend(raise_on_failure=False)
         if try_next_method:
-            try_next_method = await self.load_via_api(raise_on_failure=False)
+            try_next_method = await self._load_via_api(raise_on_failure=False)
 
         if try_next_method:
             raise SystemExit(
@@ -157,7 +165,7 @@ class MarketHistory:
                 + "Check your local file paths, DB connection or internet connection."
             )
 
-    def load_via_local_cache(self, raise_on_failure=False) -> bool:
+    def _load_via_local_cache(self, raise_on_failure=False) -> bool:
         read_feather_path = Path(self.path_local_cache, self.local_cache_filename)
 
         try:
@@ -172,7 +180,7 @@ class MarketHistory:
             self.config.force_source = "local_cache"
             return False
 
-    def load_via_backend(self, raise_on_failure: bool = False) -> bool:
+    def _load_via_backend(self, raise_on_failure: bool = False) -> bool:
         if not self.root.backend.is_new_history_entity:
             exchange_market_history = self.root.backend.query(self.config.dbms_history_entity_name, sort=[("t", 1)])
             internal_history_db = pd.DataFrame(exchange_market_history)
@@ -189,7 +197,7 @@ class MarketHistory:
             return False
         return True
 
-    async def load_via_api(self, raise_on_failure: bool = False) -> bool:
+    async def _load_via_api(self, raise_on_failure: bool = False) -> bool:
         if not self.root.exchange_api.bfx_api_pub:
             raise SystemExit(
                 f"[ERROR] No local_cache or DB storage found for '{self.config.dbms_history_entity_name}'. "
@@ -202,8 +210,7 @@ class MarketHistory:
             end = await self.root.exchange_api.get_latest_remote_candle_timestamp()
             start = get_time_minus_delta(end, delta=self.config.history_timeframe)["timestamp"]
 
-            if self.config.dbms == "postgresql" and self.root.backend.is_new_history_entity:
-                self.root.backend.create_table.history(self.root.assets_list_symbols)
+            self._postgres_create_history_table()
         else:
             await self._fetch_market_history_and_update()
 
@@ -233,15 +240,14 @@ class MarketHistory:
             raise SystemExit("[ERROR] Was not able to load market history via API.")
         return True
 
-    async def _fetch_market_history_and_update(self):
+    async def _fetch_market_history_and_update(self) -> None:
         relevant_assets = await self.get_init_relevant_assets()
         filtered_assets = [
             f"{asset}_{metric}" for asset in relevant_assets["assets"] for metric in ["o", "h", "l", "c", "v"]
         ]
         history_data = relevant_assets["data"][filtered_assets]
 
-        if self.config.dbms == "postgresql" and self.root.backend.is_new_history_entity:
-            self.root.backend.create_table.history(self.root.assets_list_symbols)
+        self._postgres_create_history_table()
 
         await self.update(history_data=history_data)
 
@@ -255,8 +261,7 @@ class MarketHistory:
         if self.root.assets_list_symbols is None:
             self.get_asset_symbols(updated=True)
 
-        if self.config.dbms == "postgresql" and self.root.backend.is_new_history_entity:
-            self.root.backend.create_table.history(self.root.assets_list_symbols)
+        self._postgres_create_history_table()
 
         # Postgres does not need an index, as it is created automatically on the primary key
         if not self.config.dbms == "postgresql":
@@ -275,7 +280,7 @@ class MarketHistory:
         if self.config.check_db_consistency is True:
             self.root.backend.check_db_consistency()
 
-    def save_to_local_cache(self):
+    def save_to_local_cache(self) -> None:
         Path(self.path_local_cache).mkdir(parents=True, exist_ok=True)
         self.internal_history_db.reset_index(drop=False).to_feather(self.path_local_cache / self.local_cache_filename)
         self.log.info("Assets dumped via local_cache to: %s", str(self.path_local_cache / self.local_cache_filename))
@@ -311,7 +316,7 @@ class MarketHistory:
                 start = (pd.to_datetime(latest_local_candle_timestamp, unit="ms", utc=True) - pd.Timedelta(start)).value
 
             except ValueError as exc:
-                raise ValueError(
+                raise SystemExit(
                     f"ERROR: {start} is not a valid pandas time unit abbreviation!\n"
                     + "For reference check: "
                     + "https://pandas.pydata.org/pandas-docs/stable/user_guide/timeseries.html#offset-aliases"

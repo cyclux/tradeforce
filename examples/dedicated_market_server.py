@@ -1,3 +1,12 @@
+"""This example shows how to run a dedicated "market db server" with live candle updates.
+
+Tradeforce can be configured to run as a dedicated market server.
+This is useful if you want to run the market DB on a separate machine
+and connect multiple traders / simulations to it.
+This is especially useful if you want to run Optuna hyperparameter search
+in a cluster environment like Kubernetes.
+"""
+
 from tradeforce import Tradeforce
 
 CONFIG = {
@@ -26,7 +35,7 @@ CONFIG = {
 
 
 def main():
-    Tradeforce(CONFIG).run_new()
+    Tradeforce(CONFIG).run()
 
 
 if __name__ == "__main__":

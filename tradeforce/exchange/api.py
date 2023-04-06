@@ -10,9 +10,41 @@ import pandas as pd
 from typing import TYPE_CHECKING
 from tradeforce.utils import convert_symbol_from_exchange, convert_symbol_to_exchange, ns_to_ms
 
+from bfxapi import Client  # type: ignore
+from bfxapi.constants import WS_HOST, PUB_WS_HOST, REST_HOST, PUB_REST_HOST  # type: ignore
+from tradeforce.trader.secure_credentials import load_credentials
+
 # Prevent circular import for type checking
 if TYPE_CHECKING:
     from tradeforce.main import Tradeforce
+
+
+def connect_api(root: Tradeforce, api_type=None) -> Client | None:
+    """Connect to Bitfinex API.
+    Returns None if credentials are not valid.
+    """
+    bfx_api = None
+    if api_type == "priv":
+
+        secure_credentials = load_credentials(root)
+        with secure_credentials.decrypted_credentials() as credentials:
+            bfx_api = Client(
+                credentials["auth_key"],
+                credentials["auth_sec"],
+                ws_host=WS_HOST,
+                rest_host=REST_HOST,
+                logLevel=root.config.log_level_live,
+            )
+    if api_type == "pub":
+        bfx_api = Client(
+            ws_host=PUB_WS_HOST,
+            rest_host=PUB_REST_HOST,
+            ws_capacity=25,
+            max_retries=100,
+            logLevel=root.config.log_level_ws_update,
+        )
+
+    return bfx_api
 
 
 class ExchangeAPI:
@@ -26,8 +58,18 @@ class ExchangeAPI:
         self.root = root
         self.config = root.config
         self.log = root.logging.get_logger(__name__)
-        self.bfx_api_priv = root.api.get("bfx_api_priv", None)
-        self.bfx_api_pub = root.api.get("bfx_api_pub", None)
+        self.register_api()
+        self.bfx_api_priv: Client = self.api.get("bfx_api_priv", Client())
+        self.bfx_api_pub: Client = self.api.get("bfx_api_pub", Client())
+
+    def register_api(self) -> dict[str, Client | None]:
+        api = {}
+        if self.config.update_mode in ("once", "live"):
+            api["bfx_api_pub"] = connect_api(self.root, "pub")
+        if self.config.run_live:
+            api["bfx_api_priv"] = connect_api(self.root, "priv")
+        self.api = api
+        return api
 
     #####################
     # REST API - Public #

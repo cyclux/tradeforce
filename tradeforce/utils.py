@@ -1,17 +1,12 @@
-"""Helper functions for Cryptobot
+"""Helper functions for Tradeforce which are utilized in multiple modules
 
 """
 
 from __future__ import annotations
 from typing import TYPE_CHECKING
-from configparser import ConfigParser
 
 import numpy as np
 import pandas as pd
-
-
-from bfxapi import Client  # type: ignore
-from bfxapi.constants import WS_HOST, PUB_WS_HOST, REST_HOST, PUB_REST_HOST  # type: ignore
 
 import tradeforce.simulator.default_strategies as strategies
 from tradeforce.custom_types import DictTimedelta, DictTimestamp
@@ -71,7 +66,7 @@ def convert_symbol_from_exchange(symbol_input: str | list | np.ndarray, base_cur
     return np_symbol_output.tolist()
 
 
-def get_timedelta(delta: str = "", unit=None) -> DictTimedelta:
+def get_timedelta(delta: str | int, unit=None) -> DictTimedelta:
     """Get timedelta object and timestamp from string.
     E.g. "1h" -> {"datetime": pd.Timedelta("1h"), "timestamp": 3600000}
     unit: "s", "ms", "us", "ns" or "D", "h", "m", "s", "ms", "us", "ns"
@@ -125,50 +120,6 @@ def get_reference_index(timeframe: dict[str, pd.Timestamp], freq="5min") -> pd.D
     ).asi8
     df_datetime_index = pd.DataFrame(ns_to_ms_array(datetime_index), columns=["t"])
     return df_datetime_index
-
-
-def load_credentials(creds_path) -> dict[str, str] | None:
-    """Load API credentials from credential config file.
-    Returns None if file is not found or credentials are not valid.
-    """
-    creds_store = ConfigParser()
-    credentials = {}
-    try:
-        creds_store.read(creds_path)
-        credentials["auth_key"] = creds_store["api_cred"]["auth_key"]
-        credentials["auth_sec"] = creds_store["api_cred"]["auth_sec"]
-    except (TypeError, KeyError):
-        pass
-    return credentials
-
-
-def connect_api(root: Tradeforce, api_type=None) -> Client | None:
-    """Connect to Bitfinex API.
-    Returns None if credentials are not valid.
-    """
-    bfx_api = None
-    if api_type == "priv":
-        credentials = load_credentials(root.config.creds_path)
-        if not credentials:
-            return None
-        root.log.info("%s credentials loaded from path: %s", root.config.exchange, root.config.creds_path)
-        bfx_api = Client(
-            credentials["auth_key"],
-            credentials["auth_sec"],
-            ws_host=WS_HOST,
-            rest_host=REST_HOST,
-            logLevel=root.config.log_level_live,
-        )
-    if api_type == "pub":
-        bfx_api = Client(
-            ws_host=PUB_WS_HOST,
-            rest_host=PUB_REST_HOST,
-            ws_capacity=25,
-            max_retries=100,
-            logLevel=root.config.log_level_ws_update,
-        )
-
-    return bfx_api
 
 
 def calc_fee(config, volume_crypto, price_current, order_type):

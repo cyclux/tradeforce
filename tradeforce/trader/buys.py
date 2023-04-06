@@ -106,7 +106,7 @@ async def buy_assets(root: Tradeforce, buy_options):
         }
         root.log.info("Executing buy order: %s", buy_order)
 
-        if root.config.is_simulation:
+        if root.config.is_sim:
             new_budget = float(np.round(root.config.budget - root.config.amount_invest_fiat, 2))
             # TODO: Trader does not have "budget" ?
             root.backend.update_status({"budget": new_budget})
@@ -164,5 +164,5 @@ async def buy_confirmed(root: Tradeforce, buy_order) -> None:
         "buy_volume_crypto": buy_volume_crypto,
     }
     root.trader.new_order(open_order, "open_orders")
-    if not root.config.is_simulation:
+    if not root.config.is_sim:
         await submit_sell_order(root, open_order)

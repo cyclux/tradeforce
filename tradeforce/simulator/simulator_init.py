@@ -20,21 +20,23 @@ Returns:
     _type_: _description_
 """
 
-# from time import perf_counter
-from typing import Union, Tuple
+from __future__ import annotations
+from typing import TYPE_CHECKING
 import numpy as np
 import numba as nb  # type: ignore
+import pandas as pd
 import tradeforce.simulator.utils as sim_utils
 from tradeforce.utils import get_timedelta
 from tradeforce.simulator.buys import check_buy
 from tradeforce.simulator.sells import check_sell
 from tradeforce.simulator.default_strategies import pre_process
 
+# Prevent circular import for type checking
+if TYPE_CHECKING:
+    from tradeforce import Tradeforce
 
-# type_int = nb.typeof(1)
 type_float = nb.typeof(0.1)
-# type_array_1d_float = nb.typeof(np.array([0.1]))
-# type_array_2d_float = nb.typeof(np.array([[0.1]]))
+
 
 NB_PARALLEL = False
 NB_CACHE = True
@@ -57,7 +59,7 @@ def set_budget_from_bag(row_idx, budget, bag, bag_type):
 @nb.njit(cache=False, parallel=False)
 def iter_market_history(
     params, snapshot_bounds, asset_prices, asset_prices_pct, asset_performance
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray]:
     budget = params["budget"]
     buybag = np.empty((0, 9), type_float)
     soldbag = np.empty((0, 15), type_float)
@@ -80,10 +82,7 @@ def iter_market_history(
 @nb.njit(cache=False, parallel=False)
 def simulate_trading(
     params, asset_prices, asset_prices_pct, asset_performance
-) -> Tuple[np.int64, np.ndarray, np.ndarray]:
-    # strategy = nb.jit(nopython=True)(strategy)
-    # Fill NaN probably not needed as it is done by the data fetch api
-    # fill_nan(df_buy_factors)
+) -> tuple[np.int64, np.ndarray, np.ndarray]:
 
     snapshot_idx_boundary = asset_prices.shape[0]
     snapshot_size, snapshot_amount = sim_utils.sanitize_snapshot_params(params, snapshot_idx_boundary)
@@ -97,15 +96,9 @@ def simulate_trading(
     for current_iter, snapshot_idx in enumerate(snapshot_start_idxs):
         snapshot_bounds = (snapshot_idx, snapshot_idx + snapshot_size)
 
-        # with nb.objmode(time1="f8"):
-        #     time1 = perf_counter()
-
         soldbag, buybag = iter_market_history(
             params, snapshot_bounds, asset_prices, asset_prices_pct, asset_performance
         )
-
-        # with nb.objmode():
-        #     print("time iter_market_history:", perf_counter() - time1)
 
         profit_snapshot_list[current_iter] = sim_utils.calc_metrics(soldbag)
         soldbag_all_snapshots = np.vstack((soldbag_all_snapshots, soldbag))
@@ -118,10 +111,10 @@ def simulate_trading(
     return profit_total, soldbag_all_snapshots, buybag
 
 
-def print_sim_details(root, asset_prices):
+def print_sim_details(root: Tradeforce, asset_prices: pd.DataFrame):
     history_begin = asset_prices.index[0]
     history_end = asset_prices.index[-1]
-    history_delta = get_timedelta(history_end - history_begin, unit="ms")["datetime"]
+    history_delta = get_timedelta(history_end - history_begin, unit="ms")["datetime"]  # type: ignore
     root.log.info(
         "Starting simulation beginning from %s to %s | Timeframe: %s", history_begin, history_end, history_delta
     )
@@ -132,15 +125,13 @@ def print_sim_details(root, asset_prices):
     )
 
 
-def run(root) -> dict[str, Union[int, np.ndarray, np.ndarray]]:
-    # pre_process: Optional[Callable] = None
-    # pre_process = pre_process_default if pre_process is None else pre_process
+def run(root: Tradeforce) -> dict[str, int | np.ndarray | np.ndarray]:
     preprocess_result = pre_process(root.config, root.market_history)
     sim_config = sim_utils.to_numba_dict(root.config.to_dict())
 
-    asset_prices = preprocess_result.get("asset_prices", None)
-    asset_prices_pct = preprocess_result.get("asset_prices_pct", None)
-    asset_performance = preprocess_result.get("asset_performance", None)
+    asset_prices = preprocess_result.get("asset_prices", pd.DataFrame())
+    asset_prices_pct = preprocess_result.get("asset_prices_pct", pd.DataFrame())
+    asset_performance = preprocess_result.get("asset_performance", pd.DataFrame())
 
     print_sim_details(root, asset_prices)
 

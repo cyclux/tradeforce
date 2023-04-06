@@ -36,8 +36,8 @@ def check_sell_options(root: Tradeforce, latest_prices=None, timestamp=None):
         ok_to_sell = (
             time_since_buy > root.config.hold_time_limit and current_profit_ratio >= root.config.profit_ratio_limit
         )
-        # TODO: is_simulation == dry_run?!
-        if root.config.is_simulation:
+        # TODO: is_sim == dry_run?!
+        if root.config.is_sim:
             if price_current >= price_profit or ok_to_sell:
                 # check plausibility and prevent false logic
                 # profit gets a max plausible threshold
@@ -54,7 +54,7 @@ def check_sell_options(root: Tradeforce, latest_prices=None, timestamp=None):
                     "buy_order_id": open_order["buy_order_id"],
                 }
                 sell_options.append(sell_option)
-    if not root.config.is_simulation:
+    if not root.config.is_sim:
         root.log.info("Current portfolio performance: %s", portfolio_performance)
 
     return sell_options
@@ -66,7 +66,7 @@ async def sell_assets(root: Tradeforce, sell_options):
         if len(open_order) < 1:
             continue
 
-        if root.config.is_simulation:
+        if root.config.is_sim:
             # TODO: Replace with sell_confirmed() ?
             closed_order = open_order[0].copy()
             closed_order["price_sell"] = sell_option["price_sell"]

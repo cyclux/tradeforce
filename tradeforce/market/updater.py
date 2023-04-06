@@ -1,4 +1,4 @@
-""" /src/tradeforce/market/updater.py
+""" /tradeforce/market/updater.py
 """
 
 from __future__ import annotations

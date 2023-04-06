@@ -38,6 +38,7 @@ venv/
 
 # Project folder
 **/*.arrow
+**/*credentials
 .ipynb_checkpoints/
 analysis/
 archive/

@@ -7,7 +7,7 @@ import numba as nb  # type: ignore
 
 from tradeforce import Tradeforce
 
-tradeforce_config = {
+CONFIG = {
     "trader": {
         "budget": 10000,
         "maker_fee": 0.10,
@@ -126,7 +126,12 @@ def sell_strategy(params, buybag, history_prices_row):
     return sell_assets, prices_current
 
 
-sim_result = Tradeforce(config=tradeforce_config).run_sim(
-    pre_process=pre_process, buy_strategy=buy_strategy, sell_strategy=sell_strategy
-)
-print(sim_result["profit"])
+def main():
+    sim_result = Tradeforce(config=CONFIG).run_sim(
+        pre_process=pre_process, buy_strategy=buy_strategy, sell_strategy=sell_strategy
+    )
+    print(sim_result["profit"])
+
+
+if __name__ == "__main__":
+    main()
