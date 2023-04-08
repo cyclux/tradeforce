@@ -1,4 +1,5 @@
-"""Config module for tradeforce package.
+"""
+Config module for tradeforce package.
 Loads config dict or config.yaml file and stores it in a Config class
 which can get passed to all other modules, classes and functions.
 """
@@ -14,6 +15,7 @@ from tradeforce.utils import candle_interval_to_min
 if TYPE_CHECKING:
     from tradeforce.main import Tradeforce
 
+# Paths to check for config.yaml/yml file
 config_paths = ["config.yaml", "config.yml", "config/config.yaml", "config/config.yml"]
 
 
@@ -38,7 +40,9 @@ def try_config_paths(config_paths: list) -> tuple[dict, str]:
 
 
 def flatten_dict(input_config_dict: dict) -> dict:
-    """Flatten nested config dict to one single level dict"""
+    """
+    Flatten nested config dict to one single level dict
+    """
     output_dict = {}
 
     def flatten(input_dict, key=""):
@@ -53,7 +57,8 @@ def flatten_dict(input_config_dict: dict) -> dict:
 
 
 def hours_to_increments(hours: int, candle_interval: str) -> int:
-    """Convert hours to increments corresponding to candle_interval.
+    """
+    Convert hours to increments corresponding to candle_interval.
     One increment is one candle timestep. e.g. 1h = 60min = 12 candles
     """
     candle_interval_min = candle_interval_to_min(candle_interval)
@@ -61,7 +66,8 @@ def hours_to_increments(hours: int, candle_interval: str) -> int:
 
 
 class Config:
-    """The Config class is used to load and store the user config.
+    """
+    The Config class is used to load and store the user config.
     It gets passed to all other classes and allows us to access them via self.config.<config_key>
     Provides default values to fall back on if param is not specified in user config.
     """
@@ -91,19 +97,77 @@ class Config:
         for config_key, config_val in config_input.items():
             setattr(self, config_key, config_val)
 
-        # If not specified, use default value.
+        """
+        working_dir: Path to working directory
+        Set the current working_dir. Default is the directory from where Tradeforce is executed from.
+        """
         self.working_dir = Path(config_input.get("working_dir", os.path.abspath("")))
+        """
+        run_live: True, False
+        Run TradeForce in live mode: Connect to exchange with credentials and trade with the configured strategy """
         self.run_live = config_input.get("run_live", False)
-        self.update_mode = config_input.get("update_mode", "None").lower()
-        self.log_level_live = config_input.get("log_level_live", "ERROR").upper()
-        self.log_level_ws_update = config_input.get("log_level_ws_update", "ERROR").upper()
+        """
+        update_mode: "none", "once", "live"
 
+        Update candle history of the DB to the current time.
+        none: Do not update
+        once: Only update statically once via REST API
+        live: Update continuously via Websocket
+        """
+        self.update_mode = config_input.get("update_mode", "none").lower()
+        """
+        log_level_ws_live: "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"
+        Log level for the private websocket connection (live trader)
+        """
+        self.log_level_ws_live = config_input.get("log_level_ws_live", "ERROR").upper()
+        """
+        log_level_ws_update: "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"
+        Log level for the publich websocket connection (candle / price updater)
+        """
+        self.log_level_ws_update = config_input.get("log_level_ws_update", "ERROR").upper()
+        """
+        exchange: "bitfinex"
+        Which exchange to use: Currently only Bitfinex is supported
+        """
         self.exchange = config_input.get("exchange", "bitfinex")
+        """
+        force_source: "none", "local_cache", "backend", "api"
+
+        Force as specific data source:
+        none: Valid source is searched for in the following order: local_cache, backend, api
+        local_cache: An arrow dump of the in-memory DB into working_dir/data
+                    arrow file named after config "market_history.name"
+        backend: Fetches the history from the DB: Either Postgres or MongoDB
+        api: Fetches the candle history from the exchange via Websocket.
+        """
         self.force_source = config_input.get("force_source", "none").lower()
+        """
+        check_db_consistency: True, False
+
+        It checks if the in-memory DB is consistent and has no missing candles between the start and end timestamp.
+        Can be set to false in hyperparam search situations where the DB gets loaded very often.
+        Consistency should then be checked once before the simulations start.
+        """
         self.check_db_consistency = config_input.get("check_db_consistency", True)
+        """
+        local_cache: True, False
+
+        If true the in-memory DB is saved to a local arrow file in working_dir/data.
+        This cache file is used to load the DB faster on subsequent runs (hyperparam search -> many simulations).
+        """
         self.local_cache = config_input.get("local_cache", True)
+        """
+        candle_interval: "1min", "5min", "15min", "30min", "1h", "3h", "6h", "12h", "1D", "1W"
+
+        """
         self.candle_interval = config_input.get("candle_interval", "5min")
+        """
+        The base currency to trade against. e.g. "USD" or "BTC"
+        """
         self.base_currency = config_input.get("base_currency", "USD")
+        """
+
+        """
         self.history_timeframe = config_input.get("history_timeframe", "120days")
         self.dbms = config_input.get("dbms", "mongodb").lower()
         self.dbms_host = config_input.get("dbms_host", "localhost")

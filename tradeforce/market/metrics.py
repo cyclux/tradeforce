@@ -7,7 +7,7 @@ Returns:
 from __future__ import annotations
 import numpy as np
 import pandas as pd
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 from tradeforce.custom_types import DictRelevantAssets
 from tradeforce.utils import get_col_names
 
@@ -48,47 +48,39 @@ def nanmin_with_check(x):
         return x[0]
 
 
-def aggregate_history(df_input, agg_timeframe="1h"):
-    # TODO: add support for other timeframes than 5min
-    amount_five_min_intervals = pd.Timedelta(agg_timeframe).value // 10**9 // 60 // 5
-    # agg_func_map = {
-    #     "o": lambda row: row[0],
-    #     "h": lambda x: np.nanmax(x, initial=-np.inf),  # TODO: check if this is correct:
-    #     "l": lambda x: np.nanmin(x, initial=np.inf),  # should prevent RuntimeWarning:
-    #     "c": lambda row: row[-1],  # Degrees of freedom <= 0 for slice.
-    #     "v": np.nansum,
-    # }
-    agg_func_map = {
+def aggregate_history(df_input: pd.DataFrame, candle_interval: str, agg_timeframe="1h"):
+    amount_intervals = int(pd.Timedelta(agg_timeframe) / pd.Timedelta(candle_interval))
+
+    agg_func_map: dict[str, Callable] = {
         "o": lambda row: row[0],
         "h": nanmax_with_check,
         "l": nanmin_with_check,
         "c": lambda row: row[-1],
         "v": np.nansum,
     }
-    forward_indexer = pd.api.indexers.FixedForwardWindowIndexer(window_size=amount_five_min_intervals)
+    forward_indexer = pd.api.indexers.FixedForwardWindowIndexer(window_size=amount_intervals)
     relevant_assets_agg_list = []
     for candle_type, func in agg_func_map.items():
         candle_type_cols = [col for col in df_input.columns if col[-1] == candle_type]
         relevant_assets_agg_list.append(
             df_input.loc[:, candle_type_cols]
-            .rolling(window=forward_indexer, step=amount_five_min_intervals, min_periods=1)
+            .rolling(window=forward_indexer, step=amount_intervals, min_periods=1)
             .apply(func, raw=True)
             .fillna(method="bfill")  # TODO: check if this does not mess up the data
         )
     return pd.concat(relevant_assets_agg_list, axis=1)[df_input.columns]
 
 
-def get_asset_performance_metrics(df_input):
+def get_asset_performance_metrics(df_input: pd.DataFrame, candle_interval: str):
     assets_volume_usd = get_volume_usd(df_input)
     amount_candles = get_amount_candles(df_input)
     candle_density = get_candle_density(df_input)
-    asset_volatility = get_asset_volatility(df_input)
+    asset_volatility = get_asset_volatility(df_input, candle_interval)
     asset_metrics = pd.DataFrame([assets_volume_usd, amount_candles, candle_density, asset_volatility]).T
-    asset_metrics.columns = ["vol_usd", "amount_candles", "candle_density", "volatility"]
+    asset_metrics.columns = pd.Index(["vol_usd", "amount_candles", "candle_density", "volatility"])
     return asset_metrics
 
 
-# TODO: add support for other timeframes than 5min
 # TODO: "amount_candles > 2000 & candle_density < 500" -> add to config
 async def get_init_relevant_assets(root: Tradeforce, capped=-1) -> DictRelevantAssets:
     root.log.info("Analyzing market for relevant assets...")
@@ -96,7 +88,7 @@ async def get_init_relevant_assets(root: Tradeforce, capped=-1) -> DictRelevantA
     # This is the limit of the Bitfinex REST API for one request.
     init_timespan = "34days" if int(root.config.history_timeframe[:-4]) >= 34 else root.config.history_timeframe
     init_market_history = await root.market_updater_api.update_market_history(init_timespan=init_timespan)
-    df_relevant_assets_metrics = get_asset_performance_metrics(init_market_history).query(
+    df_relevant_assets_metrics = get_asset_performance_metrics(init_market_history, root.config.candle_interval).query(
         "amount_candles > 2000 & candle_density < 500"
     )
     relevant_asset_symbols = df_relevant_assets_metrics.sort_values("amount_candles", ascending=False).index
@@ -139,9 +131,9 @@ def get_candle_density(df_input):
     return series_candle_density
 
 
-def get_asset_volatility(df_input):
+def get_asset_volatility(df_input: pd.DataFrame, candle_interval: str):
     candles_open = get_col_names(df_input.columns, specific_col="o")
-    assets_agg_open = aggregate_history(df_input, agg_timeframe="1h").loc[:, candles_open]
+    assets_agg_open = aggregate_history(df_input, candle_interval, agg_timeframe="1h").loc[:, candles_open]
     assets_agg_open_pct = add_pct_change_cols(assets_agg_open, inplace=False)
     return pd.Series(
         np.nanstd(assets_agg_open_pct, axis=0), index=get_col_names(assets_agg_open_pct.columns)

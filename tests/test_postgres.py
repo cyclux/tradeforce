@@ -47,7 +47,6 @@ config = {
         "candle_interval": "5min",
         "history_timeframe": "60days",
         "update_mode": "none",  # none, once or live
-        # "force_source": "postgresql",
     },
 }
 
@@ -160,7 +159,6 @@ class TestBackendSQL:
                 with patch.object(mock_pool_connection, "__enter__", return_value=mock_pool_connection), patch.object(
                     mock_pool_connection, "cursor", return_value=mock_cursor
                 ):
-
                     # Call _register_cursor
                     result_cursor = backend._register_cursor()
 

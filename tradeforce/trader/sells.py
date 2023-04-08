@@ -1,8 +1,6 @@
-"""_summary_
-"""
-
 from __future__ import annotations
 import numpy as np
+import pandas as pd
 from typing import TYPE_CHECKING
 from tradeforce.utils import calc_fee, convert_symbol_from_exchange
 
@@ -11,131 +9,334 @@ if TYPE_CHECKING:
     from tradeforce.main import Tradeforce
 
 
-def check_sell_options(root: Tradeforce, latest_prices=None, timestamp=None):
-    # TODO: Reconsider the "ok_to_sell logic". Maybe adapt/edit price_profit to check if it was already reduced?
-    # Also consider future feature of "dynamic price decay"
+def get_latest_prices(root: Tradeforce) -> tuple[int, dict]:
+    """
+    Get the latest prices for all symbols from the market history.
+
+    Args:
+        root: The main Tradeforce instance.
+
+    Returns:
+        A tuple containing the timestamp and a dictionary of the latest prices.
+    """
+    df_latest_prices = root.market_history.get_market_history(latest_candle=True, metrics=["c"], uniform_cols=True)
+    timestamp = df_latest_prices.index[0]
+    latest_prices = df_latest_prices.to_dict("records")[0]
+    return timestamp, latest_prices
+
+
+def should_sell_simulation(root: Tradeforce, price_current: float, price_profit: float, ok_to_sell: bool) -> bool:
+    """
+    Determine if the asset should be sold during a simulation.
+    "1.2" is the maximum allowed profit ratio for a trade in a simulation.
+    This prevents the simulation from selling assets for a profit that is not realistic.
+
+    Args:
+        root:          The main Tradeforce instance.
+        price_current: The current price of the asset.
+        price_profit:  The target price for profit.
+        ok_to_sell:    Whether the asset meets the conditions to be sold.
+
+    Returns:
+        True if the asset should be sold, False otherwise.
+    """
+    return (price_current >= price_profit or ok_to_sell) and (price_current / price_profit <= 1.2)
+
+
+def create_sell_option(root: Tradeforce, open_order: dict, price_current: float) -> dict:
+    """
+    Create a dictionary containing the sell option information.
+
+    Args:
+        root:          The main Tradeforce instance.
+        open_order:    The open order information.
+        price_current: The current price of the asset.
+
+    Returns:
+        A dictionary containing the sell option information.
+    """
+    sell_option = {
+        "asset": open_order["asset"],
+        "price_sell": price_current,
+    }
+    if not root.config.is_sim:
+        sell_option.update(
+            {
+                "gid": open_order["gid"],
+                "buy_order_id": open_order["buy_order_id"],
+            }
+        )
+    return sell_option
+
+
+def get_current_profit_ratio(price_current: float, price_buy: float) -> float:
+    """
+    Calculate the current profit ratio.
+
+    Args:
+        price_current: The current price of the asset.
+        price_buy:     The initial buying price of the asset.
+
+    Returns:
+        The current profit ratio of the given asset.
+    """
+    return np.round(price_current / price_buy, 2)
+
+
+def get_increments_since_buy(timestamp: int, timestamp_buy: int, candle_interval: str) -> int:
+    """
+    Calculate the increments since the asset was bought.
+    The amount of increments is variable and depends on the candle_interval of the market history.
+
+    Args:
+        timestamp:     The current timestamp.
+        timestamp_buy: The timestamp when the asset was bought.
+
+    Returns:
+        The time since the asset was bought in candle intervals of the market history (candle_interval).
+    """
+    candle_interval_in_minutes = pd.Timedelta(candle_interval).value / 10**9 / 60
+    return int((timestamp - timestamp_buy) / 1000 / 60 / candle_interval_in_minutes)
+
+
+def is_ok_to_sell(root: Tradeforce, time_since_buy: int, current_profit_ratio: float) -> bool:
+    """
+    Determine if it's okay to sell the asset based on the time since buy and current profit ratio.
+
+    Args:
+        root:                 The main Tradeforce instance.
+        time_since_buy:       The time since the asset was bought.
+        current_profit_ratio: The current profit ratio.
+
+    Returns:
+        True if it's okay to sell the asset, False otherwise.
+    """
+    return time_since_buy > root.config.hold_time_limit and current_profit_ratio >= root.config.profit_ratio_limit
+
+
+def process_open_order(root: Tradeforce, open_order: dict, latest_prices: dict, timestamp: int) -> dict | None:
+    """
+    Process an open order and return a sell option if conditions are met.
+
+    Args:
+        root:          The main Tradeforce instance.
+        open_order:    The open order information.
+        latest_prices: A dictionary containing the latest prices for all symbols.
+        timestamp:     The current timestamp.
+
+    Returns:
+        A dictionary containing the sell option information if conditions are met, None otherwise.
+    """
+    symbol = open_order["asset"]
+    price_current = latest_prices.get(symbol, 0)
+    price_buy = open_order["price_buy"]
+    price_profit = open_order["price_profit"]
+
+    if np.isnan(price_current):
+        price_current = 0.0
+
+    current_profit_ratio = get_current_profit_ratio(price_current, price_buy)
+    time_since_buy = get_increments_since_buy(timestamp, open_order["timestamp_buy"], root.config.candle_interval)
+    ok_to_sell = is_ok_to_sell(root, time_since_buy, current_profit_ratio)
+
+    if root.config.is_sim:
+        if should_sell_simulation(root, price_current, price_profit, ok_to_sell):
+            price_current = min(price_current, price_profit)
+            return create_sell_option(root, open_order, price_current)
+    elif ok_to_sell:
+        return create_sell_option(root, open_order, price_current)
+
+    return None
+
+
+def check_sell_options(root: Tradeforce) -> list[dict]:
+    """
+    Check for sell options in the current portfolio.
+
+    Args:
+        root: The main Tradeforce instance.
+
+    Returns:
+        A list of sell options.
+    """
     sell_options = []
     portfolio_performance = {}
-    if latest_prices is None:
-        df_latest_prices = root.market_history.get_market_history(latest_candle=True, metrics=["c"], uniform_cols=True)
-        timestamp = df_latest_prices.index[0]
-        latest_prices = df_latest_prices.to_dict("records")[0]
+
+    timestamp, latest_prices = get_latest_prices(root)
+
     open_orders = root.trader.get_all_open_orders()
+
     for open_order in open_orders:
-        symbol = open_order["asset"]
-        price_current = latest_prices.get(symbol, 0)
-        price_buy = open_order["price_buy"]
-        price_profit = open_order["price_profit"]
+        sell_option = process_open_order(root, open_order, latest_prices, timestamp)
+        if sell_option is not None:
+            sell_options.append(sell_option)
+            symbol = open_order["asset"]
+            price_current = latest_prices.get(symbol, 0)
+            price_buy = open_order["price_buy"]
+            portfolio_performance[symbol] = get_current_profit_ratio(price_current, price_buy)
 
-        if np.isnan(price_current):
-            price_current = 0.0
-        current_profit_ratio = price_current / price_buy
-        portfolio_performance[symbol] = np.round(current_profit_ratio, 2)
-        time_since_buy = (timestamp - open_order["timestamp_buy"]) / 1000 / 60 // 5
-
-        ok_to_sell = (
-            time_since_buy > root.config.hold_time_limit and current_profit_ratio >= root.config.profit_ratio_limit
-        )
-        # TODO: is_sim == dry_run?!
-        if root.config.is_sim:
-            if price_current >= price_profit or ok_to_sell:
-                # check plausibility and prevent false logic
-                # profit gets a max plausible threshold
-                if price_current / price_profit > 1.2:
-                    price_current = price_profit
-                sell_option = {"asset": symbol, "price_sell": price_current}
-                sell_options.append(sell_option)
-        else:
-            if ok_to_sell:
-                sell_option = {
-                    "asset": symbol,
-                    "price_sell": price_current,
-                    "gid": open_order["gid"],
-                    "buy_order_id": open_order["buy_order_id"],
-                }
-                sell_options.append(sell_option)
     if not root.config.is_sim:
         root.log.info("Current portfolio performance: %s", portfolio_performance)
 
     return sell_options
 
 
-async def sell_assets(root: Tradeforce, sell_options):
+def create_sell_order_edit(open_order: dict, sell_option: dict) -> dict:
+    """
+    Create a sell order dictionary by editing the given open order with the sell option.
+
+    Args:
+        open_order:  The open order dictionary.
+        sell_option: The sell option dictionary.
+
+    Returns:
+        A dictionary containing the sell order items.
+    """
+    volatility_buffer = 0.00000005
+    return {
+        "sell_order_id": open_order["sell_order_id"],
+        "gid": open_order["gid"],
+        "asset": open_order["asset"],
+        "price": sell_option["price_sell"],
+        "amount": open_order["buy_volume_crypto"] - volatility_buffer,
+    }
+
+
+async def process_sell_option(root: Tradeforce, open_order: dict, sell_option: dict) -> bool:
+    """
+    Process a sell option and update the sell order if necessary.
+
+    Args:
+        root:        The main Tradeforce instance.
+        open_order:  The open order dictionary.
+        sell_option: The sell option dictionary.
+
+    Returns:
+        True if the sell order was successfully updated, False otherwise.
+    """
+    sell_order = create_sell_order_edit(open_order, sell_option)
+    order_result_ok = await root.exchange_api.edit_order("sell", sell_order)
+
+    if order_result_ok:
+        root.log.info(
+            "Sell price of %s has been changed from %s to %s",
+            sell_order["asset"],
+            open_order["price_buy"],
+            sell_order["price"],
+        )
+    return order_result_ok
+
+
+async def sell_assets(root: Tradeforce, sell_options: list[dict]):
+    """
+    Sell assets based on the provided sell options.
+
+    Args:
+        root:         The main Tradeforce instance.
+        sell_options: A list of sell options.
+    """
     for sell_option in sell_options:
         open_order = root.trader.get_open_order(asset=sell_option)
-        if len(open_order) < 1:
+        if not open_order:
             continue
 
         if root.config.is_sim:
-            # TODO: Replace with sell_confirmed() ?
-            closed_order = open_order[0].copy()
-            closed_order["price_sell"] = sell_option["price_sell"]
-            sell_volume_crypto, _, sell_fee_fiat = calc_fee(
-                root.config,
-                closed_order["buy_volume_crypto"],
-                closed_order["price_sell"],
-                order_type="sell",
-            )
-            closed_order["sell_fee_fiat"] = sell_fee_fiat
-            closed_order["sell_volume_crypto"] = sell_volume_crypto
-            closed_order["sell_volume_fiat"] = (sell_volume_crypto * closed_order["price_sell"]) - sell_fee_fiat
-            closed_order["profit_fiat"] = closed_order["sell_volume_fiat"] - closed_order["amount_invest_fiat"]
-            root.trader.new_order(closed_order, "closed_orders")
-            root.trader.del_order(open_order[0], "open_orders")
-
-            new_budget = float(np.round(root.config.budget + closed_order["sell_volume_fiat"], 2))
-            # TODO: Trader does not have "budget" ?
-            root.backend.update_status({"budget": new_budget})
+            sell_confirmed(root, sell_option)
         else:
-            # Adapt sell price
-            volatility_buffer = 0.00000005
-            sell_order = {
-                "sell_order_id": open_order[0]["sell_order_id"],
-                "gid": open_order[0]["gid"],
-                "asset": open_order[0]["asset"],
-                "price": sell_option["price_sell"],
-                "amount": open_order[0]["buy_volume_crypto"] - volatility_buffer,
-            }
-            order_result_ok = await root.exchange_api.order("sell", sell_order, update_order=True)
-            if order_result_ok:
-                root.log.info(
-                    "Sell price of %s has been changed from %s to %s",
-                    sell_order["asset"],
-                    open_order[0]["price_buy"],
-                    sell_order["price"],
-                )
+            await process_sell_option(root, open_order[0], sell_option)
 
 
-async def submit_sell_order(root: Tradeforce, open_order):
-    volatility_buffer = 0.00000002
-    sell_order = {
+def create_sell_order(open_order: dict) -> dict:
+    """
+    Create a dictionary containing the sell order items.
+
+    Args:
+        open_order: The open order.
+
+    Returns:
+        A dictionary containing the sell order items.
+    """
+    volatility_buffer = 0.00000005
+    return {
         "asset": open_order["asset"],
         "price": open_order["price_profit"],
         "amount": open_order["buy_volume_crypto"] - volatility_buffer,
         "gid": open_order["gid"],
     }
+
+
+async def submit_sell_order(root: Tradeforce, open_order: dict):
+    """
+    Submit a sell order based on the given open order.
+
+    Args:
+        root:       The main Tradeforce instance.
+        open_order: The open order dictionary.
+
+    Raises:
+        If the sell order execution fails, logs an error message with the sell order details.
+    """
+    sell_order = create_sell_order(open_order)
     exchange_result_ok = await root.exchange_api.order("sell", sell_order)
+
     if not exchange_result_ok:
         root.log.error("Sell order execution failed! -> %s", str(sell_order))
 
 
-def sell_confirmed(root: Tradeforce, sell_order):
+def create_closed_order(root: Tradeforce, open_order: dict, sell_order: dict) -> dict:
+    """
+    Create a closed order dictionary based on the open order and sell order.
+
+    Args:
+        root:       The main Tradeforce instance.
+        open_order: The open order dictionary.
+        sell_order: The sell order dictionary.
+
+    Returns:
+        A dictionary containing the closed order details.
+    """
+    closed_order = open_order.copy()
+    closed_order["timestamp_sell"] = sell_order["mts_update"]
+    closed_order["price_sell"] = sell_order["price_avg"]
+    sell_volume_crypto = abs(sell_order["amount_orig"])
+    sell_volume_crypto_incl_fee, _, closed_order["sell_fee_fiat"] = calc_fee(
+        root.config, sell_volume_crypto, sell_order["price_avg"], order_type="sell"
+    )
+    sell_volume_fiat_incl_fee = sell_volume_crypto_incl_fee * sell_order["price_avg"]
+    closed_order["sell_volume_fiat"] = np.round(sell_volume_fiat_incl_fee - closed_order["sell_fee_fiat"], 3)
+    closed_order["profit_fiat"] = closed_order["sell_volume_fiat"] - closed_order["amount_invest_fiat"]
+    return closed_order
+
+
+def update_budget(root: Tradeforce, closed_order: dict):
+    """
+    Update the budget based on the closed order.
+
+    Args:
+        root:         The main Tradeforce instance.
+        closed_order: The closed order dictionary.
+    """
+    new_budget = float(np.round(root.config.budget + closed_order["sell_volume_fiat"], 2))
+    root.backend.update_status({"budget": new_budget})
+
+
+def sell_confirmed(root: Tradeforce, sell_order: dict):
+    """
+    Process the confirmed sell order and update the open and closed orders accordingly.
+
+    Args:
+        root:       The main Tradeforce instance.
+        sell_order: The sell order dictionary.
+    """
     root.log.debug("sell_order confirmed: %s", sell_order)
     asset_symbol = convert_symbol_from_exchange(sell_order["symbol"])[0]
     open_order = root.trader.get_open_order(asset={"asset": asset_symbol, "gid": sell_order["gid"]})
-    if len(open_order) > 0:
-        closed_order = open_order[0].copy()
-        closed_order["timestamp_sell"] = sell_order["mts_update"]
-        closed_order["price_sell"] = sell_order["price_avg"]
-        sell_volume_crypto = abs(sell_order["amount_orig"])
-        sell_volume_crypto_incl_fee, _, closed_order["sell_fee_fiat"] = calc_fee(
-            root.config, sell_volume_crypto, sell_order["price_avg"], order_type="sell"
-        )
-        sell_volume_fiat_incl_fee = sell_volume_crypto_incl_fee * sell_order["price_avg"]
-        closed_order["sell_volume_fiat"] = np.round(sell_volume_fiat_incl_fee - closed_order["sell_fee_fiat"], 3)
-
-        closed_order["profit_fiat"] = closed_order["sell_volume_fiat"] - closed_order["amount_invest_fiat"]
+    if open_order:
+        closed_order = create_closed_order(root, open_order[0], sell_order)
         root.trader.new_order(closed_order, "closed_orders")
         root.trader.del_order(open_order[0], "open_orders")
+
+        if root.config.is_sim:
+            update_budget(root, closed_order)
     else:
         root.log.error("Could not find order to sell: %s", sell_order)

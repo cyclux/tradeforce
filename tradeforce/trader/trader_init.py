@@ -1,26 +1,78 @@
-"""_summary_
-
-Returns:
-    _type_: _description_
-"""
-
 from __future__ import annotations
 import numpy as np
 import pandas as pd
 from bfxapi.models.wallet import Wallet  # type: ignore
 from typing import TYPE_CHECKING
-from tradeforce.utils import convert_symbol_from_exchange
 from tradeforce.trader.buys import check_buy_options, buy_assets
 from tradeforce.trader.sells import check_sell_options, sell_assets, sell_confirmed
 
 # Prevent circular import for type checking
 if TYPE_CHECKING:
     from tradeforce.main import Tradeforce
-# TODO: switch order["buy_order_id"] to order["gid"]
+
+
+def _build_query(asset: dict) -> str:
+    """
+    Build a query string for searching assets in the open_orders DataFrame.
+
+    Args:
+        asset: A dictionary containing the asset details.
+
+    Returns:
+        A string representing the query that can be used with DataFrame.query().
+    """
+    query_parts = [f"asset == '{asset['asset']}'"]
+
+    if asset.get("buy_order_id", None):
+        query_parts.append(f"buy_order_id == {asset['buy_order_id']}")
+    if asset.get("gid", None):
+        query_parts.append(f"gid == {asset['gid']}")
+    if asset.get("price_profit", None):
+        query_parts.append(f"price_profit == {asset['price_profit']}")
+
+    return " and ".join(query_parts)
+
+
+def _filter_sold_orders(exchange_order_history: list[dict], sell_order_ids: list[int]) -> list[dict]:
+    """
+    Filter out the sold orders from the given order history.
+
+    Args:
+        exchange_order_history: A list of dictionaries containing the order history.
+        sell_order_ids:         A list of sell order IDs, returned by the exchange.
+
+    Returns:
+        A list of dictionaries containing sold orders.
+    """
+    return [
+        order
+        for order in exchange_order_history
+        if order["id"] in sell_order_ids and "EXECUTED" in order["order_status"]
+    ]
+
+
+def _get_base_currency_balance(wallet: Wallet) -> float:
+    """
+    Retrieve the base currency balance from a Wallet object.
+    Determine if the Wallet object is from a snapshot or regular Wallet update.
+    Regular Wallet updates contain the balance_available attribute.
+    Snapshot Wallet updates instead contain the balance attribute.
+
+    Args:
+        wallet: A Wallet object containing balance details.
+
+    Returns:
+        A float representing the base currency balance.
+    """
+    is_snapshot = wallet.balance_available is None
+    return wallet.balance if is_snapshot else wallet.balance_available
 
 
 class Trader:
-    """_summary_"""
+    """
+    The Trader class is responsible for managing and processing buy and sell orders.
+    It also manages order history and provides functionality to check for sold orders.
+    """
 
     def __init__(self, root: Tradeforce):
         self.root = root
@@ -31,109 +83,164 @@ class Trader:
         self.open_orders: list[dict] = []
         self.closed_orders: list[dict] = []
         self.min_order_sizes: dict[str, float] = {}
-        self.gid = 10**9
+        self.gid = 10**9  # initial gid for orders
 
     ####################
     # Order operations #
     ####################
+    # TODO: switch order["buy_order_id"] to order["gid"]
 
-    def new_order(self, order: dict, order_type: str) -> None:
-        order_obj = getattr(self, order_type)
-        order_obj.append(order)
-        if self.config.use_dbms:
+    def _handle_db_operations(self, action: str, order: dict, order_type: str) -> None:
+        """
+        Perform database operations to insert, edit, or delete an order.
+
+        Args:
+            action:     A string indicating the type of database operation to perform,
+                        must be one of 'new', 'edit', or 'delete'.
+            order:      A dictionary containing the order details.
+            order_type: A string representing the type of order, e.g., 'open_orders' or 'closed_orders'.
+        """
+        if not self.config.use_dbms:
+            return
+
+        if action == "new":
             db_response = self.root.backend.insert_one(order.copy(), order_type)
             if not db_response:
                 self.log.error("Backend DB insert order failed!")
-
-    def edit_order(self, order: dict, order_type: str) -> None:
-        order_obj = getattr(self, order_type)
-        order_obj[:] = [o for o in order_obj if o.get("buy_order_id") != order["buy_order_id"]]
-        order_obj.append(order)
-
-        if self.config.use_dbms:
+        elif action == "edit":
             update_ok = self.root.backend.update_one(
                 order_type, query={"attribute": "buy_order_id", "value": order["buy_order_id"]}, set_value=order
             )
             if not update_ok:
                 self.log.error("Backend DB edit order failed!")
-
-    def del_order(self, order: dict, order_type: str) -> None:
-        # Delete from internal mirror of DB
-        order_obj = getattr(self, order_type)
-        order_obj[:] = [o for o in order_obj if o.get("asset") != order["asset"]]
-        if self.config.use_dbms:
+        elif action == "delete":
             delete_ok = self.root.backend.delete_one(
                 order_type, query={"attribute": "buy_order_id", "value": order["buy_order_id"]}
             )
             if not delete_ok:
                 self.log.error("Backend DB delete order failed!")
+        else:
+            raise ValueError("Invalid action provided. Must be one of 'new', 'edit', or 'delete'.")
+
+    def new_order(self, order: dict, order_type: str) -> None:
+        """
+        Add a new order to the list of orders.
+        Performs this operation on the in memory list of orders and the DB if available.
+
+        Args:
+            order:      A dictionary containing the order details.
+            order_type: A string representing the type of order, e.g., 'open_orders' or 'closed_orders'.
+        """
+        order_obj: list[dict] = getattr(self, order_type)
+        order_obj.append(order)
+        self._handle_db_operations("new", order, order_type)
+
+    def edit_order(self, order: dict, order_type: str) -> None:
+        """
+        Edit an existing order in the list of orders.
+        Performs this operation on the in memory list of orders and the DB if available.
+
+        Args:
+            order:      A dictionary containing the updated order details.
+            order_type: A string representing the type of order, e.g., 'open_orders' or 'closed_orders'.
+        """
+        order_obj: list[dict] = getattr(self, order_type)
+        order_obj[:] = [o for o in order_obj if o.get("buy_order_id") != order["buy_order_id"]]
+        order_obj.append(order)
+        self._handle_db_operations("edit", order, order_type)
+
+    def del_order(self, order: dict, order_type: str) -> None:
+        """
+        Delete an order from the list of orders.
+        Performs this operation on the in-memory list of orders and the DB if available.
+
+        Args:
+            order:      A dictionary containing the order details to be deleted.
+            order_type: A string representing the type of order, e.g., 'open_orders' or 'closed_orders'.
+        """
+        order_obj: list[dict] = getattr(self, order_type)
+        order_obj[:] = [o for o in order_obj if o.get("asset") != order["asset"]]
+        self._handle_db_operations("delete", order, order_type)
 
     ##################
     # Getting orders #
     ##################
 
-    def get_open_order(self, asset_order=None, asset=None) -> list:
-        gid = None
-        buy_order_id = None
-        price_profit = None
-        if asset_order is not None:
-            asset_symbol = convert_symbol_from_exchange(asset_order.symbol)[0]
-            buy_order_id = asset_order.id
-            gid = asset_order.gid
-        else:
-            asset_symbol = asset["asset"]
-            buy_order_id = asset.get("buy_order_id", None)
-            gid = asset.get("gid", None)
-            price_profit = asset.get("price_profit", None)
+    def get_open_order(self, asset: dict) -> list[dict]:
+        """
+        Get the open orders for a specific asset based on the provided asset details.
 
-        query = f"asset == '{asset_symbol}'"
+        Args:
+            asset: A dictionary containing the asset details.
 
-        if buy_order_id is not None:
-            query += f" and buy_order_id == {buy_order_id}"
-        if gid is not None:
-            query += f" and gid == {gid}"
-        if price_profit is not None:
-            query += f" and price_profit == {price_profit}"
-
+        Returns:
+            A list of dictionaries containing the open orders for the specified asset.
+        """
         open_orders = []
+        query = _build_query(asset)
         df_open_orders = pd.DataFrame(self.open_orders)
+
         if not df_open_orders.empty:
             open_orders = df_open_orders.query(query).to_dict("records")
+
         return open_orders
 
-    def get_all_open_orders(self) -> list:
+    def get_all_open_orders(self) -> list[dict]:
+        """
+        Get all open orders.
+
+        Returns:
+            A list of dictionaries containing all open orders.
+        """
         return self.open_orders
 
-    def get_all_closed_orders(self, raw=False):
-        if raw:
-            all_closed_orders = self.closed_orders
-        else:
-            all_closed_orders = pd.DataFrame(self.closed_orders)
-        return all_closed_orders
+    def get_all_closed_orders(self) -> list[dict]:
+        """
+        Get all closed orders.
+
+        Returns:
+            A list of dictionaries containing all closed orders.
+        """
+        return self.closed_orders
 
     #############################
     # Trader relevant functions #
     #############################
 
-    async def update(self, latest_prices=None, timestamp=None):
-        sell_options = check_sell_options(self.root, latest_prices, timestamp)
-        if len(sell_options) > 0:
+    async def candles_update(self) -> None:
+        """
+        Update the trader with the latest price data (candles) and process buy/sell options.
+        If a timestamp is provided, the trader will check if it is time to sell assets
+        based on the elapsed time since buy.
+
+        Args:
+            latest_prices: A dictionary containing the latest price data.
+            timestamp: An integer representing the current timestamp.
+        """
+        sell_options = check_sell_options(self.root)
+
+        if sell_options:
             await sell_assets(self.root, sell_options)
-        buy_options = check_buy_options(self.root, latest_prices, timestamp)
-        if len(buy_options) > 0:
+
+        buy_options = check_buy_options(self.root)
+        if buy_options:
             await buy_assets(self.root, buy_options)
 
     async def check_sold_orders(self) -> None:
+        """
+        Check for sold orders and confirm them, converting them to closed orders.
+        Retrieves the order history from the exchange and filters out the sold orders.
+        For each sold order, log the relevant information and confirm the sale.
+        """
         open_orders = pd.DataFrame(self.get_all_open_orders())
+
         if open_orders.empty:
             return
+
         sell_order_ids = open_orders["sell_order_id"].to_list()
         exchange_order_history = await self.root.exchange_api.get_order_history()
-        sold_orders = [
-            order
-            for order in exchange_order_history
-            if order["id"] in sell_order_ids and "EXECUTED" in order["order_status"]
-        ]
+        sold_orders = _filter_sold_orders(exchange_order_history, sell_order_ids)
+
         for sold_order in sold_orders:
             self.log.info(
                 "Sold order of %s (id:%s gid:%s) has been converted to closed order",
@@ -143,17 +250,48 @@ class Trader:
             )
             sell_confirmed(self.root, sold_order)
 
-    def set_budget(self, ws_wallet_snapshot):
+    def _find_base_currency_wallet(self, ws_wallet_snapshot: list[Wallet]) -> Wallet | None:
+        """
+        Find the base currency wallet from a list of Wallet objects.
+        Its amount is equivalent to the current available budget.
+
+        Args:
+            ws_wallet_snapshot: A list of Wallet objects.
+
+        Returns:
+            A Wallet object representing the base currency wallet, or None if not found.
+        """
         for wallet in ws_wallet_snapshot:
             if wallet.currency == self.config.base_currency:
-                is_snapshot = wallet.balance_available is None
-                base_currency_balance = wallet.balance if is_snapshot else wallet.balance_available
-                self.config.budget = base_currency_balance
-                self.root.backend.update_status({"budget": base_currency_balance})
+                return wallet
+        return None
 
-    def get_profit(self):
-        profit_fiat = np.round(sum(order["profit_fiat"] for order in self.closed_orders), 2)
-        return profit_fiat
+    def set_budget(self, ws_wallet_snapshot: list[Wallet]):
+        """
+        Set the trader's budget based on the available balance of the base currency wallet.
+        Retrieve the base currency wallet and update the budget with its available balance.
+
+        Args:
+            ws_wallet_snapshot: A list of Wallet objects.
+        """
+        base_currency_wallet = self._find_base_currency_wallet(ws_wallet_snapshot)
+
+        if base_currency_wallet is not None:
+            base_currency_balance = _get_base_currency_balance(base_currency_wallet)
+            self.config.budget = base_currency_balance
+            self.root.backend.update_status({"budget": base_currency_balance})
+
+    def get_profit(self) -> float:
+        """
+        Calculate the profit from closed orders.
+
+        Returns:
+            A float representing the total profit.
+        """
+        return np.round(sum(order["profit_fiat"] for order in self.closed_orders), 2)
 
     async def get_min_order_sizes(self):
+        """
+        Retrieve the minimum order sizes for assets from the exchange and store them in the Trader instance.
+        """
         self.min_order_sizes = await self.root.exchange_api.get_min_order_sizes()

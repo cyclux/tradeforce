@@ -1,8 +1,6 @@
-""" /main.py
-
+"""
 Tradeforce class orchestrates all modules
 and provides a single interface to all features and various components.
-
 """
 
 from __future__ import annotations
@@ -29,9 +27,12 @@ from tradeforce import simulator
 # Get current version from pyproject.toml
 VERSION = importlib.metadata.version("tradeforce")
 
+
 # TODO: add support for variable candle_interval
 class Tradeforce:
-    """Tradeforce class orchestrates all modules"""
+    """
+    Tradeforce class orchestrates all modules
+    """
 
     def __init__(self, config=None, assets=None):
         self.log = self._register_logger()
@@ -86,7 +87,9 @@ class Tradeforce:
     #######################
 
     def _exec_tasks(self, tasks: dict) -> "Tradeforce":
-        """Run tasks in the event loop"""
+        """
+        Run tasks in the event loop
+        """
         if tasks.get("load_history", True):
             asyncio.create_task(self.market_history.load_history())
         if self.config.update_mode == "live" and not self.config.is_sim:
@@ -96,11 +99,15 @@ class Tradeforce:
         return self
 
     async def _async_exec_tasks(self, tasks: dict):
-        """Convert _exec_tasks() to a coroutine"""
+        """
+        Convert _exec_tasks() to a coroutine
+        """
         self._exec_tasks(tasks)
 
     def _loop_handler(self, tasks: dict):
-        """Helper to run the event loop and handle KeyboardInterrupts"""
+        """
+        Helper to run the event loop and handle KeyboardInterrupts
+        """
 
         loop = asyncio.get_event_loop()
         future = loop.create_future()
@@ -126,7 +133,8 @@ class Tradeforce:
     #############
 
     def run(self) -> "Tradeforce":
-        """Run the Tradeforce instance in normal mode.
+        """
+        Run the Tradeforce instance in normal mode.
         In Jupyter environment we can run the async tasks directly on the event loop.
         In normal CLI environment, we need additional measures to run the async tasks.
         Key goal is to keep the run() method synchronous and callable in both envs.
@@ -141,7 +149,8 @@ class Tradeforce:
         return simulator.run(self)
 
     def run_sim(self, pre_process=None, buy_strategy=None, sell_strategy=None) -> dict[str, int | np.ndarray]:
-        """Run the Tradeforce instance in simulation mode.
+        """
+        Run the Tradeforce instance in simulation mode.
         In Jupyter environment we need to async load_history() before running the simulator.
         """
         self.config.is_sim = True
@@ -153,7 +162,8 @@ class Tradeforce:
     def run_sim_optuna(
         self, optuna_config=None, pre_process=None, buy_strategy=None, sell_strategy=None
     ) -> optuna.Study:
-        """Run the Tradeforce instance in simulation mode with hyperparameter optimization.
+        """
+        Run the Tradeforce instance in simulation mode with hyperparameter optimization.
         In Jupyter environment we need to async load_history() before running the simulator.
         """
         self.config.is_sim = True
@@ -164,7 +174,9 @@ class Tradeforce:
 
 
 def is_jupyter():
-    """Check if we are running in a Jupyter environment"""
+    """
+    Check if we are running in a Jupyter environment
+    """
     try:
         get_ipython  # type: ignore
         return True

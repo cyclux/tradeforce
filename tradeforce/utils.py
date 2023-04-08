@@ -46,8 +46,11 @@ def convert_to_array(symbol_input):
 def convert_symbol_to_exchange(
     symbol_input: str | list | np.ndarray, base_currency="USD", with_t_prefix=True
 ) -> list[str]:
-    """Convert symbol string to exchange format.
-    "with_trade_prefix" is only relevant for bitfinex e.g. BTCUSD -> tBTCUSD"""
+    """
+    Convert symbol string to exchange format.
+    "with_trade_prefix" is only relevant for bitfinex
+    e.g. BTC -> tBTCUSD or META -> tMETA:USD
+    """
     symbol_input_normalized = convert_to_array(symbol_input)
     t_prefix = "t" if with_t_prefix else ""
     symbol_output = [

@@ -1,6 +1,3 @@
-""" /tradeforce/market/updater.py
-"""
-
 from __future__ import annotations
 
 from asyncio import sleep as asyncio_sleep
@@ -48,22 +45,6 @@ def calculate_ms_until_wait_over(start_timestamp: int, end_timestamp: int) -> in
     return end_timestamp - (start_timestamp + ms_additional_wait)
 
 
-async def get_start_timestamp(self: MarketUpdater, start: int | None = None) -> int:
-    if start:
-        return start
-
-    start_timestamp = self.root.market_history.get_local_candle_timestamp(position="latest")
-    if start_timestamp == 0:
-        start_timestamp = await self.root.exchange_api.get_latest_remote_candle_timestamp(
-            minus_delta=self.root.market_history.history_timeframe
-        )
-    else:
-        candle_freq_in_ms = get_timedelta(self.config.candle_interval)["timestamp"]
-        start_timestamp += candle_freq_in_ms
-
-    return start_timestamp
-
-
 def get_end_timestamp(end: int | None = None) -> int:
     if end:
         return end
@@ -78,8 +59,23 @@ class MarketUpdater:
         self.config = root.config
         self.log = root.logging.get_logger(__name__)
 
+    async def _get_start_timestamp(self, start: int | None = None) -> int:
+        if start:
+            return start
+
+        start_timestamp = self.root.market_history.get_local_candle_timestamp(position="latest")
+        if start_timestamp == 0:
+            start_timestamp = await self.root.exchange_api.get_latest_remote_candle_timestamp(
+                minus_delta=self.root.market_history.history_timeframe
+            )
+        else:
+            candle_freq_in_ms = get_timedelta(self.config.candle_interval)["timestamp"]
+            start_timestamp += candle_freq_in_ms
+
+        return start_timestamp
+
     async def get_timeframe(self, start: int | None = None, end: int | None = None) -> DictTimeframeExtended:
-        start_timestamp = await get_start_timestamp(self, start)
+        start_timestamp = await self._get_start_timestamp(start)
         start_datetime = pd.to_datetime(start_timestamp, unit="ms", utc=True)
 
         end_timestamp = get_end_timestamp(end)

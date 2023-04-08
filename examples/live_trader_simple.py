@@ -37,7 +37,7 @@ CONFIG = {
         "base_currency": "USD",
         "candle_interval": "5min",
         "history_timeframe": "60days",
-        "update_mode": "live",  # none, once or live
+        "update_mode": "live",
     },
 }
 

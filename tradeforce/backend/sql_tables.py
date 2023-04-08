@@ -7,14 +7,13 @@ from psycopg2.sql import SQL, Identifier
 # Prevent circular import for type checking
 if TYPE_CHECKING:
     from tradeforce.main import Tradeforce
-    from tradeforce.backend import BackendSQL
     from psycopg2.extensions import cursor
 
 
 class CreateTables:
-    def __init__(self, root: Tradeforce, backend: BackendSQL) -> None:
+    def __init__(self, root: Tradeforce) -> None:
         self.root = root
-        self.backend = backend
+        self.backend = root.backend
         self.config = root.config
         self.log = root.logging.get_logger(__name__)
 

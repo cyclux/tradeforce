@@ -34,13 +34,15 @@ def get_pct_change(df_history: pd.DataFrame, pct_first_row: int, as_factor: bool
     return df_history_pct
 
 
-# TODO: make freq dynamic based on min time delta between candles
-def get_timestamp_intervals(start: int, end: int) -> list[tuple[int, int]]:
+def get_timestamp_intervals(start: int, end: int, candle_interval: str) -> list[tuple[int, int]]:
     timestamp_intervals = [(-1, -1)]
     if start != -1 and end != -1:
-        # 50000min == 10000 * 5min -> 10000 max len @ bitfinex api
-        timestamp_array = ns_to_ms_array(pd.date_range(ms_to_ns(start), ms_to_ns(end), tz="UTC", freq="50000min").asi8)
-        timestamp_list = np.array(timestamp_array).tolist()
+        # 10_000 == max len request @ bitfinex api
+        freq_for_max_request = pd.Timedelta(candle_interval) * 10_000
+        timestamp_array = ns_to_ms_array(
+            pd.date_range(ms_to_ns(start), ms_to_ns(end), tz="UTC", freq=freq_for_max_request).asi8
+        )
+        timestamp_list: list = np.array(timestamp_array).tolist()
         if timestamp_list[-1] != end:
             timestamp_list.append(end)
         timestamp_intervals = list(zip(timestamp_list, timestamp_list[1:]))
@@ -120,7 +122,6 @@ class MarketHistory:
 
     def update_internal_db_market_history(self, df_history_update: pd.DataFrame) -> None:
         self.internal_history_db = pd.concat([self.internal_history_db, df_history_update], axis=0)
-        # TODO: Check if _inmemory_db_set_index is necessary here
         self._inmemory_db_set_index()
         self.internal_history_db = set_internal_db_column_type(self.internal_history_db)
         self.internal_history_db.sort_index(inplace=True)
@@ -132,7 +133,7 @@ class MarketHistory:
             await self._try_all_load_methods()
         elif load_method == "local_cache":
             self._load_via_local_cache(raise_on_failure=True)
-        elif load_method in ("mongodb", "postgresql"):
+        elif load_method == "backend":
             self._load_via_backend(raise_on_failure=True)
         elif load_method == "api":
             await self._load_via_api(raise_on_failure=True)
@@ -193,12 +194,12 @@ class MarketHistory:
             return True
 
         if not self.internal_history_db.empty:
-            self.config.force_source = self.config.dbms
+            self.config.force_source = "backend"
             return False
         return True
 
     async def _load_via_api(self, raise_on_failure: bool = False) -> bool:
-        if not self.root.exchange_api.bfx_api_pub:
+        if not self.root.exchange_api.api_pub:
             raise SystemExit(
                 f"[ERROR] No local_cache or DB storage found for '{self.config.dbms_history_entity_name}'. "
                 + f"No API connection ({self.config.exchange}) to fetch new exchange history: "
@@ -254,7 +255,7 @@ class MarketHistory:
     async def post_process(self) -> None:
         self.internal_history_db = set_internal_db_column_type(self.internal_history_db)
 
-        if self.config.force_source in ("api", "mongodb", "postgresql", "none"):
+        if self.config.force_source in ("api", "backend", "none"):
             if self.config.local_cache:
                 self.save_to_local_cache()
 
@@ -352,7 +353,7 @@ class MarketHistory:
         if history_data is not None:
             df_history_update = history_data
         else:
-            timestamp_intervals = get_timestamp_intervals(start, end)
+            timestamp_intervals = get_timestamp_intervals(start, end, self.config.candle_interval)
             df_history_update_list = []
             for interval in timestamp_intervals:
                 self.log.info("Fetching history interval: %s", interval)
