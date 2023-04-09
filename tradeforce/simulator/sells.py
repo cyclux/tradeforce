@@ -21,15 +21,14 @@ def sell_asset(
     prices_current,
     budget,
 ):
-
     amount_assets_sell = assets_to_sell.shape[0]
     sold_assets = np.empty((amount_assets_sell, 15), type_float)
-    amounts_invest_crypto = assets_to_sell[:, 6:7]
-    amount_sold_crypto_incl_fee, _, amount_fee_sell_fiat = calc_fee(
-        amounts_invest_crypto, params["maker_fee"], params["taker_fee"], prices_current, "sell"
+    amounts_invest_asset = assets_to_sell[:, 6:7]
+    amount_sold_asset_incl_fee, _, amount_fee_sell_fiat = calc_fee(
+        amounts_invest_asset, params["maker_fee"], params["taker_fee"], prices_current, "sell"
     )
-    amount_sold_fiat_incl_fee = amount_sold_crypto_incl_fee * prices_current
-    amount_profit_fiat = amount_sold_fiat_incl_fee - params["amount_invest_fiat"]
+    amount_sold_fiat_incl_fee = amount_sold_asset_incl_fee * prices_current
+    amount_profit_fiat = amount_sold_fiat_incl_fee - params["amount_invest_per_asset"]
 
     # update budget with new profit
     new_budget = np.sum(amount_sold_fiat_incl_fee) + budget
@@ -40,7 +39,7 @@ def sell_asset(
     sold_assets[:, 9:10] = row_idx_sold
     sold_assets[:, 10:11] = prices_current
     sold_assets[:, 11:12] = amount_sold_fiat_incl_fee
-    sold_assets[:, 12:13] = amount_sold_crypto_incl_fee
+    sold_assets[:, 12:13] = amount_sold_asset_incl_fee
     sold_assets[:, 13:14] = amount_fee_sell_fiat
     sold_assets[:, 14:15] = amount_profit_fiat
 

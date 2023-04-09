@@ -34,7 +34,7 @@ class BackendSQL(Backend):
         super().__init__(root)
         self.connected = False
         self.reconnect_count = 0
-        self.create_table = CreateTables(root)
+        self.create_table = CreateTables(root, self)
         self._establish_connection(db_name=self.config.dbms_db)
 
     def _is_connected(self, db_name: str) -> bool:

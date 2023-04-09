@@ -1,18 +1,18 @@
 """_summary_
 # 0 idx of asset row -> symbol of asset
-# 1 buy opportunity factor
-# 2 row_idx of buy opportunity
+# 1 buy_performance_score
+# 2 row_idx of buy_performance_score
 # 3 price buy
 # 4 price including profit
 # 5 amount of fiat invested, fee included
-# 6 amount of crypto invested, fee included
+# 6 amount of asset invested, fee included
 # 7 amount fee buy order in fiat (probably taker fee)
 # 8 budget to invest
 #
 # 9 row_idx of sell opportunity
 # 10 price sell
 # 11 amount of fiat sold, fee included
-# 12 amount of crypto sold, fee included
+# 12 amount of asset sold, fee included
 # 13 amount fee sell order in fiat (probably maker fee)
 # 14 amount profit in fiat
 
@@ -58,15 +58,15 @@ def set_budget_from_bag(row_idx, budget, bag, bag_type):
 # @perf.jit_timer
 @nb.njit(cache=False, parallel=False)
 def iter_market_history(
-    params, snapshot_bounds, asset_prices, asset_prices_pct, asset_performance
+    params, subset_bounds, asset_prices, asset_prices_pct, asset_performance
 ) -> tuple[np.ndarray, np.ndarray]:
     budget = params["budget"]
     buybag = np.empty((0, 9), type_float)
     soldbag = np.empty((0, 15), type_float)
-    start_idx = snapshot_bounds[0]
-    end_idx = snapshot_bounds[1]
+    start_idx = subset_bounds[0]
+    end_idx = subset_bounds[1]
     for row_idx, history_prices_row in enumerate(asset_prices[start_idx:end_idx]):
-        # row_idx needs to get shifted by start_idx (start idx of the current snapshot iteration)
+        # row_idx needs to get shifted by start_idx (start idx of the current subset iteration)
         row_idx += start_idx
         params["row_idx"] = row_idx
 
@@ -83,32 +83,29 @@ def iter_market_history(
 def simulate_trading(
     params, asset_prices, asset_prices_pct, asset_performance
 ) -> tuple[np.int64, np.ndarray, np.ndarray]:
-
-    snapshot_idx_boundary = asset_prices.shape[0]
-    snapshot_size, snapshot_amount = sim_utils.sanitize_snapshot_params(params, snapshot_idx_boundary)
-    snapshot_start_idxs = sim_utils.get_snapshot_indices(
-        params["moving_window_increments"], snapshot_idx_boundary, snapshot_amount, snapshot_size
+    subset_idx_boundary = asset_prices.shape[0]
+    _subset_size_increments, subset_amount = sim_utils.sanitize_subset_params(params, subset_idx_boundary)
+    subset_start_idxs = sim_utils.get_subset_indices(
+        params["_moving_window_increments"], subset_idx_boundary, subset_amount, _subset_size_increments
     )
-    profit_snapshot_list = np.empty(snapshot_amount, type_float)
-    soldbag_all_snapshots = np.empty((0, 15), type_float)
+    profit_subset_list = np.empty(subset_amount, type_float)
+    soldbag_all_subsets = np.empty((0, 15), type_float)
     # initialize row_idx within params -> provide access to sub-functions
     params["row_idx"] = 0.0
-    for current_iter, snapshot_idx in enumerate(snapshot_start_idxs):
-        snapshot_bounds = (snapshot_idx, snapshot_idx + snapshot_size)
+    for current_iter, subset_idx in enumerate(subset_start_idxs):
+        subset_bounds = (subset_idx, subset_idx + _subset_size_increments)
 
-        soldbag, buybag = iter_market_history(
-            params, snapshot_bounds, asset_prices, asset_prices_pct, asset_performance
-        )
+        soldbag, buybag = iter_market_history(params, subset_bounds, asset_prices, asset_prices_pct, asset_performance)
 
-        profit_snapshot_list[current_iter] = sim_utils.calc_metrics(soldbag)
-        soldbag_all_snapshots = np.vstack((soldbag_all_snapshots, soldbag))
+        profit_subset_list[current_iter] = sim_utils.calc_metrics(soldbag)
+        soldbag_all_subsets = np.vstack((soldbag_all_subsets, soldbag))
 
-    profit_total_std = np.std(profit_snapshot_list)
-    profit_total = np.int64(np.mean(profit_snapshot_list) - profit_total_std)
+    profit_total_std = np.std(profit_subset_list)
+    profit_total = np.int64(np.mean(profit_subset_list) - profit_total_std)
 
     print("profit_total:", profit_total)
 
-    return profit_total, soldbag_all_snapshots, buybag
+    return profit_total, soldbag_all_subsets, buybag
 
 
 def print_sim_details(root: Tradeforce, asset_prices: pd.DataFrame):
@@ -119,9 +116,9 @@ def print_sim_details(root: Tradeforce, asset_prices: pd.DataFrame):
         "Starting simulation beginning from %s to %s | Timeframe: %s", history_begin, history_end, history_delta
     )
     root.log.info(
-        "Simulation is split into %s snapshots with size %s each.",
-        root.config.snapshot_amount,
-        root.config.snapshot_size,
+        "Simulation is split into %s subsets with size %s each.",
+        root.config.subset_amount,
+        root.config._subset_size_increments,
     )
 
 

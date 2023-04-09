@@ -111,7 +111,10 @@ def is_ok_to_sell(root: Tradeforce, time_since_buy: int, current_profit_ratio: f
     Returns:
         True if it's okay to sell the asset, False otherwise.
     """
-    return time_since_buy > root.config.hold_time_limit and current_profit_ratio >= root.config.profit_ratio_limit
+    return (
+        time_since_buy > root.config._hold_time_increments
+        and current_profit_ratio >= root.config.profit_factor_target_min
+    )
 
 
 def process_open_order(root: Tradeforce, open_order: dict, latest_prices: dict, timestamp: int) -> dict | None:
@@ -198,7 +201,7 @@ def create_sell_order_edit(open_order: dict, sell_option: dict) -> dict:
         "gid": open_order["gid"],
         "asset": open_order["asset"],
         "price": sell_option["price_sell"],
-        "amount": open_order["buy_volume_crypto"] - volatility_buffer,
+        "amount": open_order["buy_volume_asset"] - volatility_buffer,
     }
 
 
@@ -260,7 +263,7 @@ def create_sell_order(open_order: dict) -> dict:
     return {
         "asset": open_order["asset"],
         "price": open_order["price_profit"],
-        "amount": open_order["buy_volume_crypto"] - volatility_buffer,
+        "amount": open_order["buy_volume_asset"] - volatility_buffer,
         "gid": open_order["gid"],
     }
 
@@ -298,13 +301,13 @@ def create_closed_order(root: Tradeforce, open_order: dict, sell_order: dict) ->
     closed_order = open_order.copy()
     closed_order["timestamp_sell"] = sell_order["mts_update"]
     closed_order["price_sell"] = sell_order["price_avg"]
-    sell_volume_crypto = abs(sell_order["amount_orig"])
-    sell_volume_crypto_incl_fee, _, closed_order["sell_fee_fiat"] = calc_fee(
-        root.config, sell_volume_crypto, sell_order["price_avg"], order_type="sell"
+    sell_volume_asset = abs(sell_order["amount_orig"])
+    sell_volume_asset_incl_fee, _, closed_order["sell_fee_fiat"] = calc_fee(
+        root.config, sell_volume_asset, sell_order["price_avg"], order_type="sell"
     )
-    sell_volume_fiat_incl_fee = sell_volume_crypto_incl_fee * sell_order["price_avg"]
+    sell_volume_fiat_incl_fee = sell_volume_asset_incl_fee * sell_order["price_avg"]
     closed_order["sell_volume_fiat"] = np.round(sell_volume_fiat_incl_fee - closed_order["sell_fee_fiat"], 3)
-    closed_order["profit_fiat"] = closed_order["sell_volume_fiat"] - closed_order["amount_invest_fiat"]
+    closed_order["profit_fiat"] = closed_order["sell_volume_fiat"] - closed_order["amount_invest_per_asset"]
     return closed_order
 
 

@@ -5,7 +5,7 @@ market_history:
   base_currency: USD
   candle_interval: 5min
   exchange: bitfinex
-  history_timeframe: 60days
+  history_timeframe_days: 60
   name: bfx_history_docker_test
   update_mode: live
   force_source: local_cache
@@ -22,24 +22,22 @@ backend:
 trader:
   id: 3
   budget: 0
-  creds_path: exchange_creds.cfg
+  credentials_path: exchange_creds.cfg
   maker_fee: 0.1
   taker_fee: 0.2
   run_live: false
 
   strategy:
-    amount_invest_fiat: 1000
-    buy_opportunity_boundary: 0.05
-    buy_opportunity_factor: 0.1
-    hold_time_limit: 1000
+    amount_invest_per_asset: 1000
+    buy_performance_boundary: 0.05
+    buy_performance_score: 0.1
+    _hold_time_increments: 1000
     investment_cap: 0
     moving_window_hours: 160
-    prefer_performance: 1
-    profit_factor: 1.1
-    profit_ratio_limit: 1.01
+    buy_performance_preference: 1
+    profit_factor_target: 1.1
+    profit_factor_target_min: 1.01
 
 simulation:
-  sim_start:
-  sim_timeframe:
-  snapshot_size: -1
-  snapshot_amount: 1
+  _subset_size_increments: -1
+  subset_amount: 1

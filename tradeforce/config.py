@@ -72,40 +72,91 @@ class Config:
     Provides default values to fall back on if param is not specified in user config.
     """
 
-    # TODO: Add sanity check
     def __init__(self, root: Tradeforce, config_input: dict | None = None):
         self.log = root.logging.get_logger(__name__)
+        self.config_input: dict = self.load_config(config_input)
 
-        config_input = config_input if config_input else {}
-        config_type = "dict"
+        # Set all config keys as attributes of the Config class
+        # This allows us to access them via self.config.<config_key> in any module
+        self.set_config_as_attr(self.config_input)
 
-        # Load config.yaml file if no config dict is provided
-        if not config_input:
-            config_input, config_type = try_config_paths(config_paths)
-        if not config_input:
-            raise SystemExit(
-                "No config file found. Please provide a config.yaml file or a config dict. "
-                + f"Current search paths: {os.path.abspath('')}/config.yaml "
-                + f"and {os.path.abspath('')}/config/config.yaml"
-            )
-
-        config_input = flatten_dict(config_input)
-
-        self.log.info("Loading config via %s", config_type)
-
-        # Set all config values as attributes. This ensures that user defined config keys are also accessible.
-        for config_key, config_val in config_input.items():
-            setattr(self, config_key, config_val)
+        ##################
+        # Core setup #
+        ##################
 
         """
         working_dir: Path to working directory
-        Set the current working_dir. Default is the directory from where Tradeforce is executed from.
+        The path to the working directory. Default is the directory where Tradeforce is executed.
         """
-        self.working_dir = Path(config_input.get("working_dir", os.path.abspath("")))
+        self.working_dir = Path(self.config_input.get("working_dir", os.path.abspath("")))
+
         """
-        run_live: True, False
-        Run TradeForce in live mode: Connect to exchange with credentials and trade with the configured strategy """
-        self.run_live = config_input.get("run_live", False)
+        check_db_consistency: True, False
+
+        Determines whether to check the in-memory database consistency by verifying no missing candles between
+        the start and end timestamps. Useful to disable in hyperparameter search scenarios for performance.
+        """
+        self.check_db_consistency = self.config_input.get("check_db_consistency", True)
+
+        ##################
+        # Logging Levels
+        ##################
+
+        """
+        log_level_ws_live: "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"
+        Log level for the private websocket connection during live trading.
+
+        """
+        self.log_level_ws_live = self.config_input.get("log_level_ws_live", "ERROR").upper()
+
+        """
+        log_level_ws_update: "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"
+        Log level for the public websocket connection (candle/price updater).
+        """
+        self.log_level_ws_update = self.config_input.get("log_level_ws_update", "ERROR").upper()
+
+        ######################
+        # Market history & Updates
+        ######################
+
+        """
+        exchange: "bitfinex"
+        The name of the exchange to use. Currently, only Bitfinex is supported.
+        """
+        self.exchange = self.config_input.get("exchange", "bitfinex")
+
+        """
+        base_currency: "USD"
+        The base currency to trade against, such as "USD" or "BTC".
+        """
+        self.base_currency = self.config_input.get("base_currency", "USD")
+
+        """
+        candle_interval: str: "1min", "5min", "15min", "30min", "1h", "3h", "6h", "12h", "1D", "1W"
+
+        The interval for market history and update candles.
+        Shorter intervals result in more candles and less precision,
+        while longer intervals are more efficient but less precise.
+        """
+        self.candle_interval = self.config_input.get("candle_interval", "5min")
+
+        """
+        history_timeframe_days: currently needs to be in "days".
+        The number of days in the past to load the candle history from.
+        """
+        self.history_timeframe_days = self.config_input.get("history_timeframe_days", 120)
+
+        """
+        force_source: "none", "local_cache", "backend", "api"
+
+        Specifies a particular data source for the candle history:
+        "none" Search in order: local_cache, backend, api.
+        "local_cache": "arrow" dump of in-memory DB (working_dir/data).
+        "backend": Fetch history from DB.
+        "api": Fetch history from exchange via Websocket.
+        """
+        self.force_source = self.config_input.get("force_source", "none").lower()
+
         """
         update_mode: "none", "once", "live"
 
@@ -113,100 +164,279 @@ class Config:
         none: Do not update
         once: Only update statically once via REST API
         live: Update continuously via Websocket
-        """
-        self.update_mode = config_input.get("update_mode", "none").lower()
-        """
-        log_level_ws_live: "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"
-        Log level for the private websocket connection (live trader)
-        """
-        self.log_level_ws_live = config_input.get("log_level_ws_live", "ERROR").upper()
-        """
-        log_level_ws_update: "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"
-        Log level for the publich websocket connection (candle / price updater)
-        """
-        self.log_level_ws_update = config_input.get("log_level_ws_update", "ERROR").upper()
-        """
-        exchange: "bitfinex"
-        Which exchange to use: Currently only Bitfinex is supported
-        """
-        self.exchange = config_input.get("exchange", "bitfinex")
-        """
-        force_source: "none", "local_cache", "backend", "api"
 
-        Force as specific data source:
-        none: Valid source is searched for in the following order: local_cache, backend, api
-        local_cache: An arrow dump of the in-memory DB into working_dir/data
-                    arrow file named after config "market_history.name"
-        backend: Fetches the history from the DB: Either Postgres or MongoDB
-        api: Fetches the candle history from the exchange via Websocket.
+        Determines how to update the candle history of the database:
+        "none": Do not update.
+        "once": Static update via REST API.
+        "live": Continuous update via Websocket.
         """
-        self.force_source = config_input.get("force_source", "none").lower()
-        """
-        check_db_consistency: True, False
+        self.update_mode = self.config_input.get("update_mode", "none").lower()
 
-        It checks if the in-memory DB is consistent and has no missing candles between the start and end timestamp.
-        Can be set to false in hyperparam search situations where the DB gets loaded very often.
-        Consistency should then be checked once before the simulations start.
-        """
-        self.check_db_consistency = config_input.get("check_db_consistency", True)
-        """
-        local_cache: True, False
-
-        If true the in-memory DB is saved to a local arrow file in working_dir/data.
-        This cache file is used to load the DB faster on subsequent runs (hyperparam search -> many simulations).
-        """
-        self.local_cache = config_input.get("local_cache", True)
-        """
-        candle_interval: "1min", "5min", "15min", "30min", "1h", "3h", "6h", "12h", "1D", "1W"
+        #######################
+        # Database Connection
+        #######################
 
         """
-        self.candle_interval = config_input.get("candle_interval", "5min")
+        dbms : "postgres", "mongodb"
+
+        The "DataBase Management System" to use.
+        Currently, Postgres and MongoDB are supported.
+        Choose Postgres for full functionality, including hyperparameter search via optuna.
         """
-        The base currency to trade against. e.g. "USD" or "BTC"
-        """
-        self.base_currency = config_input.get("base_currency", "USD")
-        """
+        self.dbms = self.config_input.get("dbms", "postgres").lower()
 
         """
-        self.history_timeframe = config_input.get("history_timeframe", "120days")
-        self.dbms = config_input.get("dbms", "mongodb").lower()
-        self.dbms_host = config_input.get("dbms_host", "localhost")
-        self.dbms_port = config_input.get("dbms_port", "1234")
-        self.dbms_user = config_input.get("dbms_user", None)
-        self.dbms_pw = config_input.get("dbms_pw", None)
-        self.dbms_connect_db = config_input.get("dbms_connect_db", "postgres")
-        self.dbms_db = config_input.get("dbms_db", f"{self.exchange}_db")
-        self.dbms_history_entity_name = config_input.get("name", f"{self.exchange}_history_{self.history_timeframe}")
+        dbms_host: str
 
-        self.creds_path = config_input.get("creds_path", self.working_dir)
-        self.relevant_assets_cap = config_input.get("relevant_assets_cap", 100)
+        The fully qualified domain name (FQDN) of the database management system,
+        such as "localhost" or a remote address. "docker_postgres" is the default for the docker container.
+        """
+        self.dbms_host = self.config_input.get("dbms_host", "docker_postgres")
 
-        self.trader_id = config_input.get("id", 1)
-        self.moving_window_hours = config_input.get("moving_window_hours", 20)
-        self.moving_window_increments = hours_to_increments(self.moving_window_hours, self.candle_interval)
-        self.budget = float(config_input.get("budget", 0))
-        self.buy_opportunity_factor = config_input.get("buy_opportunity_factor", 0.0)
-        self.buy_opportunity_boundary = config_input.get("buy_opportunity_boundary", 0.02)
-        self.profit_factor = config_input.get("profit_factor", 0.05)
-        self.profit_ratio_limit = config_input.get("profit_ratio_limit", 1.01)
-        self.prefer_performance = config_input.get("prefer_performance", 0)
-        self.amount_invest_fiat = config_input.get("amount_invest_fiat", 0)
-        # TODO: Implement max_buy_per_asset > 1
-        self.max_buy_per_asset = config_input.get("max_buy_per_asset", 1)
-        self.hold_time_limit = config_input.get("hold_time_limit", 10000)
-        self.investment_cap = config_input.get("investment_cap", 0)
-        self.maker_fee = config_input.get("maker_fee", 0.10)
-        self.taker_fee = config_input.get("taker_fee", 0.20)
-        self.use_dbms = config_input.get("use_dbms", True)
-        self.is_sim = config_input.get("dry_run", False)
-        # Simulator specific
-        self.index_start = config_input.get("index_start", 0)
-        self.snapshot_size = config_input.get("snapshot_size", -1)
-        self.snapshot_amount = config_input.get("snapshot_amount", 1)
-        self.sim_start_delta = config_input.get("sim_start_delta", None)
-        self.sim_timeframe = config_input.get("sim_timeframe", None)
+        """
+        dbms_port: int
+        The port number of the DBMS.
+        """
+        self.dbms_port = int(self.config_input.get("dbms_port", 5432))
 
-        # Following assets are either stable coins or not tradable without verification on bitfinex
+        """
+        dbms_user: str
+        Username of the dbms_db. "postgres" is the default user of the postgres docker container.
+        """
+        self.dbms_user = self.config_input.get("dbms_user", "postgres")
+
+        """
+        dbms_pw: str
+        The password for the database. "postgres" is the default password of the postgres docker container.
+        """
+        self.dbms_pw = self.config_input.get("dbms_pw", "postgres")
+
+        """
+        dbms_connect_db: "postgres"
+
+        The name of an existing database to connect to when creating a new database:
+        Specific to SQL DBMS like Postgres.
+        """
+        self.dbms_connect_db = self.config_input.get("dbms_connect_db", "postgres")
+
+        """
+        dbms_db: str
+        The name of the database to use. Gets created if it does not exist.
+        """
+        self.dbms_db = self.config_input.get("dbms_db", f"{self.exchange}_db")
+
+        """
+        dbms_history_entity_name: str
+        The name of the entity (TABLE in Postgres or COLLECTION in MongoDB) to store candle history data.
+        """
+        self.dbms_history_entity_name = self.config_input.get(
+            "name", f"{self.exchange}_history_{self.history_timeframe_days}days"
+        )
+
+        """
+        local_cache: bool
+
+        Whether to save the in-memory database to a local arrow file for faster loading in subsequent runs.
+        Gets saved in working_dir/data.
+        """
+        self.local_cache = self.config_input.get("local_cache", True)
+
+        #####################
+        # Exchange Settings
+        #####################
+
+        """
+        credentials_path: str
+
+        The path to the exchange credentials file for authenticating the private websocket connection (Live trader).
+        """
+        self.credentials_path = self.config_input.get("credentials_path", self.working_dir)
+
+        """
+        run_live: bool
+
+        Whether to run Tradeforce in live trading mode, executing the configured strategy on the exchange.
+        Needs valid credentials in credentials_path.
+        CAUTION: This is NOT a backtest / simulation. The strategy is executed on the exchange.
+        """
+        self.run_live = self.config_input.get("run_live", False)
+
+        ##############################
+        # Trader & Strategy Settings #
+        ##############################
+
+        """
+        trader_id: int
+        Unique identifier for a trader instance, useful when running multiple trading strategies on the same database.
+        """
+        self.trader_id = int(self.config_input.get("id", 1))
+
+        """
+        budget: float
+
+        Initial trading budget in base currency (e.g., USD) for the trader, used primarily for simulations.
+        In live trading, the budget is derived from the base currency balance in the exchange wallet.
+        """
+        self.budget = float(self.config_input.get("budget", 0))
+
+        """
+        amount_invest_per_asset: float
+        Amount of base currency (usually fiat, e.g., USD) to invest in each asset upon purchase.
+        """
+        self.amount_invest_per_asset = self.config_input.get("amount_invest_per_asset", 0.0)
+
+        """
+        relevant_assets_cap: int
+        Maximum number of assets to consider for trading or simulations, applied after filtering for relevant assets.
+        """
+        self.relevant_assets_cap = int(self.config_input.get("relevant_assets_cap", 100))
+
+        """
+        moving_window_hours: int
+
+        Timeframe (in hours) for the moving window used in the simulation strategy,
+        affecting the aggregation of various metrics for each asset.
+        e.g. the mean or any other metric, like buy_performance_score.
+        """
+        self.moving_window_hours = self.config_input.get("moving_window_hours", 20)
+
+        """
+        _moving_window_increments: int
+
+        Number of candle increments in the moving window, derived from candle_interval and moving_window_hours.
+        Not intended for manual configuration.
+        """
+        self._moving_window_increments = hours_to_increments(self.moving_window_hours, self.candle_interval)
+
+        # Default trading strategy parameters
+        """
+        buy_performance_score: float
+
+        Performance score of an asset within the moving window.
+        In the default strategy implementation typically calculated
+        as the "sum of percentage changes" within the window.
+        """
+        self.buy_performance_score = self.config_input.get("buy_performance_score", 0.0)
+
+        """
+        buy_performance_boundary: float
+
+        Lower and upper limit for the buy_performance_score,
+        defining a range of acceptable scores for purchasing assets.
+        e.g. 0.02 means the buy_performance_score must be +/-0.01 buy_performance_score to be considered for purchase.
+        """
+        self.buy_performance_boundary = self.config_input.get("buy_performance_boundary", 0.02)
+
+        """
+        buy_performance_preference: -1, 0, 1
+
+        Preference for buying assets with performance
+        positive (1) -> decending, higher values prefered,
+        negative (-1) -> ascending, lower values prefered,
+        or closest to the buy_performance_score (0).
+        """
+        self.buy_performance_preference = self.config_input.get("buy_performance_preference", 1)
+
+        """
+        profit_factor_target: float, positive
+
+        Target profit factor for each asset.
+        e.g. 1.05 represents a target of 5% profit on each trade.
+        """
+        self.profit_factor_target = self.config_input.get("profit_factor_target", 0.05)
+
+        """
+        profit_factor_target_min: float
+
+        Minimum profit factor after _hold_time_increments,
+        allowing the trader to sell assets at lower profits or even losses.
+        """
+        self.profit_factor_target_min = self.config_input.get("profit_factor_target_min", 1.01)
+
+        """
+        hold_time_days: int
+        Number of days to hold an asset before reducing the profit_factor to profit_factor_min.
+        """
+        self.hold_time_days = self.config_input.get("hold_time_days", 4)
+
+        """
+        _hold_time_increments: int
+        Conversion of hold_time_days to increments based on the candle_interval, used as an internal time reference.
+        """
+        self._hold_time_increments = hours_to_increments(24 * self.hold_time_days, self.candle_interval)
+
+        # TODO: implement max_buy_per_asset > 1
+        """
+        max_buy_per_asset: int -> currently only 1 supported
+
+        Maximum number of times a single asset can be bought,
+        useful for managing repeated purchases of an asset with a dropping price.
+        """
+        self.max_buy_per_asset = self.config_input.get("max_buy_per_asset", 1)
+
+        # TODO: implement investment_cap for live trader
+        """
+        investment_cap: float, currently only implemented for simulations
+
+        Maximum amount of budget (in base currency) that can be invested in the market simultaneously,
+        useful for limiting reinvestment of profits.
+
+        """
+        self.investment_cap = self.config_input.get("investment_cap", 0.0)
+
+        """
+        maker_fee: float
+
+        Maker fee percentage for the exchange, used to calculate fees in simulated trades.
+        In live trading, actual fees from the exchange API are used.
+        """
+        self.maker_fee = self.config_input.get("maker_fee", 0.10)
+
+        """
+        taker_fee: float
+
+        Taker fee percentage for the exchange, used to calculate fees in simulated trades.
+        In live trading, actual fees from the exchange API are used.
+        """
+        self.taker_fee = self.config_input.get("taker_fee", 0.20)
+
+        ####################
+        # Simulator Config #
+        ####################
+
+        """
+        subset_size_days: int, days
+
+        Size (in days) of subsets within the entire market candle history,
+        used to partition the market and test the strategy on different conditions for robustness and generalizability:
+        Increases the variance of simulated history data and lowers the risk of overfitting.
+        If a strategy works well on most subsets, it should also work well on the whole market.
+        -1 means no subsets, the whole market is used.
+        """
+        self.subset_size_days = self.config_input.get("subset_size_days", -1)
+
+        """
+        _subset_size_increments: int
+
+        Conversion of subset_size_days to increments based on the candle_interval.
+        Not intended for manual configuration.
+        """
+        self._subset_size_increments = hours_to_increments(24 * self.subset_size_days, self.candle_interval)
+
+        """
+        subset_amount: int
+
+        Number of subsets to create from the entire market history,
+        with starting points evenly distributed across the history.
+        Overlapping subsets are possible if:
+        subset_amount * subset_size_days > history_timeframe_days.
+        """
+        self.subset_amount = self.config_input.get("subset_amount", 1)
+
+        """
+        assets_excluded: list of symbols
+        Assets that are stable coins or otherwise unsuitable for trading, to be excluded.
+        """
         self.assets_excluded = [
             "UDC",
             "UST",
@@ -225,6 +455,36 @@ class Config:
             "ETH2X",
             "SPELL",
         ]
+
+        #########################
+        # Legacy config options #
+        # Maybe deprecated      #
+        #########################
+
+        self.use_dbms = self.config_input.get("use_dbms", True)
+        self.is_sim = self.config_input.get("dry_run", False)
+
+    def load_config(self, config_input):
+        self.config_input = config_input if config_input else {}
+        config_type = "dict"
+
+        # Load config.yaml file if no config dict is provided
+        if not self.config_input:
+            self.config_input, config_type = try_config_paths(config_paths)
+        if not self.config_input:
+            raise SystemExit(
+                "No config file found. Please provide a config.yaml file or a config dict. "
+                + f"Current search paths: {os.path.abspath('')}/config.yaml "
+                + f"and {os.path.abspath('')}/config/config.yaml"
+            )
+
+        self.log.info("Loading config via %s", config_type)
+        return flatten_dict(self.config_input)
+
+    def set_config_as_attr(self, config_input: dict):
+        # Set all config values as attributes. This ensures that user defined config keys are also accessible.
+        for config_key, config_val in config_input.items():
+            setattr(self, config_key, config_val)
 
     def to_dict(self, for_sim=True):
         """Return a dict of the Config object's attributes.

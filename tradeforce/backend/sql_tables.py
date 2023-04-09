@@ -7,13 +7,14 @@ from psycopg2.sql import SQL, Identifier
 # Prevent circular import for type checking
 if TYPE_CHECKING:
     from tradeforce.main import Tradeforce
+    from tradeforce.backend import BackendSQL
     from psycopg2.extensions import cursor
 
 
 class CreateTables:
-    def __init__(self, root: Tradeforce) -> None:
+    def __init__(self, root: Tradeforce, backend: BackendSQL) -> None:
         self.root = root
-        self.backend = root.backend
+        self.backend = backend
         self.config = root.config
         self.log = root.logging.get_logger(__name__)
 
@@ -38,12 +39,12 @@ class CreateTables:
             "CREATE TABLE {table_name} ("
             + "trader_id INTEGER NOT NULL,"
             + "gid BIGINT NOT NULL,"
-            + "moving_window_increments BIGINT NOT NULL,"
+            + "_moving_window_increments BIGINT NOT NULL,"
             + "budget NUMERIC NOT NULL,"
-            + "buy_opportunity_factor NUMERIC NOT NULL,"
-            + "buy_opportunity_boundary NUMERIC NOT NULL,"
-            + "profit_factor NUMERIC NOT NULL,"
-            + "amount_invest_fiat NUMERIC NOT NULL,"
+            + "buy_performance_score NUMERIC NOT NULL,"
+            + "buy_performance_boundary NUMERIC NOT NULL,"
+            + "profit_factor_target NUMERIC NOT NULL,"
+            + "amount_invest_per_asset NUMERIC NOT NULL,"
             + "maker_fee NUMERIC NOT NULL,"
             + "taker_fee NUMERIC NOT NULL,"
             + "PRIMARY KEY (gid)"
@@ -63,10 +64,10 @@ class CreateTables:
             + "base_currency VARCHAR(10) NOT NULL,"
             + "price_buy NUMERIC(10,8) NOT NULL,"
             + "price_profit NUMERIC(10,8) NOT NULL,"
-            + "amount_invest_fiat NUMERIC(10,2) NOT NULL,"
+            + "amount_invest_per_asset NUMERIC(10,2) NOT NULL,"
             + "buy_volume_fiat NUMERIC(10,2) NOT NULL,"
             + "buy_fee_fiat NUMERIC(5,12) NOT NULL,"
-            + "buy_volume_crypto NUMERIC(10,16) NOT NULL,"
+            + "buy_volume_asset NUMERIC(10,16) NOT NULL,"
             + "sell_order_id BIGINT,"
             + "PRIMARY KEY (gid)"
             + ");"
@@ -85,14 +86,14 @@ class CreateTables:
             + "base_currency VARCHAR(10) NOT NULL,"
             + "price_buy NUMERIC(10,8) NOT NULL,"
             + "price_profit NUMERIC(10,8) NOT NULL,"
-            + "amount_invest_fiat NUMERIC(10,2) NOT NULL,"
+            + "amount_invest_per_asset NUMERIC(10,2) NOT NULL,"
             + "buy_volume_fiat NUMERIC(10,2) NOT NULL,"
             + "buy_fee_fiat NUMERIC(5,12) NOT NULL,"
-            + "buy_volume_crypto NUMERIC(10,16) NOT NULL,"
+            + "buy_volume_asset NUMERIC(10,16) NOT NULL,"
             + "sell_order_id BIGINT,"
             + "timestamp_sell BIGINT,"
             + "price_sell NUMERIC(10,8) NOT NULL,"
-            + "sell_volume_crypto NUMERIC(10,16) NOT NULL,"
+            + "sell_volume_asset NUMERIC(10,16) NOT NULL,"
             + "sell_fee_fiat NUMERIC(5,12) NOT NULL,"
             + "sell_volume_fiat NUMERIC(10,2) NOT NULL,"
             + "profit_fiat NUMERIC(10,2) NOT NULL,"

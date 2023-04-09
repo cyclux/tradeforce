@@ -24,7 +24,7 @@ CONFIG = {
         "exchange": "bitfinex",
         "base_currency": "USD",
         "candle_interval": "5min",
-        "history_timeframe": "60days",
+        "history_timeframe_days": 60,
         "update_mode": "live",  # none, once or live
     },
 }

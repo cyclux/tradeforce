@@ -125,15 +125,15 @@ def get_reference_index(timeframe: dict[str, pd.Timestamp], freq="5min") -> pd.D
     return df_datetime_index
 
 
-def calc_fee(config, volume_crypto, price_current, order_type):
+def calc_fee(config, volume_asset, price_current, order_type):
     """Calculate fees for buy and sell orders.
     exchange_fee is either taker or maker fee depending on order type."""
-    volume_crypto = abs(volume_crypto)
+    volume_asset = abs(volume_asset)
     exchange_fee = config.taker_fee if order_type == "buy" else config.maker_fee
-    amount_fee_crypto = (volume_crypto / 100) * exchange_fee
-    volume_crypto_incl_fee = volume_crypto - amount_fee_crypto
-    amount_fee_fiat = np.round(amount_fee_crypto * price_current, 3)
-    return volume_crypto_incl_fee, amount_fee_crypto, amount_fee_fiat
+    amount_fee_asset = (volume_asset / 100) * exchange_fee
+    volume_asset_incl_fee = volume_asset - amount_fee_asset
+    amount_fee_fiat = np.round(amount_fee_asset * price_current, 3)
+    return volume_asset_incl_fee, amount_fee_asset, amount_fee_fiat
 
 
 def monkey_patch(root: Tradeforce, pre_process, buy_strategy, sell_strategy) -> None:
@@ -202,18 +202,18 @@ def get_metric_labels():
         "buy_factor",
         "row_index_buy",
         "price_buy",
-        "price_incl_profit_factor",
-        "amount_invest_fiat",
-        "amount_invest_crypto",
+        "price_incl_profit_factor_target",
+        "amount_invest_per_asset",
+        "amount_invest_asset",
         "amount_fee_buy_fiat",
         "budget",
         "row_index_sell",
         "price_sell",
         "amount_sold_fiat",
-        "amount_sold_crypto",
+        "amount_sold_asset",
         "amount_fee_sell_fiat",
         "amount_profit_fiat",
-        "value_crypto_in_fiat",
+        "value_asset_in_fiat",
         "total_value",
         "buy_orders",
     ]
@@ -260,7 +260,7 @@ def get_sim_metrics_df(sim_trades_history_array, market_history_instance):
     return sim_trades_history_df
 
 
-# def get_snapshot_indices(snapshot_idx_boundary, snapshot_amount=10, snapshot_size=10000):
-#     snapshot_idx_boundary = snapshot_idx_boundary - snapshot_size
-#     snapshot_idxs = np.linspace(0, snapshot_idx_boundary, snapshot_amount).astype(np.int64)
-#     return snapshot_idxs
+# def get_subset_indices(subset_idx_boundary, subset_amount=10, _subset_size_increments=10000):
+#     subset_idx_boundary = subset_idx_boundary - _subset_size_increments
+#     subset_idxs = np.linspace(0, subset_idx_boundary, subset_amount).astype(np.int64)
+#     return subset_idxs

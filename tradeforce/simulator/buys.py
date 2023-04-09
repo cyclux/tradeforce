@@ -16,19 +16,19 @@ def buy_asset(
     buy_option_idx,
     row_idx,
     price_current,
-    profit_factor,
-    amount_invest_fiat,
+    profit_factor_target,
+    amount_invest_per_asset,
     maker_fee,
     taker_fee,
     budget,
 ):
-    price_profit = price_current * profit_factor
-    amount_invest_crypto = amount_invest_fiat / price_current
-    amount_invest_crypto_incl_fee, _, amount_fee_buy_fiat = sim_utils.calc_fee(
-        amount_invest_crypto, maker_fee, taker_fee, price_current, "buy"
+    price_profit = price_current * profit_factor_target
+    amount_invest_asset = amount_invest_per_asset / price_current
+    amount_invest_asset_incl_fee, _, amount_fee_buy_fiat = sim_utils.calc_fee(
+        amount_invest_asset, maker_fee, taker_fee, price_current, "buy"
     )
-    amount_invest_fiat_incl_fee = amount_invest_fiat - amount_fee_buy_fiat
-    budget -= amount_invest_fiat
+    amount_invest_per_asset_incl_fee = amount_invest_per_asset - amount_fee_buy_fiat
+    budget -= amount_invest_per_asset
     bought_asset_params = np.array(
         [
             [
@@ -37,8 +37,8 @@ def buy_asset(
                 row_idx,
                 price_current,
                 price_profit,
-                amount_invest_fiat_incl_fee,
-                amount_invest_crypto_incl_fee,
+                amount_invest_per_asset_incl_fee,
+                amount_invest_asset_incl_fee,
                 amount_fee_buy_fiat,
                 budget,
             ]
@@ -55,7 +55,6 @@ def check_buy(params, df_asset_prices_pct, df_asset_performance, buybag, history
     for buy_option_idx in list_buy_options:
         price_current = history_prices_row[buy_option_idx]
         if buy_option_idx in buybag[:, 0:1]:
-
             buybag_idxs = buybag[:, 0:1]
             buybag_idx = np.where(buybag_idxs == buy_option_idx)[0]
             asset_buy_prices = buybag[buybag_idx, 3]
@@ -69,13 +68,13 @@ def check_buy(params, df_asset_prices_pct, df_asset_performance, buybag, history
         if investment_total >= params["investment_cap"] > 0:
             continue
 
-        if budget >= params["amount_invest_fiat"]:
+        if budget >= params["amount_invest_per_asset"]:
             bought_asset_params, budget = buy_asset(
                 buy_option_idx,
                 params["row_idx"],
                 price_current,
-                params["profit_factor"],
-                params["amount_invest_fiat"],
+                params["profit_factor_target"],
+                params["amount_invest_per_asset"],
                 params["maker_fee"],
                 params["taker_fee"],
                 budget,

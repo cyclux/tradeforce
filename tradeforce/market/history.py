@@ -209,14 +209,17 @@ class MarketHistory:
 
         if self.root.assets_list_symbols is not None:
             end = await self.root.exchange_api.get_latest_remote_candle_timestamp()
-            start = get_time_minus_delta(end, delta=self.config.history_timeframe)["timestamp"]
+            start = get_time_minus_delta(end, delta=f"{self.config.history_timeframe_days}days")["timestamp"]
 
             self._postgres_create_history_table()
         else:
             await self._fetch_market_history_and_update()
 
             latest_local_candle_timestamp = self.get_local_candle_timestamp(position="latest")
-            start_time = get_time_minus_delta(latest_local_candle_timestamp, delta=self.config.history_timeframe)
+
+            start_time = get_time_minus_delta(
+                latest_local_candle_timestamp, delta=f"{self.config.history_timeframe_days}days"
+            )
             start = start_time["timestamp"]
 
             first_local_candle_timestamp = self.get_local_candle_timestamp(position="first")
@@ -225,7 +228,7 @@ class MarketHistory:
 
         self.log.info(
             "Fetching %s (%s - %s) of market history from %s assets",
-            self.config.history_timeframe,
+            f"{self.config.history_timeframe_days} days",
             start,
             end,
             len(self.root.assets_list_symbols),

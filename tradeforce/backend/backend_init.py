@@ -84,7 +84,7 @@ class Backend(ABC):
             + f"{quote_plus(self.config.dbms_user) if self.config.dbms_user else ''}"
             + f"{':' + quote_plus(self.config.dbms_pw) + '@' if self.config.dbms_pw else ''}"
             + f"{self.config.dbms_host}"
-            + f":{self.config.dbms_port}"
+            + f":{str(self.config.dbms_port)}"
             + f"/{db_name}"
         )
         return dbms_uri
@@ -253,12 +253,12 @@ class Backend(ABC):
     def create_new_trader_status(self, trader_id: str) -> None:
         trader_status = {
             "trader_id": trader_id,
-            "moving_window_increments": self.config.moving_window_increments,
+            "_moving_window_increments": self.config._moving_window_increments,
             "budget": self.config.budget,
-            "buy_opportunity_factor": self.config.buy_opportunity_factor,
-            "buy_opportunity_boundary": self.config.buy_opportunity_boundary,
-            "profit_factor": self.config.profit_factor,
-            "amount_invest_fiat": self.config.amount_invest_fiat,
+            "buy_performance_score": self.config.buy_performance_score,
+            "buy_performance_boundary": self.config.buy_performance_boundary,
+            "profit_factor_target": self.config.profit_factor_target,
+            "amount_invest_per_asset": self.config.amount_invest_per_asset,
             "maker_fee": self.config.maker_fee,
             "taker_fee": self.config.taker_fee,
             "gid": self.root.trader.gid,

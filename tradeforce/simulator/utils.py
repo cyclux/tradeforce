@@ -13,10 +13,10 @@ NB_CACHE = True
 # legacy params, but may be useful with other params
 def numba_dict_defaults(sim_params):
     set_default_params = [
-        "buy_opportunity_factor",
-        "buy_opportunity_boundary",
-        "buy_opportunity_factor_min",
-        "buy_opportunity_factor_max",
+        "buy_performance_score",
+        "buy_performance_boundary",
+        "buy_performance_score_min",
+        "buy_performance_score_max",
     ]
     for default_param in set_default_params:
         sim_params[default_param] = sim_params.get(default_param, 999)
@@ -25,9 +25,7 @@ def numba_dict_defaults(sim_params):
 
 def to_numba_dict(sim_params):
     # sim_params = numba_dict_defaults(sim_params)
-    sim_params_numba = nb_types.Dict.empty(
-        key_type=types.unicode_type, value_type=types.float64
-    )
+    sim_params_numba = nb_types.Dict.empty(key_type=types.unicode_type, value_type=types.float64)
     for key, val in sim_params.items():
         sim_params_numba[key] = np.float64(val)
     return sim_params_numba
@@ -35,45 +33,45 @@ def to_numba_dict(sim_params):
 
 # TODO: Do this before numba compilation and pre_process
 @nb.njit(cache=NB_CACHE, parallel=False)
-def check_min_snapshot_size(snapshot_size, snapshot_amount, snapshot_idx_boundary):
-    if snapshot_size < 100:
-        print("[WARNING]: snapshot_size is very small: ", snapshot_size)
-    if snapshot_size < 1:
+def check_min__subset_size_increments(_subset_size_increments, subset_amount, subset_idx_boundary):
+    if _subset_size_increments < 100:
+        print("[WARNING]: _subset_size_increments is very small: ", _subset_size_increments)
+    if _subset_size_increments < 1:
         print(
-            "[ERROR] snapshot_size is",
-            int(snapshot_size),
+            "[ERROR] _subset_size_increments is",
+            int(_subset_size_increments),
             ".Please check your parameters.",
-            "snapshot_amount:",
-            int(snapshot_amount),
-            "| snapshot_idx_boundary: ",
-            int(snapshot_idx_boundary),
+            "subset_amount:",
+            int(subset_amount),
+            "| subset_idx_boundary: ",
+            int(subset_idx_boundary),
         )
-    if snapshot_size > snapshot_idx_boundary:
+    if _subset_size_increments > subset_idx_boundary:
         print(
-            "[ERROR] snapshot_size > snapshot_idx_boundary:",
-            int(snapshot_size),
+            "[ERROR] _subset_size_increments > subset_idx_boundary:",
+            int(_subset_size_increments),
             ">",
-            int(snapshot_idx_boundary),
-            "| snapshot_amount:",
-            int(snapshot_amount),
+            int(subset_idx_boundary),
+            "| subset_amount:",
+            int(subset_amount),
         )
-    return snapshot_size
+    return _subset_size_increments
 
 
 @nb.njit(cache=NB_CACHE, parallel=False)
-def sanitize_snapshot_params(params, snapshot_idx_boundary):
-    snapshot_size = params["snapshot_size"]
-    snapshot_amount = np.int64(params["snapshot_amount"])
-    if snapshot_size <= 0:
-        snapshot_size = -1
-    if snapshot_amount <= 0:
-        snapshot_amount = 1
-    if snapshot_amount == 1 and snapshot_size == -1:
-        snapshot_size = snapshot_idx_boundary
-    if snapshot_amount > 1 and snapshot_size == -1:
-        snapshot_size = snapshot_idx_boundary // snapshot_amount
-    check_min_snapshot_size(snapshot_size, snapshot_amount, snapshot_idx_boundary)
-    return snapshot_size, snapshot_amount
+def sanitize_subset_params(params, subset_idx_boundary):
+    _subset_size_increments = params["_subset_size_increments"]
+    subset_amount = np.int64(params["subset_amount"])
+    if _subset_size_increments <= 0:
+        _subset_size_increments = -1
+    if subset_amount <= 0:
+        subset_amount = 1
+    if subset_amount == 1 and _subset_size_increments == -1:
+        _subset_size_increments = subset_idx_boundary
+    if subset_amount > 1 and _subset_size_increments == -1:
+        _subset_size_increments = subset_idx_boundary // subset_amount
+    check_min__subset_size_increments(_subset_size_increments, subset_amount, subset_idx_boundary)
+    return _subset_size_increments, subset_amount
 
 
 # currently not used
@@ -95,27 +93,25 @@ def fill_nan(nd_array):
 
 
 @nb.njit(cache=NB_CACHE, parallel=False)
-def calc_fee(volume_crypto, maker_fee, taker_fee, prices_current, order_type):
-    volume_crypto = np.absolute(volume_crypto)
+def calc_fee(volume_asset, maker_fee, taker_fee, prices_current, order_type):
+    volume_asset = np.absolute(volume_asset)
     exchange_fee = taker_fee if order_type == "buy" else maker_fee
-    amount_fee_crypto = (volume_crypto / 100) * exchange_fee
-    volume_crypto_incl_fee = volume_crypto - amount_fee_crypto
-    amount_fee_fiat = amount_fee_crypto * prices_current
-    return volume_crypto_incl_fee, amount_fee_crypto, amount_fee_fiat
+    amount_fee_asset = (volume_asset / 100) * exchange_fee
+    volume_asset_incl_fee = volume_asset - amount_fee_asset
+    amount_fee_fiat = amount_fee_asset * prices_current
+    return volume_asset_incl_fee, amount_fee_asset, amount_fee_fiat
 
 
 @nb.njit(cache=NB_CACHE, parallel=False)
-def get_snapshot_indices(
-    moving_window_increments,
-    snapshot_idx_boundary,
-    snapshot_amount=10,
-    snapshot_size=10000,
+def get_subset_indices(
+    _moving_window_increments,
+    subset_idx_boundary,
+    subset_amount=10,
+    _subset_size_increments=10000,
 ):
-    snapshot_idx_boundary = np.int64(snapshot_idx_boundary - snapshot_size)
-    snapshot_idxs = np.linspace(
-        moving_window_increments, snapshot_idx_boundary, snapshot_amount
-    ).astype(np.int64)
-    return snapshot_idxs
+    subset_idx_boundary = np.int64(subset_idx_boundary - _subset_size_increments)
+    subset_idxs = np.linspace(_moving_window_increments, subset_idx_boundary, subset_amount).astype(np.int64)
+    return subset_idxs
 
 
 @nb.njit(cache=NB_CACHE, parallel=NB_PARALLEL)
@@ -126,9 +122,7 @@ def calc_metrics(soldbag):
 
 @nb.njit(cache=NB_CACHE, parallel=True)
 def get_pct_change(df_history_prices):
-    df_history_prices_pct = (
-        df_history_prices[1:, :] - df_history_prices[:-1, :]
-    ) / df_history_prices[1:, :]
+    df_history_prices_pct = (df_history_prices[1:, :] - df_history_prices[:-1, :]) / df_history_prices[1:, :]
     amount_zeros = df_history_prices_pct.shape[-1]
     zeros = np.zeros((1, amount_zeros))
     df_history_prices_pct = np.vstack((zeros, df_history_prices_pct))
@@ -137,11 +131,7 @@ def get_pct_change(df_history_prices):
 
 @nb.njit(cache=NB_CACHE, parallel=False)
 def get_current_window(params, df_history_prices_pct):
-    moving_window_start = np.int64(
-        params["row_idx"] - params["moving_window_increments"]
-    )
+    moving_window_start = np.int64(params["row_idx"] - params["_moving_window_increments"])
     moving_window_end = np.int64(params["row_idx"])
-    moving_window_history_prices_pct = df_history_prices_pct[
-        moving_window_start:moving_window_end
-    ]
+    moving_window_history_prices_pct = df_history_prices_pct[moving_window_start:moving_window_end]
     return moving_window_history_prices_pct

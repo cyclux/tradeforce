@@ -86,7 +86,10 @@ async def get_init_relevant_assets(root: Tradeforce, capped=-1) -> DictRelevantA
     root.log.info("Analyzing market for relevant assets...")
     # Max cap is 34 days which is ~ 10000 [5 min candle increments] candles.
     # This is the limit of the Bitfinex REST API for one request.
-    init_timespan = "34days" if int(root.config.history_timeframe[:-4]) >= 34 else root.config.history_timeframe
+    # TODO: make it dynamic
+    init_timespan = (
+        "34days" if root.config.history_timeframe_days >= 34 else f"{root.config.history_timeframe_days}days"
+    )
     init_market_history = await root.market_updater_api.update_market_history(init_timespan=init_timespan)
     df_relevant_assets_metrics = get_asset_performance_metrics(init_market_history, root.config.candle_interval).query(
         "amount_candles > 2000 & candle_density < 500"
@@ -140,13 +143,13 @@ def get_asset_volatility(df_input: pd.DataFrame, candle_interval: str):
     ).sort_values()
 
 
-def get_asset_buy_performance(root: Tradeforce, moving_window_increments=1800, timestamp=None):
-    start = -1 * moving_window_increments
+def get_asset_buy_performance(root: Tradeforce, _moving_window_increments=1800, timestamp=None):
+    start = -1 * _moving_window_increments
     end = None
     idx_type = "iloc"
     if timestamp is not None:
         idx_type = "loc"
-        start = timestamp - (moving_window_increments * 300000)
+        start = timestamp - (_moving_window_increments * 300000)
         end = timestamp
     market_window_pct_change = root.market_history.get_market_history(
         start=start,
@@ -159,13 +162,13 @@ def get_asset_buy_performance(root: Tradeforce, moving_window_increments=1800, t
         uniform_cols=True,
     )
     tollerance = 5
-    if len(market_window_pct_change) + tollerance < moving_window_increments:
-        difference = moving_window_increments - len(market_window_pct_change)
+    if len(market_window_pct_change) + tollerance < _moving_window_increments:
+        difference = _moving_window_increments - len(market_window_pct_change)
         root.log.warning(
             "Missing %s candle entries to calculate the asset performance with set "
-            + "'moving_window_increments'=%s Check DB consistency if the number of missing candles grows.",
+            + "'_moving_window_increments'=%s Check DB consistency if the number of missing candles grows.",
             str(difference),
-            str(moving_window_increments),
+            str(_moving_window_increments),
         )
     buy_performance = market_window_pct_change.sum()
     return buy_performance

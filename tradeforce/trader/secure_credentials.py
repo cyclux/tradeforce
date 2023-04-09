@@ -34,7 +34,7 @@ class SecureCredentials:
         self.log = root.logging.get_logger(__name__)
         self.api_key: str | None = None
         self.api_secret: str | None = None
-        self.credentials_file = os.path.join(root.config.creds_path, "credentials")
+        self.credentials_file = os.path.join(root.config.credentials_path, "credentials")
         self.encrypted_credentials_data: bytes | None = None
         self.credentials_salt: bytes | None = None
         self.credentials_exist_on_file = False

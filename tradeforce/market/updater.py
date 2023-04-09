@@ -66,7 +66,7 @@ class MarketUpdater:
         start_timestamp = self.root.market_history.get_local_candle_timestamp(position="latest")
         if start_timestamp == 0:
             start_timestamp = await self.root.exchange_api.get_latest_remote_candle_timestamp(
-                minus_delta=self.root.market_history.history_timeframe
+                minus_delta=f"{self.root.market_history.history_timeframe_days}days"
             )
         else:
             candle_freq_in_ms = get_timedelta(self.config.candle_interval)["timestamp"]

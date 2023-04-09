@@ -48,50 +48,50 @@ def get_latest_prices_and_timestamp(root: Tradeforce) -> tuple[dict, int]:
 
 
 def filter_buy_performance(
-    buy_performance: pd.Series, buy_opportunity_factor: float, buy_opportunity_boundary: float
+    buy_performance: pd.Series, buy_performance_score: float, buy_performance_boundary: float
 ) -> pd.Series:
     """
     Filter buy performance based on buy opportunity factors and boundaries.
 
     Args:
         buy_performance:          The buy performance series.
-        buy_opportunity_factor:   The buy opportunity factor.
-        buy_opportunity_boundary: The buy opportunity boundary.
+        buy_performance_score:   The buy opportunity factor.
+        buy_performance_boundary: The buy opportunity boundary.
 
     Returns:
         A filtered buy performance series.
     """
-    buy_opportunity_factor_min = buy_opportunity_factor - buy_opportunity_boundary
-    buy_opportunity_factor_max = buy_opportunity_factor + buy_opportunity_boundary
-    buy_condition = (buy_performance >= buy_opportunity_factor_min) & (buy_performance <= buy_opportunity_factor_max)
+    buy_performance_score_min = buy_performance_score - buy_performance_boundary
+    buy_performance_score_max = buy_performance_score + buy_performance_boundary
+    buy_condition = (buy_performance >= buy_performance_score_min) & (buy_performance <= buy_performance_score_max)
     return buy_performance[buy_condition]
 
 
 def filter_and_sort_buy_options(
-    df_buy_options: pd.DataFrame, prefer_performance: int, buy_opportunity_factor: float
+    df_buy_options: pd.DataFrame, buy_performance_preference: int, buy_performance_score: float
 ) -> pd.DataFrame:
     """
     Filter and sort buy options based on performance preference and buy opportunity factor.
     Performance means average profit per unit of time.
     Performance preference means that the buy options are sorted by performance in ascending or descending order.
-    prefer_performance == -1 means that those assets with the lowest performance are preferred.
-    prefer_performance == 1 means that those assets with the highest performance are preferred.
-    prefer_performance == 0 means that those assets closest to the buy opportunity factor are preferred.
+    buy_performance_preference == -1 means that those assets with the lowest performance are preferred.
+    buy_performance_preference == 1 means that those assets with the highest performance are preferred.
+    buy_performance_preference == 0 means that those assets closest to the buy opportunity factor are preferred.
 
     Args:
         df_buy_options:         The dataframe containing buy options.
-        prefer_performance:     Performance preference (-1 for low, 0 for neutral, 1 for high).
-        buy_opportunity_factor: The buy opportunity factor.
+        buy_performance_preference:     Performance preference (-1 for low, 0 for neutral, 1 for high).
+        buy_performance_score: The buy opportunity factor.
 
     Returns:
         A filtered and sorted dataframe of buy options.
     """
-    if prefer_performance == -1:
+    if buy_performance_preference == -1:
         df_buy_options = df_buy_options.sort_values(by="perf", ascending=True)
-    elif prefer_performance == 1:
+    elif buy_performance_preference == 1:
         df_buy_options = df_buy_options.sort_values(by="perf", ascending=False)
-    elif prefer_performance == 0:
-        df_buy_options.loc[:, "perf"] = np.absolute(df_buy_options["perf"] - buy_opportunity_factor)
+    elif buy_performance_preference == 0:
+        df_buy_options.loc[:, "perf"] = np.absolute(df_buy_options["perf"] - buy_performance_score)
         df_buy_options = df_buy_options.sort_values(by="perf")
 
     return df_buy_options
@@ -138,16 +138,16 @@ def check_buy_options(root: Tradeforce, latest_prices: dict | None = None, times
         latest_prices, timestamp = get_latest_prices_and_timestamp(root)
 
     buy_performance = get_asset_buy_performance(
-        root, moving_window_increments=root.config.moving_window_increments, timestamp=timestamp
+        root, _moving_window_increments=root.config._moving_window_increments, timestamp=timestamp
     )
 
     if buy_performance is not None:
         buy_performance = filter_buy_performance(
-            buy_performance, root.config.buy_opportunity_factor, root.config.buy_opportunity_boundary
+            buy_performance, root.config.buy_performance_score, root.config.buy_performance_boundary
         )
         df_buy_options = pd.DataFrame({"perf": buy_performance, "price": latest_prices}).dropna()
         df_buy_options = filter_and_sort_buy_options(
-            df_buy_options, root.config.prefer_performance, root.config.buy_opportunity_factor
+            df_buy_options, root.config.buy_performance_preference, root.config.buy_performance_score
         )
         df_buy_options.reset_index(names=["asset"], inplace=True)
         buy_options = df_buy_options.to_dict("records")
@@ -165,7 +165,7 @@ async def update_sim_budget(root: Tradeforce) -> None:
         root: The main Tradeforce instance.
     """
 
-    new_budget = float(np.round(root.config.budget - root.config.amount_invest_fiat, 2))
+    new_budget = float(np.round(root.config.budget - root.config.amount_invest_per_asset, 2))
     root.backend.update_status({"budget": new_budget})
 
 
@@ -191,15 +191,15 @@ async def execute_buy_order(root: Tradeforce, buy_order: dict) -> bool:
     return True
 
 
-async def process_buy_order(root: Tradeforce, asset_symbol: str, price: float, buy_amount_crypto: float) -> bool:
+async def process_buy_order(root: Tradeforce, asset_symbol: str, price: float, buy_amount_asset: float) -> bool:
     """
-    Process a buy order for a given asset symbol, price, and buy amount in crypto.
+    Process a buy order for a given asset symbol, price, and buy amount in asset.
 
     Args:
         root:              The main Tradeforce instance.
         asset_symbol:      The asset symbol.
         price:             The price of the asset.
-        buy_amount_crypto: The amount of the asset to buy in crypto.
+        buy_amount_asset: The amount of the asset to buy in asset.
 
     Returns:
         True if the buy order was successful, False otherwise.
@@ -208,7 +208,7 @@ async def process_buy_order(root: Tradeforce, asset_symbol: str, price: float, b
         "asset": asset_symbol,
         "gid": root.trader.gid,
         "price": price,
-        "amount": buy_amount_crypto,
+        "amount": buy_amount_asset,
     }
     root.log.info("Executing buy order: %s", buy_order)
 
@@ -242,30 +242,30 @@ async def should_skip_asset(root: Tradeforce, asset_symbol: str, asset: dict) ->
     return False
 
 
-async def adjust_buy_amount_crypto(root: Tradeforce, asset_symbol: str, buy_amount_crypto: float) -> float:
+async def adjust_buy_amount_asset(root: Tradeforce, asset_symbol: str, buy_amount_asset: float) -> float:
     """
-    Adjusts the buy amount of cryptocurrency to meet the minimum order size.
+    Adjusts the buy amount of assetcurrency to meet the minimum order size.
     Adds 2% to the minimum order size to account for fees.
 
     Args:
         root:              Tradeforce main instance.
         asset_symbol:      The symbol of the asset.
-        buy_amount_crypto: The initial buy amount of cryptocurrency.
+        buy_amount_asset: The initial buy amount of assetcurrency.
 
     Returns:
-        The adjusted buy amount of cryptocurrency.
+        The adjusted buy amount of assetcurrency.
     """
     min_order_size = root.trader.min_order_sizes.get(asset_symbol, 0)
-    if min_order_size > buy_amount_crypto:
+    if min_order_size > buy_amount_asset:
         root.log.info(
-            "Adapting buy_amount_crypto (%s) of %s to min_order_size (%s).",
-            buy_amount_crypto,
+            "Adapting buy_amount_asset (%s) of %s to min_order_size (%s).",
+            buy_amount_asset,
             asset_symbol,
             min_order_size,
         )
-        buy_amount_crypto = min_order_size * 1.02
+        buy_amount_asset = min_order_size * 1.02
 
-    return buy_amount_crypto
+    return buy_amount_asset
 
 
 async def process_buy_option(root: Tradeforce, asset: dict) -> tuple[bool, bool]:
@@ -287,13 +287,13 @@ async def process_buy_option(root: Tradeforce, asset: dict) -> tuple[bool, bool]
         return False, False
 
     asset["price"] *= 1.015
-    buy_amount_crypto = get_significant_digits(root.config.amount_invest_fiat / asset["price"], 9)
-    buy_amount_crypto = await adjust_buy_amount_crypto(root, asset_symbol, buy_amount_crypto)
+    buy_amount_asset = get_significant_digits(root.config.amount_invest_per_asset / asset["price"], 9)
+    buy_amount_asset = await adjust_buy_amount_asset(root, asset_symbol, buy_amount_asset)
 
-    if root.config.budget < root.config.amount_invest_fiat:
+    if root.config.budget < root.config.amount_invest_per_asset:
         return False, True
 
-    successful_execution = await process_buy_order(root, asset_symbol, asset["price"], buy_amount_crypto)
+    successful_execution = await process_buy_order(root, asset_symbol, asset["price"], buy_amount_asset)
 
     return False, not successful_execution
 
@@ -348,7 +348,7 @@ def log_summary(root: Tradeforce, assets_out_of_funds_to_buy: list[str], assets_
             len(assets_out_of_funds_to_buy),
             plural_assets_out_of_funds,
             np.round(root.config.budget, 2),
-            root.config.amount_invest_fiat,
+            root.config.amount_invest_per_asset,
             assets_out_of_funds_to_buy,
         )
     if assets_max_amount_bought:
@@ -361,7 +361,7 @@ def log_summary(root: Tradeforce, assets_out_of_funds_to_buy: list[str], assets_
         )
 
 
-def _get_buy_volume_crypto(root: Tradeforce, asset_symbol: str) -> float:
+def _get_buy_volume_asset(root: Tradeforce, asset_symbol: str) -> float:
     """
     Gets the buy volume of an asset.
 
@@ -388,10 +388,10 @@ async def _build_open_order(root: Tradeforce, buy_order: Order) -> dict:
     """
     asset_symbol, base_currency = convert_symbol_from_exchange(buy_order.symbol)
     buy_order_fee = np.round(abs(buy_order.fee), 5)
-    buy_volume_fiat = np.round(root.config.amount_invest_fiat - buy_order_fee, 5)
-    asset_price_profit = get_significant_digits(buy_order.price * root.config.profit_factor, 5)
+    buy_volume_fiat = np.round(root.config.amount_invest_per_asset - buy_order_fee, 5)
+    asset_price_profit = get_significant_digits(buy_order.price * root.config.profit_factor_target, 5)
     await asyncio_sleep(10)
-    buy_volume_crypto = _get_buy_volume_crypto(root, asset_symbol)
+    buy_volume_asset = _get_buy_volume_asset(root, asset_symbol)
 
     return {
         "trader_id": root.config.trader_id,
@@ -403,10 +403,10 @@ async def _build_open_order(root: Tradeforce, buy_order: Order) -> dict:
         "price_buy": buy_order.price,
         "price_profit": asset_price_profit,
         # TODO: "performance": asset["perf"],
-        "amount_invest_fiat": root.config.amount_invest_fiat,
+        "amount_invest_per_asset": root.config.amount_invest_per_asset,
         "buy_volume_fiat": buy_volume_fiat,
         "buy_fee_fiat": buy_order_fee,
-        "buy_volume_crypto": buy_volume_crypto,
+        "buy_volume_asset": buy_volume_asset,
     }
 
 

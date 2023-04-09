@@ -216,7 +216,6 @@ class ExchangeWebsocket:
         Args:
             ws_subscribed: The Bitfinex specific Subscription object.
         """
-        print("[DEBUG] type ws_subscribed", type(ws_subscribed))
         symbol = convert_symbol_from_exchange(ws_subscribed.symbol)[0]
         self.asset_candle_subs[symbol] = ws_subscribed
 
@@ -275,7 +274,7 @@ class ExchangeWebsocket:
         latest_candle_timestamp = self.root.market_history.get_local_candle_timestamp(position="latest")
         if latest_candle_timestamp == 0:
             latest_candle_timestamp = await self.root.exchange_api.get_latest_remote_candle_timestamp(
-                minus_delta=self.config.history_timeframe
+                minus_delta=f"{self.config.history_timeframe_days}days"
             )
         return latest_candle_timestamp
 
