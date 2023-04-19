@@ -2,53 +2,50 @@
 
 # https://gist.github.com/usr-ein/c42d98abca3cb4632ab0c2c6aff8c88a
 
+# Setup build arguments
 ARG PYTHON_VERSION=3.10.10
-# ARG PYTHON_VERSION=3.11.2 # Waiting for numba 0.57.0rc1 -> https://github.com/numba/numba/issues/8841
 ARG POETRY_VERSION=1.4.1
 ARG APP_NAME=tradeforce
 ARG APP_PATH=/opt/${APP_NAME}
 
-####################
+#------------------#
 # Stage 1: staging #
-####################
+#------------------#
 
 FROM python:${PYTHON_VERSION}-bullseye AS staging
 
+ARG POETRY_VERSION
+ARG APP_PATH
+
 ENV POETRY_HOME="/opt/poetry" \
-    #POETRY_VIRTUALENVS_IN_PROJECT=false \
     POETRY_VIRTUALENVS_CREATE=false \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONFAULTHANDLER=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=on
-ARG POETRY_VERSION
-ARG APP_PATH
 
-# POETRY_VERSION=${POETRY_VERSION} POETRY_HOME=${POETRY_HOME}
 RUN --mount=type=cache,target=/root/.cache \
     curl -sSL https://install.python-poetry.org | python3 -
-# RUN curl -sSL https://install.python-poetry.org | python3 -
+
 ENV PATH="$POETRY_HOME/bin:$PATH"
 WORKDIR ${APP_PATH}
 
-########################
+#----------------------#
 # Stage 2: development #
-########################
+#----------------------#
 FROM staging AS development
 ARG APP_PATH
+
 WORKDIR ${APP_PATH}
 COPY . .
-# COPY pyproject.toml poetry.lock ./
 RUN --mount=type=cache,target=/root/.cache \
     poetry install --with=dev
-# RUN poetry install --with=dev
 
 ENTRYPOINT ["/bin/bash"]
-#ENTRYPOINT ["poetry", "run", "python", "examples/live_trader.py"]
 
-##################
+#----------------#
 # Stage 3: build #
-##################
+#----------------#
 
 FROM staging AS build
 ARG POETRY_HOME
@@ -58,29 +55,38 @@ ARG APP_PATH
 WORKDIR ${APP_PATH}
 
 COPY pyproject.toml poetry.lock ./
-COPY --from=development $APP_PATH $APP_PATH
-
+COPY --from=development ${APP_PATH} ${APP_PATH}
 RUN --mount=type=cache,target=/root/.cache \
     poetry install --without dev --with prod \
     && poetry build --format wheel
 
-#######################
+#---------------------#
 # Stage 4: production #
-#######################
+#---------------------#
 
 FROM python:${PYTHON_VERSION}-slim-bullseye AS production
 ENV PIP_DISABLE_PIP_VERSION_CHECK=on
+
+# User and group id for non-root user
+ARG USER=tf_docker
+ARG USER_UID=1000
+ARG USER_GID=1000
+
 ARG APP_NAME
-ARG APP_PATH
+ARG APP_PATH=/home/${USER}/${APP_NAME}
 
-RUN apt-get update && apt-get install --no-install-recommends -y \
-    git
+RUN apt-get update && apt-get install --no-install-recommends -y git
 
-COPY --from=build ${APP_PATH}/dist/*.whl ./
-RUN pip install ./${APP_NAME}*.whl \
-    && rm ./${APP_NAME}*.whl
+# Create non-root user
+RUN groupadd --gid ${USER_GID} ${USER} \
+    && useradd --uid ${USER_UID} --gid ${USER_GID} --create-home --home-dir /home/${USER} ${USER}
+USER ${USER}
+ENV PATH="/home/${USER}/.local/bin:$PATH"
 
-# COPY ./docker/* /user_code/
-WORKDIR /user_code
+COPY --from=build --chown=${USER}:${USER} /opt/${APP_NAME}/dist/*.whl /home/${USER}/
+RUN pip install --user /home/${USER}/${APP_NAME}*.whl \
+    && rm /home/${USER}/${APP_NAME}*.whl
 
-ENTRYPOINT ["python"]
+WORKDIR /home/${USER}/user_code
+
+ENTRYPOINT ["/bin/bash"]

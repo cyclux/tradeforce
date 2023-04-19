@@ -16,7 +16,7 @@ CONFIG = {
             "buy_performance_score": 0.10,
             "buy_performance_boundary": 0.05,
             "buy_performance_preference": 1,
-            "_hold_time_increments": 1000,
+            "hold_time_days": 4,
             "profit_factor_target": 1.10,
             "profit_factor_target_min": 1.01,
             "moving_window_hours": 160,
@@ -25,7 +25,7 @@ CONFIG = {
     "backend": {
         "dbms": "postgresql",
         "dbms_host": "docker_postgres",
-        "dbms_port": 5432,
+        "dbms_port": 5433,
         "dbms_connect_db": "postgres",
         "dbms_user": "postgres",
         "dbms_pw": "postgres",
@@ -36,13 +36,13 @@ CONFIG = {
         "exchange": "bitfinex",
         "base_currency": "USD",
         "candle_interval": "5min",
-        "history_timeframe_days": 60,
+        "fetch_init_timeframe_days": 60,
         "update_mode": "live",
     },
 }
 
 
-def main():
+def main() -> None:
     Tradeforce(config=CONFIG).run()
 
 

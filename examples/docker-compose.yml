@@ -4,12 +4,19 @@ services:
 
   docker_tradeforce:
     container_name: tradeforce
-    image: tradeforce:prod
+    image: tradeforce:latest
     depends_on:
       - docker_postgres
     volumes:
-      - ./:/user_code
-    entrypoint: [ "python", "simple.py" ]
+      - ./tradeforce_entrypoint.sh:/home/tf_docker/tradeforce_entrypoint.sh
+      - ./:/home/tf_docker/user_code/
+    environment:
+      - RUN_JUPYTERLAB=${RUN_JUPYTERLAB}
+      - RUN_MARKET_SERVER=${RUN_MARKET_SERVER}
+    entrypoint: ["/bin/bash", "tradeforce_entrypoint.sh" ]
+    ports:
+      - 8889:8889
+      #- 5000:5000
 
   docker_postgres:
     image: postgres:15.2-bullseye
@@ -18,8 +25,12 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
     ports:
-      - 5433:5433
-    command: -p 5433
+      - 5432:5432
+
+
+# $env:RUN_MARKET_SERVER=True; docker-compose up; Remove-Item Env:\RUN_MARKET_SERVER
+
+
   # docker_mongodb:
   #   container_name: mongodb
   #   image: mongo:6.0.4-jammy

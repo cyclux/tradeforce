@@ -1,4 +1,32 @@
-"""_summary_
+"""
+Module: tradeforce.custom_types
+
+Custom types for type hinting.
+
+Defines various TypedDict classes for type hinting.
+The TypedDict classes in this module include:
+
+    DictCandle: Represents the structure of a single candlestick data point,
+        including timestamp, open, close, high, low, volume, and symbol.
+
+    DictRelevantAssets: Contains information about a list of relevant assets,
+        their associated metrics, and their data in a DataFrame.
+
+    DictTimestamp: Represents both a pandas Timestamp
+        and its equivalent integer timestamp.
+
+    DictTimedelta: Represents both a pandas Timedelta
+        and its equivalent integer timestamp.
+
+    DictTimeframe: Contains start and end timestamps (integer)
+        and their equivalent pandas Timestamps.
+
+    DictTimeframeExtended: Contains a DictTimeframe object and an additional
+        field for the remaining time until a wait period is over (in milliseconds).
+
+    DictMarketHistoryUpdate: A dictionary mapping asset symbols to a list of dictionaries,
+        where each dictionary contains market history updates with keys representing
+        either a timestamp (integer) or a value (float).
 """
 
 

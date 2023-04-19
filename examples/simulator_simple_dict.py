@@ -1,5 +1,6 @@
-"""A simple example of how to use Tradeforce in simulation mode.
-
+"""
+A simple example of how to use Tradeforce in simulation mode.
+Config loaded from dict.
 """
 
 from tradeforce import Tradeforce
@@ -15,7 +16,7 @@ CONFIG = {
             "buy_performance_score": 0.10,
             "buy_performance_boundary": 0.05,
             "buy_performance_preference": 1,
-            "_hold_time_increments": 1000,
+            "hold_time_days": 4,
             "profit_factor_target": 1.10,
             "profit_factor_target_min": 1.01,
             "moving_window_hours": 180,
@@ -24,31 +25,31 @@ CONFIG = {
     "backend": {
         "dbms": "postgresql",
         "dbms_host": "docker_postgres",
-        "dbms_port": 5432,
+        "dbms_port": 5433,
         "dbms_connect_db": "postgres",
         "dbms_user": "postgres",
         "dbms_pw": "postgres",
-        "local_cache": False,
+        "local_cache": True,
     },
     "market_history": {
-        "name": "bfx_history_docker_test2",
+        "name": "bfx_new_test",
         "exchange": "bitfinex",
         "base_currency": "USD",
         "candle_interval": "5min",
-        "history_timeframe_days": 20,
+        "fetch_init_timeframe_days": 100,
         "update_mode": "none",
-        # "force_source": "local_cache",
+        # "force_source": "backend",
     },
     "simulation": {
-        "_subset_size_increments": 10000,
+        "subset_size_days": 34,
         "subset_amount": 10,
     },
 }
 
 
-def main():
+def main() -> None:
     sim_result = Tradeforce(config=CONFIG).run_sim()
-    print(sim_result)
+    print("Score (mean profit - std):", sim_result["score"])
 
 
 if __name__ == "__main__":

@@ -1,3 +1,38 @@
+"""
+Module: tradeforce.trader.sells
+
+Provides functions to sell assets for the Tradeforce Trader.
+
+Calculates and checks for profitable sell conditions based on the
+current market situation, the user's portfolio, and the time since
+the asset was bought. It also handles the simulation of selling
+assets and updating budgets based on the confirmed sell orders.
+
+The module interacts with the main Tradeforce instance, the trader,
+and the exchange API to submit sell orders, update order information,
+and manage the user's portfolio. It relies on the tradeforce.utils
+module for helper functions related to fees and symbol conversions.
+
+Main Functions:
+
+    check_sell_options(root: Tradeforce) -> list[dict]:
+        Check for sell options in the current portfolio.
+
+    sell_assets(root: Tradeforce, sell_options: list[dict]):
+        Sell assets based on the provided sell options.
+
+    submit_sell_order(root: Tradeforce, open_order: dict):
+        Submit a sell order based on the given open order.
+
+    sell_confirmed(root: Tradeforce, sell_order: dict):
+        Process the confirmed sell order and update
+            the open and closed orders accordingly.
+
+    update_budget(root: Tradeforce, closed_order: dict):
+        Update the budget based on the closed order.
+
+"""
+
 from __future__ import annotations
 import numpy as np
 import pandas as pd
@@ -9,29 +44,29 @@ if TYPE_CHECKING:
     from tradeforce.main import Tradeforce
 
 
-def get_latest_prices(root: Tradeforce) -> tuple[int, dict]:
-    """
-    Get the latest prices for all symbols from the market history.
+def _get_latest_prices(root: Tradeforce) -> tuple[int, dict]:
+    """Get the latest prices for all symbols from the market history.
 
-    Args:
-        root: The main Tradeforce instance.
+    Params:
+        root: The main Tradeforce instance providing
+        access to the market_history module.
 
     Returns:
         A tuple containing the timestamp and a dictionary of the latest prices.
     """
     df_latest_prices = root.market_history.get_market_history(latest_candle=True, metrics=["c"], uniform_cols=True)
-    timestamp = df_latest_prices.index[0]
+    timestamp = df_latest_prices.index.values[0]
     latest_prices = df_latest_prices.to_dict("records")[0]
     return timestamp, latest_prices
 
 
-def should_sell_simulation(root: Tradeforce, price_current: float, price_profit: float, ok_to_sell: bool) -> bool:
-    """
-    Determine if the asset should be sold during a simulation.
+def _should_sell_simulation(root: Tradeforce, price_current: float, price_profit: float, ok_to_sell: bool) -> bool:
+    """Determine if the asset should be sold during a simulation.
+
     "1.2" is the maximum allowed profit ratio for a trade in a simulation.
     This prevents the simulation from selling assets for a profit that is not realistic.
 
-    Args:
+    Params:
         root:          The main Tradeforce instance.
         price_current: The current price of the asset.
         price_profit:  The target price for profit.
@@ -43,17 +78,16 @@ def should_sell_simulation(root: Tradeforce, price_current: float, price_profit:
     return (price_current >= price_profit or ok_to_sell) and (price_current / price_profit <= 1.2)
 
 
-def create_sell_option(root: Tradeforce, open_order: dict, price_current: float) -> dict:
-    """
-    Create a dictionary containing the sell option information.
+def _create_sell_option(root: Tradeforce, open_order: dict, price_current: float) -> dict:
+    """Create a dictionary containing the sell option information.
 
-    Args:
+    Params:
         root:          The main Tradeforce instance.
         open_order:    The open order information.
         price_current: The current price of the asset.
 
     Returns:
-        A dictionary containing the sell option information.
+        Dict containing the sell option information.
     """
     sell_option = {
         "asset": open_order["asset"],
@@ -69,11 +103,10 @@ def create_sell_option(root: Tradeforce, open_order: dict, price_current: float)
     return sell_option
 
 
-def get_current_profit_ratio(price_current: float, price_buy: float) -> float:
-    """
-    Calculate the current profit ratio.
+def _get_current_profit_ratio(price_current: float, price_buy: float) -> float:
+    """Calculate the current profit ratio.
 
-    Args:
+    Params:
         price_current: The current price of the asset.
         price_buy:     The initial buying price of the asset.
 
@@ -83,27 +116,28 @@ def get_current_profit_ratio(price_current: float, price_buy: float) -> float:
     return np.round(price_current / price_buy, 2)
 
 
-def get_increments_since_buy(timestamp: int, timestamp_buy: int, candle_interval: str) -> int:
-    """
-    Calculate the increments since the asset was bought.
-    The amount of increments is variable and depends on the candle_interval of the market history.
+def _get_increments_since_buy(timestamp: int, timestamp_buy: int, candle_interval: str) -> int:
+    """Calculate the increments since the asset was bought.
 
-    Args:
+    The amount of increments is variable and depends
+    on the candle_interval of the market history.
+
+    Params:
         timestamp:     The current timestamp.
         timestamp_buy: The timestamp when the asset was bought.
 
     Returns:
-        The time since the asset was bought in candle intervals of the market history (candle_interval).
+        The time since the asset was bought in candle intervals
+            of the market history (candle_interval).
     """
     candle_interval_in_minutes = pd.Timedelta(candle_interval).value / 10**9 / 60
     return int((timestamp - timestamp_buy) / 1000 / 60 / candle_interval_in_minutes)
 
 
-def is_ok_to_sell(root: Tradeforce, time_since_buy: int, current_profit_ratio: float) -> bool:
-    """
-    Determine if it's okay to sell the asset based on the time since buy and current profit ratio.
+def _is_ok_to_sell(root: Tradeforce, time_since_buy: int, current_profit_ratio: float) -> bool:
+    """Determine selling the asset based on the time_since_buy and current_profit_ratio.
 
-    Args:
+    Params:
         root:                 The main Tradeforce instance.
         time_since_buy:       The time since the asset was bought.
         current_profit_ratio: The current profit ratio.
@@ -117,18 +151,18 @@ def is_ok_to_sell(root: Tradeforce, time_since_buy: int, current_profit_ratio: f
     )
 
 
-def process_open_order(root: Tradeforce, open_order: dict, latest_prices: dict, timestamp: int) -> dict | None:
-    """
-    Process an open order and return a sell option if conditions are met.
+def _process_open_order(root: Tradeforce, open_order: dict, latest_prices: dict, timestamp: int) -> dict | None:
+    """Process an open order and return a sell option if conditions are met.
 
-    Args:
+    Params:
         root:          The main Tradeforce instance.
         open_order:    The open order information.
-        latest_prices: A dictionary containing the latest prices for all symbols.
+        latest_prices: Dict containing the latest prices for all symbols.
         timestamp:     The current timestamp.
 
     Returns:
-        A dictionary containing the sell option information if conditions are met, None otherwise.
+        Dict containing the sell option information
+            if conditions are met, None otherwise.
     """
     symbol = open_order["asset"]
     price_current = latest_prices.get(symbol, 0)
@@ -138,26 +172,26 @@ def process_open_order(root: Tradeforce, open_order: dict, latest_prices: dict, 
     if np.isnan(price_current):
         price_current = 0.0
 
-    current_profit_ratio = get_current_profit_ratio(price_current, price_buy)
-    time_since_buy = get_increments_since_buy(timestamp, open_order["timestamp_buy"], root.config.candle_interval)
-    ok_to_sell = is_ok_to_sell(root, time_since_buy, current_profit_ratio)
+    current_profit_ratio = _get_current_profit_ratio(price_current, price_buy)
+    time_since_buy = _get_increments_since_buy(timestamp, open_order["timestamp_buy"], root.config.candle_interval)
+    ok_to_sell = _is_ok_to_sell(root, time_since_buy, current_profit_ratio)
 
     if root.config.is_sim:
-        if should_sell_simulation(root, price_current, price_profit, ok_to_sell):
+        if _should_sell_simulation(root, price_current, price_profit, ok_to_sell):
             price_current = min(price_current, price_profit)
-            return create_sell_option(root, open_order, price_current)
+            return _create_sell_option(root, open_order, price_current)
     elif ok_to_sell:
-        return create_sell_option(root, open_order, price_current)
+        return _create_sell_option(root, open_order, price_current)
 
     return None
 
 
 def check_sell_options(root: Tradeforce) -> list[dict]:
-    """
-    Check for sell options in the current portfolio.
+    """Check for sell options in the current portfolio.
 
-    Args:
-        root: The main Tradeforce instance.
+    Params:
+        root: The main Tradeforce instance providing access
+        to the config, trader, logger or any other module.
 
     Returns:
         A list of sell options.
@@ -165,18 +199,18 @@ def check_sell_options(root: Tradeforce) -> list[dict]:
     sell_options = []
     portfolio_performance = {}
 
-    timestamp, latest_prices = get_latest_prices(root)
+    timestamp, latest_prices = _get_latest_prices(root)
 
     open_orders = root.trader.get_all_open_orders()
 
     for open_order in open_orders:
-        sell_option = process_open_order(root, open_order, latest_prices, timestamp)
+        sell_option = _process_open_order(root, open_order, latest_prices, timestamp)
         if sell_option is not None:
             sell_options.append(sell_option)
             symbol = open_order["asset"]
             price_current = latest_prices.get(symbol, 0)
             price_buy = open_order["price_buy"]
-            portfolio_performance[symbol] = get_current_profit_ratio(price_current, price_buy)
+            portfolio_performance[symbol] = _get_current_profit_ratio(price_current, price_buy)
 
     if not root.config.is_sim:
         root.log.info("Current portfolio performance: %s", portfolio_performance)
@@ -184,16 +218,16 @@ def check_sell_options(root: Tradeforce) -> list[dict]:
     return sell_options
 
 
-def create_sell_order_edit(open_order: dict, sell_option: dict) -> dict:
-    """
-    Create a sell order dictionary by editing the given open order with the sell option.
+def _create_sell_order_edit(open_order: dict, sell_option: dict) -> dict:
+    """Create a sell order dict
+        by editing the given open order with the price_sell of the sell_option.
 
-    Args:
+    Params:
         open_order:  The open order dictionary.
         sell_option: The sell option dictionary.
 
     Returns:
-        A dictionary containing the sell order items.
+        Dict containing the sell order items.
     """
     volatility_buffer = 0.00000005
     return {
@@ -205,11 +239,10 @@ def create_sell_order_edit(open_order: dict, sell_option: dict) -> dict:
     }
 
 
-async def process_sell_option(root: Tradeforce, open_order: dict, sell_option: dict) -> bool:
-    """
-    Process a sell option and update the sell order if necessary.
+async def _process_sell_option(root: Tradeforce, open_order: dict, sell_option: dict) -> bool:
+    """Process a sell option and update the sell order if necessary.
 
-    Args:
+    Params:
         root:        The main Tradeforce instance.
         open_order:  The open order dictionary.
         sell_option: The sell option dictionary.
@@ -217,7 +250,7 @@ async def process_sell_option(root: Tradeforce, open_order: dict, sell_option: d
     Returns:
         True if the sell order was successfully updated, False otherwise.
     """
-    sell_order = create_sell_order_edit(open_order, sell_option)
+    sell_order = _create_sell_order_edit(open_order, sell_option)
     order_result_ok = await root.exchange_api.edit_order("sell", sell_order)
 
     if order_result_ok:
@@ -230,11 +263,10 @@ async def process_sell_option(root: Tradeforce, open_order: dict, sell_option: d
     return order_result_ok
 
 
-async def sell_assets(root: Tradeforce, sell_options: list[dict]):
-    """
-    Sell assets based on the provided sell options.
+async def sell_assets(root: Tradeforce, sell_options: list[dict]) -> None:
+    """Sell assets based on the provided sell options.
 
-    Args:
+    Params:
         root:         The main Tradeforce instance.
         sell_options: A list of sell options.
     """
@@ -246,18 +278,17 @@ async def sell_assets(root: Tradeforce, sell_options: list[dict]):
         if root.config.is_sim:
             sell_confirmed(root, sell_option)
         else:
-            await process_sell_option(root, open_order[0], sell_option)
+            await _process_sell_option(root, open_order[0], sell_option)
 
 
-def create_sell_order(open_order: dict) -> dict:
-    """
-    Create a dictionary containing the sell order items.
+def _create_sell_order(open_order: dict) -> dict:
+    """Create a dictionary containing the sell order items.
 
-    Args:
+    Params:
         open_order: The open order.
 
     Returns:
-        A dictionary containing the sell order items.
+        Dict containing the sell order items.
     """
     volatility_buffer = 0.00000005
     return {
@@ -268,35 +299,33 @@ def create_sell_order(open_order: dict) -> dict:
     }
 
 
-async def submit_sell_order(root: Tradeforce, open_order: dict):
-    """
-    Submit a sell order based on the given open order.
+async def submit_sell_order(root: Tradeforce, open_order: dict) -> None:
+    """Submit a sell order based on the given open order.
 
-    Args:
+    Params:
         root:       The main Tradeforce instance.
         open_order: The open order dictionary.
 
     Raises:
         If the sell order execution fails, logs an error message with the sell order details.
     """
-    sell_order = create_sell_order(open_order)
+    sell_order = _create_sell_order(open_order)
     exchange_result_ok = await root.exchange_api.order("sell", sell_order)
 
     if not exchange_result_ok:
         root.log.error("Sell order execution failed! -> %s", str(sell_order))
 
 
-def create_closed_order(root: Tradeforce, open_order: dict, sell_order: dict) -> dict:
-    """
-    Create a closed order dictionary based on the open order and sell order.
+def _create_closed_order(root: Tradeforce, open_order: dict, sell_order: dict) -> dict:
+    """Create a closed order dictionary based on the open order and sell order.
 
-    Args:
+    Params:
         root:       The main Tradeforce instance.
         open_order: The open order dictionary.
         sell_order: The sell order dictionary.
 
     Returns:
-        A dictionary containing the closed order details.
+        Dict containing the closed order details.
     """
     closed_order = open_order.copy()
     closed_order["timestamp_sell"] = sell_order["mts_update"]
@@ -311,11 +340,10 @@ def create_closed_order(root: Tradeforce, open_order: dict, sell_order: dict) ->
     return closed_order
 
 
-def update_budget(root: Tradeforce, closed_order: dict):
-    """
-    Update the budget based on the closed order.
+def update_budget(root: Tradeforce, closed_order: dict) -> None:
+    """Update the budget based on the closed order.
 
-    Args:
+    Params:
         root:         The main Tradeforce instance.
         closed_order: The closed order dictionary.
     """
@@ -323,11 +351,10 @@ def update_budget(root: Tradeforce, closed_order: dict):
     root.backend.update_status({"budget": new_budget})
 
 
-def sell_confirmed(root: Tradeforce, sell_order: dict):
-    """
-    Process the confirmed sell order and update the open and closed orders accordingly.
+def sell_confirmed(root: Tradeforce, sell_order: dict) -> None:
+    """Process the confirmed sell order and update the open and closed orders accordingly.
 
-    Args:
+    Params:
         root:       The main Tradeforce instance.
         sell_order: The sell order dictionary.
     """
@@ -335,7 +362,7 @@ def sell_confirmed(root: Tradeforce, sell_order: dict):
     asset_symbol = convert_symbol_from_exchange(sell_order["symbol"])[0]
     open_order = root.trader.get_open_order(asset={"asset": asset_symbol, "gid": sell_order["gid"]})
     if open_order:
-        closed_order = create_closed_order(root, open_order[0], sell_order)
+        closed_order = _create_closed_order(root, open_order[0], sell_order)
         root.trader.new_order(closed_order, "closed_orders")
         root.trader.del_order(open_order[0], "open_orders")
 

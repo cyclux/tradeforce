@@ -45,7 +45,7 @@ config = {
         "exchange": "bitfinex",
         "base_currency": "USD",
         "candle_interval": "5min",
-        "history_timeframe_days": 60,
+        "fetch_init_timeframe_days": 60,
         "update_mode": "none",  # none, once or live
     },
 }
@@ -624,7 +624,7 @@ class TestBackendSQL:
             ("test_table", {"attribute": "column2", "value": "A"}, False),
         ],
     )
-    def test_delete_one(self, backend: BackendSQL, table_name: str, query: dict, success: bool):
+    def test_delete_one(self, backend: BackendSQL, table_name: str, query: dict, success: bool) -> None:
         backend._has_executed = MagicMock(return_value=success)
         backend.execute = MagicMock()
 

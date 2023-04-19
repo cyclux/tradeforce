@@ -5,9 +5,10 @@ market_history:
   base_currency: USD
   candle_interval: 5min
   exchange: bitfinex
-  history_timeframe_days: 60
-  name: bfx_history_docker_test
-  update_mode: live
+  fetch_init_timeframe_days: 60
+  name: bitfinex_history_2y
+  update_mode: none
+  check_db_sync: False
   force_source: local_cache
 
 backend:
@@ -17,27 +18,26 @@ backend:
   dbms_port: 5432
   dbms_pw: postgres
   dbms_user: postgres
-  local_cache: false
+  local_cache: True
 
 trader:
   id: 3
-  budget: 0
-  credentials_path: exchange_creds.cfg
+  budget: 5000
   maker_fee: 0.1
   taker_fee: 0.2
-  run_live: false
+  run_live: False
 
   strategy:
-    amount_invest_per_asset: 1000
+    amount_invest_per_asset: 100
     buy_performance_boundary: 0.05
     buy_performance_score: 0.1
-    _hold_time_increments: 1000
+    buy_performance_preference: 1
+    hold_time_days: 4
     investment_cap: 0
     moving_window_hours: 160
-    buy_performance_preference: 1
     profit_factor_target: 1.1
     profit_factor_target_min: 1.01
 
 simulation:
-  _subset_size_increments: -1
-  subset_amount: 1
+  subset_size_days: 300
+  subset_amount: 5

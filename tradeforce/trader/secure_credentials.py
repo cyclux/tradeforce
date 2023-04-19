@@ -1,5 +1,46 @@
+"""
+Module: tradeforce.trader.secure_credentials
+
+Manages secure storage and handling of API credentials.
+
+Provides the SecureCredentials class for securely loading, encrypting,
+decrypting, and storing API credentials. Credentials are encrypted
+using a user-provided password and stored in an encrypted credentials file.
+
+The DecryptedCredentials context manager is provided to securely handle
+decrypted credentials in a limited scope. Sensitive data is securely
+cleared from memory after use.
+
+Classes:
+    SecureCredentials: Manages the loading, encryption, and decryption of API credentials.
+    DecryptedCredentials: Context manager for securely handling decrypted credentials.
+
+Main function:
+    load_credentials: Load API credentials from the credentials config file.
+
+Example:
+    import tradeforce.trader.secure_credentials as secure_credentials
+
+    (...)
+
+    secure_credentials = load_credentials(self.root)
+    with secure_credentials.decrypted_credentials() as credentials:
+        bfx_api = Client(
+            credentials["auth_key"],
+            credentials["auth_sec"],
+            ws_host=WS_HOST,
+            rest_host=REST_HOST,
+            logLevel=self.config.log_level_ws_live,
+        )
+    return bfx_api
+
+    (...)
+
+"""
+
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from types import TracebackType
+from typing import TYPE_CHECKING, Literal, Type
 
 import os
 import stat
@@ -19,14 +60,36 @@ if TYPE_CHECKING:
     from tradeforce import Tradeforce
 
 
-class SecureCredentials:
+def load_credentials(root: Tradeforce) -> SecureCredentials:
+    """Load API credentials from the credentials config file
+        utilizing the SecureCredentials class.
+
+    Main function to be used for loading API credentials
+    from the credentials config file.
+
+    Params:
+        root: The main Tradeforce instance providing access
+        to the config and logging or any other module.
+
+    Returns:
+        An instance of the SecureCredentials class with loaded encrypted credentials.
     """
-    Initialize the SecureCredentials instance.
+    secure_credentials = SecureCredentials(root)
+    secure_credentials._load_encrypted_credentials()
+    secure_credentials._get_password()
+    if not secure_credentials.credentials_exist_on_file:
+        secure_credentials._save_encrypted_credentials()
+    return secure_credentials
+
+
+class SecureCredentials:
+    """Initialize the SecureCredentials instance.
 
     Manages the loading, encryption, and decryption of API credentials.
 
-    Args:
-        root: The main Tradeforce instance. Provides access to other modules.
+    Params:
+        root: The main Tradeforce instance providing access
+        to the config and logging or any other module.
     """
 
     def __init__(self, root: Tradeforce):
@@ -39,24 +102,22 @@ class SecureCredentials:
         self.credentials_salt: bytes | None = None
         self.credentials_exist_on_file = False
 
-    def load_encrypted_credentials(self) -> None:
-        """
-        Load encrypted credentials from the credentials file.
+    def _load_encrypted_credentials(self) -> None:
+        """Load encrypted credentials from the credentials file.
 
         If the credentials file is not found or the credentials are not valid,
         prompt the user for API key and secret.
         """
-        encrypted_credentials_and_salt = self.read_credentials_file()
+        encrypted_credentials_and_salt = self._read_credentials_file()
         if encrypted_credentials_and_salt:
-            self.extract_salt_and_credentials(encrypted_credentials_and_salt)
+            self._extract_salt_and_credentials(encrypted_credentials_and_salt)
             self.credentials_exist_on_file = True
             self.log.info("Encrypted credentials loaded.")
         else:
-            self.get_raw_credentials()
+            self._get_raw_credentials()
 
-    def read_credentials_file(self):
-        """
-        Read the credentials file and return its content.
+    def _read_credentials_file(self) -> bytes | None:
+        """Read the credentials file and return its content.
 
         Returns:
             The content of the credentials file or None if not found or an error occurred.
@@ -65,45 +126,42 @@ class SecureCredentials:
             with open(self.credentials_file, "rb") as file:
                 return file.read()
         except FileNotFoundError:
-            self.log.info(
-                "Credentials file not found. Provide your API key and secret. It will be encrypted and stored."
-            )
+            SystemExit("Credentials file not found. Provide your API key and secret. It will be encrypted and stored.")
         except IOError as error:
-            self.log.error(f"Error loading credentials file: {error}")
+            SystemExit(f"Error loading credentials file: {error}")
+        return None
 
-    def extract_salt_and_credentials(self, encrypted_credentials_and_salt: bytes):
-        """
-        Extract salt and encrypted credentials from the provided data.
+    def _extract_salt_and_credentials(self, encrypted_credentials_and_salt: bytes) -> None:
+        """Extract salt and encrypted credentials from the provided data.
 
-        Args:
+        Params:
             encrypted_credentials_and_salt: Data containing salt and encrypted credentials.
         """
 
         self.credentials_salt = encrypted_credentials_and_salt[:16]
         self.encrypted_credentials_data = encrypted_credentials_and_salt[16:]
 
-    def get_raw_credentials(self):
-        """
-        Get raw credentials (API key and secret) from environment variables or user input.
+    def _get_raw_credentials(self) -> None:
+        """Get raw credentials (API key and secret)
+        from environment variables or user input.
         """
         if not self.encrypted_credentials_data:
             self.api_key = os.environ.get("BFX_API_KEY") or getpass("Bitfinex API key:")
             self.api_secret = os.environ.get("BFX_API_SECRET") or getpass("Bitfinex API secret:")
 
-    def get_password(self):
-        """
-        Get the user's password and generate the encryption key based on it.
+    def _get_password(self) -> None:
+        """Get the user's password and generate the encryption key based on it.
+
         Securely clears the password from memory after use.
         """
         password = getpass("Password:")
-        self.encryption_key = self.generate_encryption_key(password)
-        self.securely_clear_sensitive_data(password=password)
+        self.encryption_key = self._generate_encryption_key(password)
+        self._securely_clear_sensitive_data(password=password)
 
-    def generate_encryption_key(self, password: str):
-        """
-        Generate an encryption key from the given password and the salt.
+    def _generate_encryption_key(self, password: str) -> bytes | None:
+        """Generate an encryption key from the given password and the salt.
 
-        Args:
+        Params:
             password: The user's password.
 
         Returns:
@@ -124,19 +182,18 @@ class SecureCredentials:
             self.log.error("Error generating encryption key.")
             return None
 
-    def save_encrypted_credentials(self):
-        """
-        Save encrypted API key and secret to the credentials file.
+    def _save_encrypted_credentials(self) -> None:
+        """Save encrypted API key and secret to the credentials file.
+
         Securely clears raw API key and secret from memory after use.
         """
-        if self.are_credentials_and_key_available():
-            encrypted_api_key, encrypted_api_secret = self.encrypt_credentials()
-            self.securely_clear_sensitive_data(api_key=self.api_key, api_secret=self.api_secret)
-            self.write_encrypted_credentials_to_file(encrypted_api_key, encrypted_api_secret)
+        if self._are_credentials_and_key_available():
+            encrypted_api_key, encrypted_api_secret = self._encrypt_credentials()
+            self._securely_clear_sensitive_data(api_key=self.api_key, api_secret=self.api_secret)
+            self._write_encrypted_credentials_to_file(encrypted_api_key, encrypted_api_secret)
 
-    def are_credentials_and_key_available(self):
-        """
-        Check if credentials (API key, API secret) and encryption key are available.
+    def _are_credentials_and_key_available(self) -> bool:
+        """Check if credentials (API key, API secret) and encryption key are available.
 
         Returns:
             True if credentials and key are available, otherwise False.
@@ -149,27 +206,38 @@ class SecureCredentials:
             return False
         return True
 
-    def encrypt_credentials(self):
-        """
-        Encrypt API key and secret using the encryption key.
+    def _encrypt_credentials(self) -> tuple[bytes, bytes]:
+        """Encrypt API key and secret using the encryption key.
 
         Returns:
             Tuple containing encrypted API key and encrypted API secret.
         """
+        if not self.encryption_key:
+            self.log.error("No encryption key found. Cannot encrypt credentials.")
+            return b"", b""
+
+        if not self.api_key or not self.api_secret:
+            self.log.error("No credentials (api_key, api_secret) found. Cannot encrypt credentials.")
+            return b"", b""
+
         encryption_tool = Fernet(self.encryption_key)
         encrypted_api_key = encryption_tool.encrypt(self.api_key.encode())
         encrypted_api_secret = encryption_tool.encrypt(self.api_secret.encode())
         return encrypted_api_key, encrypted_api_secret
 
-    def write_encrypted_credentials_to_file(self, encrypted_api_key, encrypted_api_secret):
-        """
-        Write encrypted API key, API secret, and salt to the credentials file.
+    def _write_encrypted_credentials_to_file(self, encrypted_api_key: bytes, encrypted_api_secret: bytes) -> None:
+        """Write encrypted API key, API secret, and salt to the credentials file.
+
         Set file permissions to read/write for the user only.
 
-        Args:
+        Params:
             encrypted_api_key: Encrypted API key.
             encrypted_api_secret: Encrypted API secret.
         """
+        if not self.credentials_salt:
+            self.log.error("No salt found. Cannot save encrypted credentials.")
+            return
+
         try:
             with open(self.credentials_file, "wb") as file:
                 file.write(self.credentials_salt + encrypted_api_key + encrypted_api_secret)
@@ -178,15 +246,16 @@ class SecureCredentials:
             self.log.error(error)
             SystemExit("Error saving encrypted credentials")
 
-    def decrypt_credentials(self):
-        """
-        Decrypt the API key and secret using the encryption key.
+    def _decrypt_credentials(self) -> dict[str, str] | None:
+        """Decrypt the API key and secret using the encryption key.
 
         Returns:
-            A dictionary containing the decrypted API key and secret, or None if an error occurred.
+            Dict containing the decrypted API key and secret, or None if an error occurred.
 
         """
         if not self.encrypted_credentials_data:
+            return None
+        if not self.encryption_key:
             return None
 
         encrypted_api_key = self.encrypted_credentials_data[: len(self.encrypted_credentials_data) // 2]
@@ -197,41 +266,39 @@ class SecureCredentials:
             decrypted_api_secret = Fernet(self.encryption_key).decrypt(encrypted_api_secret)
         except (InvalidSignature, InvalidToken):
             self.log.error("Invalid password")
-            return None
+            return {}
         except Exception:
             self.log.error("Error decrypting credentials.")
-            return None
+            return {}
         else:
             self.log.info("Credentials loaded.")
             return {"auth_key": decrypted_api_key.decode(), "auth_sec": decrypted_api_secret.decode()}
 
-    def decrypted_credentials(self):
-        """
-        Get an instance of the DecryptedCredentials context manager for securely handling decrypted data.
+    def decrypted_credentials(self) -> DecryptedCredentials:
+        """Get an instance of the DecryptedCredentials context manager
+            for securely handling decrypted data.
 
         Returns:
             An instance of the DecryptedCredentials context manager.
         """
         return DecryptedCredentials(self)
 
-    def securely_clear_sensitive_data(self, **data_dict):
-        """
-        Securely clear sensitive data from memory.
+    def _securely_clear_sensitive_data(self, **data_dict: str | None) -> None:
+        """Securely clear sensitive data from memory.
 
-        Args:
-            **data_dict: A dictionary containing the names and values of sensitive data.
+        Params:
+            **data_dict: Dict containing the names and values of sensitive data.
         """
         for data_name, data_value in data_dict.items():
             if data_value and isinstance(data_value, str):
-                data_dict[data_name] = self.securely_overwrite(data_value)
+                data_dict[data_name] = self._securely_overwrite(data_value)
         gc.collect()
 
     @staticmethod
-    def securely_overwrite(data: str) -> None:
-        """
-        Overwrite the given string data with zeros to securely clear it from memory.
+    def _securely_overwrite(data: str) -> None:
+        """Overwrite the given string data with zeros to securely clear it from memory.
 
-        Args:
+        Params:
             data: The string data to securely overwrite.
         """
         data_len = len(data)
@@ -240,42 +307,27 @@ class SecureCredentials:
             data_bytes[i] = 0
 
 
-def load_credentials(root: Tradeforce) -> SecureCredentials:
-    """
-    Load API credentials from the credentials config file.
-
-    Args:
-        root: The main Tradeforce instance.
-
-    Returns:
-        An instance of the SecureCredentials class with loaded encrypted credentials.
-    """
-    secure_credentials = SecureCredentials(root)
-    secure_credentials.load_encrypted_credentials()
-    secure_credentials.get_password()
-    if not secure_credentials.credentials_exist_on_file:
-        secure_credentials.save_encrypted_credentials()
-    return secure_credentials
-
-
 class DecryptedCredentials(AbstractContextManager):
-    """
-    Context manager for handling decrypted credentials.
+    """Context manager for handling decrypted credentials.
 
-    Args:
+    Params:
         secure_credentials: An instance of the SecureCredentials class.
     """
 
-    def __init__(self, secure_credentials: SecureCredentials):
+    def __init__(self, secure_credentials: SecureCredentials) -> None:
         self.secure_credentials = secure_credentials
-        self.decrypted_data = None
+        # self.decrypted_data = dict[str, str] | None
 
-    def __enter__(self):
-        self.decrypted_data = self.secure_credentials.decrypt_credentials()
+    def __enter__(self) -> dict[str, str]:
+        self.decrypted_data = self.secure_credentials._decrypt_credentials()
+        if not self.decrypted_data:
+            raise Exception("Error decrypting credentials.")
         return self.decrypted_data
 
-    def __exit__(self, exc_type, exc_value, traceback):
+    def __exit__(
+        self, exc_type: Type[BaseException] | None, exc_val: BaseException | None, exc_tb: TracebackType | None
+    ) -> Literal[False]:
         if self.decrypted_data:
-            self.secure_credentials.securely_clear_sensitive_data(**self.decrypted_data)
+            self.secure_credentials._securely_clear_sensitive_data(**self.decrypted_data)
         self.decrypted_data = None
         return False

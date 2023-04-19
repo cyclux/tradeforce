@@ -8,10 +8,14 @@ services:
       context: .
       dockerfile: Dockerfile
       target: development
+      args:
+        - APP_NAME=${APP_NAME}
+        - USER=${USER}
+        - APP_PATH=${APP_PATH}
     depends_on:
       - docker_postgres
     volumes:
-      - ./:/opt/tradeforce
+      - ./:${APP_PATH}
       - ./examples/:/user_code
     entrypoint: [ "/bin/bash" ]
 
@@ -22,7 +26,8 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
     ports:
-      - 5432:5432
+      - 5433:5433
+    command: -p 5433
 
   # docker_mongodb:
   #   container_name: mongodb

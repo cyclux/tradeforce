@@ -1,6 +1,7 @@
 credentials
 .vscode
 *.code-workspace
+*.VSCodeCounter
 *.arrow
 *.ipynb
 exchange_creds.cfg
