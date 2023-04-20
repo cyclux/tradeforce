@@ -1,5 +1,7 @@
-"""
+""" backend/backend_core.py
+
 Module: tradeforce.backend.backend_core
+---------------------------------------
 
 Contains the Backend class, which serves as a base class for implementing
 database backends. Class Backend provides methods for database operations

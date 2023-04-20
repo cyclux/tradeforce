@@ -1,5 +1,7 @@
-"""
+""" simulator/simulator_core.py
+
 Module: tradeforce.simulator
+----------------------------
 
 Provides the core functionality for running trading simulations using the Tradeforce
 library. It defines the main entry point, run(), which takes a Tradeforce instance as

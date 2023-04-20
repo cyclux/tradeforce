@@ -1,5 +1,7 @@
-"""
+""" trader/buys.py
+
 Module: tradeforce.trader.buys
+------------------------------
 
 Provides functions to buy assets for the Tradeforce Trader.
 The main function in this module is buy_assets, which takes a list

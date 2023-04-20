@@ -1,5 +1,7 @@
-"""
+""" exchange/api.py
+
 Module: tradeforce.exchange.api
+-------------------------------
 
 API module for interacting with the Bitfinex exchange.
 

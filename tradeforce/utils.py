@@ -1,5 +1,7 @@
-"""
+""" utils.py
+
 Module: tradeforce.utils
+------------------------
 
 Helper functions for Tradeforce modules.
 

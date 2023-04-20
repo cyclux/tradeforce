@@ -18,7 +18,7 @@ CONFIG = {
         "dbms_connect_db": "postgres",
         "dbms_user": "postgres",
         "dbms_pw": "postgres",
-        "local_cache": False,
+        "local_cache": True,
     },
     "market_history": {
         "name": "bfx_market_server_test2",

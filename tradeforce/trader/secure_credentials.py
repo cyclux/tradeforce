@@ -1,5 +1,7 @@
-"""
+""" trader/secure_credentials.py
+
 Module: tradeforce.trader.secure_credentials
+--------------------------------------------
 
 Manages secure storage and handling of API credentials.
 

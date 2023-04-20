@@ -1,5 +1,7 @@
-"""
+""" simulator/buys.py
+
 Module: tradeforce.simulator.buys
+---------------------------------
 
 Makes use of Numba for just-in-time compilation to gain major performance improvement in simulations.
 

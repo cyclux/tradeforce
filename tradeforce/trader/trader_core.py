@@ -1,5 +1,7 @@
-"""
+""" trader/trader_core.py
+
 Module: tradeforce.trader
+-------------------------
 
 Trader module manages live trading on an exchange through the Trader class.
 

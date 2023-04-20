@@ -1,5 +1,7 @@
-"""
+""" custom_types.py
+
 Module: tradeforce.custom_types
+-------------------------------
 
 Custom types for type hinting.
 

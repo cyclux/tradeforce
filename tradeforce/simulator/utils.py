@@ -1,5 +1,7 @@
-"""
+""" simulator/utils.py
+
 Module: tradeforce.simulator.utils
+----------------------------------
 
 Provides utility functions for the TradeForce simulator, including converting dictionaries
 to Numba typed dictionaries, checking and sanitizing parameters, calculating fees and metrics,

@@ -1,5 +1,7 @@
-"""
+""" simulator/hyperparam_search.py
+
 Module: tradeforce.simulator.hyperparam_search
+----------------------------------------------
 
 Provides functionality for running hyperparameter optimization using Optuna
 in conjunction with the Tradeforce trading simulation framework.

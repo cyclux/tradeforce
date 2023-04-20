@@ -1,5 +1,7 @@
-"""
+""" backend/postgres.py
+
 Module: tradeforce.backend.postgres
+-----------------------------------
 
 Provides a PostgreSQL database interface that allows for basic CRUD operations
 as well as other PostgreSQL specific operations. It includes functions for creating tables,

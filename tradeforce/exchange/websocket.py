@@ -1,5 +1,7 @@
-"""
+""" exchange/websocket.py
+
 Module: WebSocket Module
+------------------------
 
 This module provides functionality for handling real-time data updates from the Bitfinex exchange
 through websocket connections. The module processes new candle updates and maintains a cache of
@@ -158,8 +160,11 @@ class ExchangeWebsocket:
         self.root = root
         self.config = root.config
         self.log = root.logging.get_logger(__name__)
-        self.api_priv = root.exchange_api.api_priv
-        self.api_pub = root.exchange_api.api_pub
+
+        if hasattr(root.exchange_api, "api_priv"):
+            self.api_priv = root.exchange_api.api_priv
+        if hasattr(root.exchange_api, "api_pub"):
+            self.api_pub = root.exchange_api.api_pub
 
         self.ws_candle_cache: dict[int, dict[str, float]] = {}
         self.asset_candle_subs: dict[str, Subscription] = {}
@@ -179,19 +184,19 @@ class ExchangeWebsocket:
 
     async def ws_run(self) -> None:
         """Run the public websocket and subscribe to public events."""
-
-        self.api_pub.ws.on("connected", self._ws_init_connection)
-        self.api_pub.ws.on("new_candle", self._ws_new_candle)
-        self.api_pub.ws.on("error", self._ws_error)
-        self.api_pub.ws.on("subscribed", self._ws_is_subscribed)
-        self.api_pub.ws.on("unsubscribed", self._ws_unsubscribed)
-        self.api_pub.ws.on("status_update", self._ws_status)
-        self.api_pub.ws.run()
+        if hasattr(self, "api_pub"):
+            self.api_pub.ws.on("connected", self._ws_init_connection)
+            self.api_pub.ws.on("new_candle", self._ws_new_candle)
+            self.api_pub.ws.on("error", self._ws_error)
+            self.api_pub.ws.on("subscribed", self._ws_is_subscribed)
+            self.api_pub.ws.on("unsubscribed", self._ws_unsubscribed)
+            self.api_pub.ws.on("status_update", self._ws_status)
+            self.api_pub.ws.run()
 
     async def ws_priv_run(self) -> None:
         """Run the private websocket and subscribe to private events."""
 
-        if self.api_priv is not None:
+        if hasattr(self, "api_priv"):
             self.api_priv.ws.on("connected", self._ws_priv_init_connection)
             self.api_priv.ws.on("wallet_snapshot", self._ws_priv_wallet_snapshot)
             self.api_priv.ws.on("wallet_update", self._ws_priv_wallet_update)

@@ -1,4 +1,8 @@
-"""
+""" main.py
+
+Module: tradeforce.main
+-----------------------
+
 Tradeforce is a highly performant trading framework for backtesting and hyperparameter optimization.
 However, it can also be used for live trading.
 
@@ -20,6 +24,8 @@ It lets you test trading strategies on historical data and optimize them with Op
 """
 
 from __future__ import annotations
+
+# import sys
 from typing import TYPE_CHECKING, Callable
 import importlib
 import asyncio
@@ -67,8 +73,8 @@ class Tradeforce:
         exchange_ws (ExchangeWebsocket):       The exchange WebSocket object for real-time updates.
 
     Params:
-        config: A dictionary containing user-defined configuration settings.
-        assets: A list of asset symbols to be used. If not provided, all assets will be used.
+        config (dict):    A dictionary containing user-defined configuration settings.
+        assets List[str]: A list of asset symbols to be used. If not provided, all assets will be used.
     """
 
     def __init__(self, config: dict | None = None, assets: list | None = None) -> None:
@@ -212,8 +218,9 @@ class Tradeforce:
         dictionary or in the user-defined configuration.
 
         Params:
-            tasks: A dictionary containing tasks to be executed,
-            with task names as keys and boolean values as flags.
+            tasks: A dictionary containing tasks to be
+                    executed, with task names as keys
+                    and boolean values as flags.
 
         Returns:
             The current Tradeforce instance.
@@ -253,28 +260,34 @@ class Tradeforce:
         """
 
         loop = asyncio.get_event_loop()
-        future = loop.create_future()
+        # future = loop.create_future()
 
         # Run the tasks in the event loop, _exec_tasks() needs to be a coroutine
         asyncio.ensure_future(self._async_exec_tasks(tasks), loop=loop)
-
+        loop_tasks = asyncio.all_tasks(loop)
+        print(loop_tasks)
         try:
-            loop.run_until_complete(future)
+            loop.run_forever()
 
         # On exit / interrupt: cancel all tasks
         except KeyboardInterrupt:
-            print("Exiting. Stopping tasks...")
+            SystemExit()
+            # print("Exiting. Stopping tasks...")
+            # loop.stop()
+            # future.cancel()
 
-            future.cancel()
-
-            loop_tasks = asyncio.all_tasks(loop)
+            # loop_tasks = asyncio.all_tasks(loop)
+            # print(loop_tasks)
             for task in loop_tasks:
+                print(task)
                 task.cancel()
 
             # Wait until all tasks are cancelled and return the gathered results
-            loop.run_until_complete(asyncio.gather(*loop_tasks, return_exceptions=True))
+            # loop.run_until_complete(asyncio.gather(*loop_tasks, return_exceptions=True))
 
         finally:
+            print("Exit test")
+            loop.stop()
             loop.close()
 
         return self
@@ -284,15 +297,29 @@ class Tradeforce:
     # ---------------------
 
     def run(self) -> "Tradeforce":
-        """Run the Tradeforce instance in normal mode."""
+        """Run the Tradeforce instance in normal mode.
+
+        Following modes are available:
+
+        - Run as dedicated market server:
+            See dedicated_market_server.py in examples.
+
+        - Run as a live trading bot:
+            See live_trader_simple.py in examples.
+            Note: Custom strategies are not yet available
+            for the live trader.
+
+        - Run in a Jupyter notebook:
+            For analysis and visualization of sim results.
+            See hyperparam_search_result_analysis.ipynb
+            in examples.
+        """
         if _is_jupyter():
             self._exec_tasks({"load_history": True})
         else:
             self._loop_handler({"load_history": True})
-        return self
 
-    async def _async_simulator_run(self) -> dict[str, int | np.ndarray]:
-        return simulator.run(self)
+        return self
 
     def run_sim(
         self,

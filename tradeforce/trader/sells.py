@@ -1,5 +1,7 @@
-"""
+""" trader/sells.py
+
 Module: tradeforce.trader.sells
+-------------------------------
 
 Provides functions to sell assets for the Tradeforce Trader.
 

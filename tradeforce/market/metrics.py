@@ -1,5 +1,7 @@
-"""
+""" market/metrics.py
+
 Module: tradeforce.metrics
+--------------------------
 
 Provides functions for analyzing the historical market data and calculating asset
 performance metrics, such as trading volume, number of candles, candle sparsity,

@@ -1,5 +1,7 @@
-"""
+""" logger.py
+
 Module: tradeforce.logger
+-------------------------
 
 Provides a custom logging handler, TqdmLoggingHandler.
 

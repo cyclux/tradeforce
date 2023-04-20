@@ -1,5 +1,7 @@
-"""
+""" config.py
+
 Module: tradeforce.config
+-------------------------
 
 Config module containing the Config class for Tradeforce.
 

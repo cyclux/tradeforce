@@ -1,5 +1,7 @@
-"""
+""" backend/mongodb.py
+
 Module: tradeforce.backend.mongodb
+----------------------------------
 
 Provides an interface for interacting with MongoDB databases, allowing for operations
 such as querying, inserting, updating, and deleting documents. It includes a class,

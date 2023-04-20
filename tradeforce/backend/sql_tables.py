@@ -1,5 +1,7 @@
-"""
+""" backend/sql_tables.py
+
 Module: tradeforce.backend.sql_tables
+-------------------------------------
 
 Contains the CreateTables class for creating and initializing tables in the Postgres DB.
 It provides methods for creating and initializing tables that store various types of data,

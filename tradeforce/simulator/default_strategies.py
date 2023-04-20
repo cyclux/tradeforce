@@ -1,5 +1,7 @@
-"""
+""" simulator/default_strategies.py
+
 Module: tradeforce.simulator.default_strategies
+-----------------------------------------------
 
 Contains the default pre-processing, buy, and sell strategies for the
 tradeforce trading simulation. Those default functions can be replaced by custom functions.

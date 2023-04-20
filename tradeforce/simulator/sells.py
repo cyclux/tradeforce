@@ -1,5 +1,7 @@
-"""
+""" simulator/sells.py
+
 Module: tradeforce.simulator.sells
+----------------------------------
 
 Provide Numba optimized functions for managing the selling of assets
 in the TradeForce simulator. This includes functions for evaluating

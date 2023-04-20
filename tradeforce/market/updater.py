@@ -1,5 +1,7 @@
-"""
+""" market/updater.py
+
 Module: tradeforce.market_updater
+---------------------------------
 
 Provides the MarketUpdater class for updating the market data (candles) of assets.
 It fetches market history data for assets within a specified timeframe, processes it,

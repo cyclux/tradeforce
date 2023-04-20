@@ -1,5 +1,7 @@
-"""
+""" market/history.py
+
 Module: tradeforce.market.history
+---------------------------------
 
 Provides the MarketHistory class, which is responsible for loading,
 fetching, updating, and retrieving market history data for a list of specified
