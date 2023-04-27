@@ -26,7 +26,8 @@ The 'config' key defines the Optuna configuration options:
                     optimization process.
 
     - n_trials: Number of trials to run. A trial is a single run of the
-                    optimization function.
+                    optimization function. In multi process mode, the number
+                    of trials is split evenly between the processes.
 
     - direction: Direction of the optimization. Either 'minimize' or 'maximize'.
                     We want to maximize the profit score.
