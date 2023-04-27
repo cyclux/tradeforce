@@ -8,14 +8,10 @@ services:
       context: .
       dockerfile: Dockerfile
       target: development
-      args:
-        - APP_NAME=${APP_NAME}
-        - USER=${USER}
-        - APP_PATH=${APP_PATH}
     depends_on:
       - docker_postgres
     volumes:
-      - ./:${APP_PATH}
+      - ./:/opt/tradeforce
       - ./examples/:/user_code
     entrypoint: [ "/bin/bash" ]
 

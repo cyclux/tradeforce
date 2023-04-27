@@ -4,7 +4,7 @@ services:
 
   docker_tradeforce:
     container_name: tradeforce
-    image: tradeforce:latest
+    image: cyclux/tradeforce:latest
     depends_on:
       - docker_postgres
     volumes:
