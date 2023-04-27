@@ -116,8 +116,8 @@ HYPERPARAM_SEARCH = {
         "direction": "maximize",
         "storage": "backend",
         "load_if_exists": True,
-        "sampler": "RandomSampler",
-        # "pruner": "HyperbandPruner",
+        "sampler": "TPESampler",
+        "pruner": "HyperbandPruner",
     },
     "search_params": {
         "moving_window_hours": {"min": 10, "max": 1000, "step": 10},
