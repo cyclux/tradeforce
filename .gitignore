@@ -3,8 +3,6 @@ credentials
 *.code-workspace
 *.VSCodeCounter
 *.arrow
-*.ipynb
-exchange_creds.cfg
 archive
 analysis
 misc
