@@ -127,7 +127,7 @@ def _is_investment_cap_reached(buybag: np.ndarray, investment_cap: np.float64) -
 def check_buy(
     params: dict,
     df_asset_prices_pct: np.ndarray,
-    df_asset_performance: np.ndarray,
+    df_buy_signals: np.ndarray,
     buybag: np.ndarray,
     history_prices_row: np.ndarray,
     budget: np.float64,
@@ -140,7 +140,7 @@ def check_buy(
     Params:
         params: Dict containing strategy parameters and other settings.
         df_asset_prices_pct: Array containing asset price percentage changes.
-        df_asset_performance: Array containing asset performance metrics.
+        df_buy_signals: Array containing asset performance metrics.
         buybag: Array containing the purchased assets and their parameters.
         history_prices_row: Array containing the historical prices of assets.
         budget: A float representing the current available budget.
@@ -148,7 +148,7 @@ def check_buy(
     Returns:
         An updated numpy array containing the purchased assets and their parameters.
     """
-    list_buy_options = strategies.buy_strategy(params, df_asset_prices_pct, df_asset_performance)
+    list_buy_options = strategies.buy_strategy(params, df_asset_prices_pct, df_buy_signals)
 
     for buy_option_idx in list_buy_options:
         price_current = history_prices_row[buy_option_idx]

@@ -22,9 +22,9 @@ config = {
         "strategy": {
             "amount_invest_per_asset": 1000,
             "investment_cap": 0,
-            "buy_performance_score": 0.10,
-            "buy_performance_boundary": 0.05,
-            "buy_performance_preference": 1,
+            "buy_signal_score": 0.10,
+            "buy_signal_boundary": 0.05,
+            "buy_signal_preference": 1,
             "_hold_time_increments": 1000,
             "profit_factor_target": 1.10,
             "profit_factor_target_min": 1.01,

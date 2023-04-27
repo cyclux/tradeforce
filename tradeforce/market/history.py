@@ -813,10 +813,10 @@ class MarketHistory:
         query the backend to retrieve the timestamp.
 
         Params:
-            idx: An integer representing the index of the desired timestamp.
+            idx: Integer representing the index of the desired timestamp.
 
         Returns:
-            An integer representing the timestamp at the specified index.
+            Integer representing the timestamp at the specified index.
         """
         if not self.internal_history_db.empty:
             return int(self.internal_history_db.index.values[idx])
@@ -828,3 +828,11 @@ class MarketHistory:
             )
             return int(query_result[0]["t"])
         return 0
+
+    def get_history_size(self) -> int:
+        """Retrieve the size of the market history database.
+
+        Returns:
+            Integer representing the size of the market history database.
+        """
+        return len(self.internal_history_db)

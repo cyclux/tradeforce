@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "tradeforce"
-version = "0.2.3"
-description = "Framework for Backtesting and Live-Trading. Hyperparameter-Optimization of Trading-Strategies through performant simulations."
+version = "0.3.5"
+description = "Tradeforce is a comprehensive Python trading framework designed for high-performance backtesting, hyperparameter optimization, and live trading."
 authors = ["cyclux <nevermind@cyclux.de>"]
 license = "MIT"
 readme = "README.md"

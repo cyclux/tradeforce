@@ -38,7 +38,7 @@ import numpy as np
 import pandas as pd
 from typing import TYPE_CHECKING
 from tradeforce.utils import convert_symbol_from_exchange
-from tradeforce.market.metrics import calc_asset_buy_performance
+from tradeforce.market.metrics import calc_buy_signals
 from tradeforce.trader.sells import submit_sell_order
 
 # Prevent circular import for type checking
@@ -82,53 +82,52 @@ def _get_latest_prices_and_timestamp(root: Tradeforce) -> tuple[dict, int]:
     return latest_prices, timestamp
 
 
-def _filter_buy_performance(
-    buy_performance: pd.Series, buy_performance_score: float, buy_performance_boundary: float
-) -> pd.Series:
-    """Filter buy performance based on buy opportunity factors and boundaries.
+def _filter_buy_signals(buy_signals: pd.Series, buy_signal_score: float, buy_signal_boundary: float) -> pd.Series:
+    """Filter price performance (signal score)
+    based on buy opportunity factors and boundaries.
 
     Params:
         buy_performance:          The buy performance series.
-        buy_performance_score:   The buy opportunity factor.
-        buy_performance_boundary: The buy opportunity boundary.
+        buy_signal_score:   The buy opportunity factor.
+        buy_signal_boundary: The buy opportunity boundary.
 
     Returns:
-        A filtered buy performance series.
+        A filtered signal score series.
     """
-    buy_performance_score_min = buy_performance_score - buy_performance_boundary
-    buy_performance_score_max = buy_performance_score + buy_performance_boundary
-    buy_condition = (buy_performance >= buy_performance_score_min) & (buy_performance <= buy_performance_score_max)
-    return buy_performance[buy_condition]
+    buy_signal_score_min = buy_signal_score - buy_signal_boundary
+    buy_signal_score_max = buy_signal_score + buy_signal_boundary
+    buy_condition = (buy_signals >= buy_signal_score_min) & (buy_signals <= buy_signal_score_max)
+    return buy_signals[buy_condition]
 
 
-def _filter_and_sort_buy_options(
-    df_buy_options: pd.DataFrame, buy_performance_preference: int, buy_performance_score: float
+def _filter_and_sort_buy_signals(
+    df_buy_signals: pd.DataFrame, buy_signal_preference: int, buy_signal_score: float
 ) -> pd.DataFrame:
-    """Filter and sort buy options based on performance preference and buy opportunity factor.
+    """Filter and sort buy signals based on 'signal preference' and signal score.
 
     Performance means average profit per unit of time.
     Performance preference means that the buy options are sorted by performance in ascending or descending order.
-    buy_performance_preference == -1 means that those assets with the lowest performance are preferred.
-    buy_performance_preference == 1 means that those assets with the highest performance are preferred.
-    buy_performance_preference == 0 means that those assets closest to the buy opportunity factor are preferred.
+    buy_signal_preference == -1 means that those assets with the lowest performance are preferred.
+    buy_signal_preference == 1 means that those assets with the highest performance are preferred.
+    buy_signal_preference == 0 means that those assets closest to the signal score are preferred.
 
     Params:
         df_buy_options:         The dataframe containing buy options.
-        buy_performance_preference:     Performance preference (-1 for low, 0 for neutral, 1 for high).
-        buy_performance_score: The buy opportunity factor.
+        buy_signal_preference:     Performance preference (-1 for low, 0 for neutral, 1 for high).
+        buy_signal_score: The buy opportunity factor.
 
     Returns:
         A filtered and sorted dataframe of buy options.
     """
-    if buy_performance_preference == -1:
-        df_buy_options = df_buy_options.sort_values(by="perf", ascending=True)
-    elif buy_performance_preference == 1:
-        df_buy_options = df_buy_options.sort_values(by="perf", ascending=False)
-    elif buy_performance_preference == 0:
-        df_buy_options.loc[:, "perf"] = np.absolute(df_buy_options["perf"] - buy_performance_score)
-        df_buy_options = df_buy_options.sort_values(by="perf")
+    if buy_signal_preference == -1:
+        df_buy_signals = df_buy_signals.sort_values(by="perf", ascending=True)
+    elif buy_signal_preference == 1:
+        df_buy_signals = df_buy_signals.sort_values(by="perf", ascending=False)
+    elif buy_signal_preference == 0:
+        df_buy_signals.loc[:, "perf"] = np.absolute(df_buy_signals["perf"] - buy_signal_score)
+        df_buy_signals = df_buy_signals.sort_values(by="perf")
 
-    return df_buy_options
+    return df_buy_signals
 
 
 def _log_buy_options(root: Tradeforce, buy_options: list[dict]) -> None:
@@ -154,7 +153,7 @@ def _log_buy_options(root: Tradeforce, buy_options: list[dict]) -> None:
 
 
 def check_buy_options(root: Tradeforce, latest_prices: dict | None = None, timestamp: int | None = None) -> list[dict]:
-    """Check buy options based on the given latest prices and timestamp.
+    """Check buy options / buy signal based on the given latest prices and timestamp.
 
     Params:
         root:          The main Tradeforce instance.
@@ -169,17 +168,15 @@ def check_buy_options(root: Tradeforce, latest_prices: dict | None = None, times
     if latest_prices is None or timestamp is None:
         latest_prices, timestamp = _get_latest_prices_and_timestamp(root)
 
-    buy_performance = calc_asset_buy_performance(
+    buy_signals = calc_buy_signals(
         root, moving_window_increments=root.config.moving_window_increments, timestamp=timestamp
     )
 
-    if buy_performance is not None:
-        buy_performance = _filter_buy_performance(
-            buy_performance, root.config.buy_performance_score, root.config.buy_performance_boundary
-        )
-        df_buy_options = pd.DataFrame({"perf": buy_performance, "price": latest_prices}).dropna()
-        df_buy_options = _filter_and_sort_buy_options(
-            df_buy_options, root.config.buy_performance_preference, root.config.buy_performance_score
+    if buy_signals is not None:
+        buy_signals = _filter_buy_signals(buy_signals, root.config.buy_signal_score, root.config.buy_signal_boundary)
+        df_buy_options = pd.DataFrame({"perf": buy_signals, "price": latest_prices}).dropna()
+        df_buy_options = _filter_and_sort_buy_signals(
+            df_buy_options, root.config.buy_signal_preference, root.config.buy_signal_score
         )
         df_buy_options.reset_index(names=["asset"], inplace=True)
         buy_options = df_buy_options.to_dict("records")

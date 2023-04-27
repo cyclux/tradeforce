@@ -116,16 +116,16 @@ class BackendMongoDB(Backend):
         Check if a collection with the provided name exists in the MongoDB
         database and return a boolean value indicating the result.
 
+        Note:
+            "Entity" is either a SQL table or a MongoDB collection.
+            is_new_entity method is also implemented in the BackendSQL interface
+            and there refers to a SQL table.
+
         Params:
             collection_name: A string representing the name of the collection.
 
         Returns:
             A boolean value indicating whether the collection exists in the MongoDB database.
-
-        Note:
-            "Entity" is either a SQL table or a MongoDB collection.
-            is_new_entity method is also implemented in the BackendSQL interface
-            and there refers to a SQL table.
         """
         collection = self.get_collection(collection_name)
 

@@ -7,5 +7,5 @@ if [ "$RUN_JUPYTERLAB" = "True" ]; then
 elif [ "$RUN_MARKET_SERVER" = "True" ]; then
   python dedicated_market_server.py
 else
-  python run_tradeforce_default.py
+  python hyperparam_search_multiprocess.py
 fi

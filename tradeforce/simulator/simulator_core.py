@@ -3,22 +3,30 @@
 Module: tradeforce.simulator
 ----------------------------
 
-Provides the core functionality for running trading simulations using the Tradeforce
-library. It defines the main entry point, run(), which takes a Tradeforce instance as
+Provides the core functionality for running trading simulations using Tradeforce.
+It defines the main entry point, run(), which takes a Tradeforce instance as
 input, preprocesses the market history data, and performs trading simulations using
-Numba-accelerated functions. The module includes functions to iterate through market
+Numba JIT-compiled functions. The module includes functions to iterate through market
 history within specified subsets, perform buy and sell operations, update budgets based
 on transactions, and calculate the score based on the mean profit corrected by standard
 deviation of profits across all subsets. The module also provides utility functions to
 sanitize subset parameters, calculate and print simulation details, and convert data
 structures to numpy arrays for use with Numba.
 
+The np.array "buybag" contains the details of all buy transactions and is used to
+store asset attributes, such as amount and profit ratio. Those attributes also help
+to determine the elapsed time since buy or keep track of the available budget.
+
+The np.array "soldbag" contains the details of all sell transactions, which also include
+all the details from the buybag. The "soldbag" is used to calculate the actual profit
+of each of the sold assets and stores sell relevant attributes, like sell price and time.
+
 
 Index reference for the buybag and soldbag arrays:
     # Only buybag:
     [0] idx of asset row -> symbol of asset
-    [1] buy_performance_score
-    [2] row_idx of buy_performance_score
+    [1] buy_signal_score
+    [2] row_idx at buy time
     [3] price buy
     [4] price including profit
     [5] amount of fiat invested, fee included
@@ -105,7 +113,7 @@ def iterate_market_history(
     subset_bounds: tuple[int, int],
     asset_prices: np.ndarray,
     asset_prices_pct: np.ndarray,
-    asset_performance: np.ndarray,
+    buy_signals: np.ndarray,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Iterate through the market history within a specified subset
 
@@ -113,10 +121,10 @@ def iterate_market_history(
 
     Params:
         params:            Dict containing simulation parameters.
-        subset_bounds:     A tuple with the start and end indices of the current subset.
+        subset_bounds:     Tuple with the start and end indices of the current subset.
         asset_prices:      Array with the asset prices.
         asset_prices_pct:  Array with the asset prices percentage.
-        asset_performance: Array with the asset performance.
+        buy_signals:       Array containing the buy signals.
 
     Returns:
         A tuple with two numpy arrays, soldbag and buybag, representing the transactions.
@@ -134,7 +142,7 @@ def iterate_market_history(
         soldbag, buybag = check_sell(params, buybag, soldbag, history_prices_row, budget)
         budget = update_budget_from_last_transaction(row_idx, budget, soldbag, "soldbag")
 
-        buybag = check_buy(params, asset_prices_pct, asset_performance, buybag, history_prices_row, budget)
+        buybag = check_buy(params, asset_prices_pct, buy_signals, buybag, history_prices_row, budget)
         budget = update_budget_from_last_transaction(row_idx, budget, buybag, "buybag")
 
     return soldbag, buybag
@@ -146,7 +154,7 @@ def perform_trading_simulations(
     params: dict,
     asset_prices: np.ndarray,
     asset_prices_pct: np.ndarray,
-    asset_performance: np.ndarray,
+    buy_signals: np.ndarray,
 ) -> tuple[np.int64, np.ndarray, np.ndarray]:
     """Perform trading simulations
 
@@ -154,7 +162,7 @@ def perform_trading_simulations(
     of the provided market data and simulate trading within those subsets
     based on the specified trading strategy and parameters.
 
-    Then calculate the score, also gather trading history and buy log for
+    Finally calculate the score, also gather trades history and buy log for
     the entire simulation.
 
     Params:
@@ -166,7 +174,7 @@ def perform_trading_simulations(
         asset_prices_pct:  Array containing the asset price percentage changes
                             for each trading day.
 
-        asset_performance: Array containing the asset performance data.
+        buy_signals:       Array containing the buy signals.
 
     Returns:
         A tuple with three elements:
@@ -200,9 +208,7 @@ def perform_trading_simulations(
         subset_bounds = (subset_idx, subset_idx + _subset_size_increments)
 
         # Simulate trading by iterating over the market history of the subset
-        soldbag, buybag = iterate_market_history(
-            params, subset_bounds, asset_prices, asset_prices_pct, asset_performance
-        )
+        soldbag, buybag = iterate_market_history(params, subset_bounds, asset_prices, asset_prices_pct, buy_signals)
 
         # Calculate the total profit for the current subset
         profit_subset_list[current_iter] = sim_utils.calc_metrics(soldbag)
@@ -218,7 +224,7 @@ def perform_trading_simulations(
     return profit_total, soldbag_all_subsets, buybag
 
 
-def print_simulation_details(root: Tradeforce, asset_prices: pd.DataFrame) -> None:
+def print_simulation_details(root: Tradeforce, asset_prices: pd.DataFrame, dataset_type: str) -> None:
     """Print simulation details.
 
     Params:
@@ -226,12 +232,18 @@ def print_simulation_details(root: Tradeforce, asset_prices: pd.DataFrame) -> No
         asset_prices: A DataFrame containing the asset prices.
     """
 
+    log_dataset_type = "[Training]" if dataset_type == "train" else "[Validation]"
+
     history_begin = asset_prices.index.values.astype(int)[0]
     history_end = asset_prices.index.values.astype(int)[-1]
 
     history_delta = get_timedelta(history_end - history_begin, unit="ms")["datetime"]
     root.log.info(
-        "Starting simulation beginning from %s to %s | Timeframe: %s", history_begin, history_end, history_delta
+        "%s Starting simulation | Timestamp %s to %s | Timeframe: %s",
+        log_dataset_type,
+        history_begin,
+        history_end,
+        history_delta,
     )
     if root.config.subset_amount > 1:
         root.log.info(
@@ -242,7 +254,7 @@ def print_simulation_details(root: Tradeforce, asset_prices: pd.DataFrame) -> No
         )
 
 
-def run(root: Tradeforce) -> dict[str, int | np.ndarray]:
+def run(root: Tradeforce, dataset_type: str, train_val_split_idx: int) -> dict[str, int | np.ndarray]:
     """Run the trading simulation
 
     using the configuration provided in the Tradeforce instance. This function is the main entry point
@@ -250,32 +262,64 @@ def run(root: Tradeforce) -> dict[str, int | np.ndarray]:
     numpy arrays for usage in Numba, and then performs the trading simulations to calculate the
     score, which is defined as:
 
-    mean(profit subset) - std(profit subset).
+        mean(profit subset) - std(profit subset).
 
     Params:
         root: The Tradeforce instance containing the necessary configuration and market history data.
 
     Returns:
-        Dict containing the simulation results:
-            - "score":   The score calculated as: mean(profit subset) - std(profit subset).
-            - "trades":  Array representing the trading history, including buy and sell events.
-            - "buy_log": Array representing the buy log, containing the details of each buy event.
+        Dictionary containing the simulation results:
+        - 'score'   (int):      The score calculated as: mean(profit subsets) - std(profit subsets).
+        - 'trades'  (np.array): Array representing the trading history, including buy and sell events.
+        - 'buy_log' (np.array): Array representing the buy log, containing the details of each buy event.
     """
-    preprocess_result = pre_process(root.config, root.market_history)
+    preprocess_result = pre_process(root.config, root.market_history, dataset_type, train_val_split_idx)
     sim_config = sim_utils.to_numba_dict(root.config.to_dict())
 
     asset_prices = preprocess_result.get("asset_prices", pd.DataFrame())
     asset_prices_pct = preprocess_result.get("asset_prices_pct", pd.DataFrame())
-    asset_performance = preprocess_result.get("asset_performance", pd.DataFrame())
+    buy_signals = preprocess_result.get("buy_signals", pd.DataFrame())
 
-    print_simulation_details(root, asset_prices)
+    print_simulation_details(root, asset_prices, dataset_type)
 
     np_asset_prices = asset_prices.to_numpy() if asset_prices is not None else None
     np_asset_prices_pct = asset_prices_pct.to_numpy() if asset_prices_pct is not None else None
-    np_asset_performance = asset_performance.to_numpy() if asset_performance is not None else None
+    np_buy_signals = buy_signals.to_numpy() if buy_signals is not None else None
 
     score, trades_history, buy_log = perform_trading_simulations(
-        sim_config, np_asset_prices, np_asset_prices_pct, np_asset_performance
+        sim_config, np_asset_prices, np_asset_prices_pct, np_buy_signals
     )
-    sim_result = {"score": score, "trades": trades_history, "buy_log": buy_log}
+
+    suffix = "_val" if dataset_type == "val" else ""
+
+    return {f"score{suffix}": score, f"trades{suffix}": trades_history, f"buy_log{suffix}": buy_log}
+
+
+def run_train_val_split(root: Tradeforce) -> dict[str, int | np.ndarray]:
+    n_market_history = root.market_history.get_history_size()
+
+    train_val_split_idx = int(n_market_history * root.config.train_val_split_ratio)
+
+    # Cache the original subset parameters
+    cache_subset_amount = root.config.subset_amount
+    cache_subset_size_days = root.config.subset_size_days
+    cache_subset_size_increments = root.config._subset_size_increments
+
+    sim_result_trainset = run(root, "train", train_val_split_idx)
+
+    # Do not use subsets for validation set
+    root.config.subset_amount = -1
+    root.config.subset_size_days = -1
+    root.config._subset_size_increments = -1
+
+    sim_result_valset = run(root, "val", train_val_split_idx)
+
+    # Restore the original subset parameters
+    root.config.subset_amount = cache_subset_amount
+    root.config.subset_size_days = cache_subset_size_days
+    root.config._subset_size_increments = cache_subset_size_increments
+
+    # Merge the results from the train and val sets
+    sim_result = {**sim_result_trainset, **sim_result_valset}
+
     return sim_result

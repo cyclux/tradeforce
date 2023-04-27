@@ -302,16 +302,16 @@ class BackendSQL(Backend):
         """Determine if a given table is new
         -> by checking its existence in the database.
 
+        Note:
+            "Entity" is either a SQL table or a MongoDB collection.
+            is_new_entity method is also implemented in the BackendMongoDB
+            interface and there refers to a Collection.
+
         Params:
             table_name: The name of the table to check for existence in the database.
 
         Returns:
             bool: True if the table is new, False otherwise.
-
-        Note:
-            "Entity" is either a SQL table or a MongoDB collection.
-            is_new_entity method is also implemented in the BackendMongoDB
-            interface and there refers to a Collection.
         """
         query = SQL("SELECT 1 FROM pg_catalog.pg_tables WHERE tablename = {table_name};").format(
             table_name=Literal(table_name)

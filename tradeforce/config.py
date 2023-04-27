@@ -43,28 +43,35 @@ Attributes:
     relevant_assets_cap (int): Maximum number of assets to consider
         for trading or simulation.
 
+    min_amount_candles (int): Minimum number of candles required
+                                for an asset to be considered relevant.
+
+    max_candle_sparsity (int): Maximum "sparcity" constraint of candles
+                                to be considered as a relevant asset.
+
     moving_window_hours (int): Timeframe for moving window used
-        in the simulation strategy.
+        in the sim to calulate the price performance score.
 
     moving_window_increments (int): Number of candle increments
-        in the moving window.
+        in the moving window. Derived from candle_interval
+        and moving_window_hours.
 
-    buy_performance_score (float): Performance score of an asset
+    buy_signal_score (float): Performance score of an asset
         within the moving window.
 
-    buy_performance_boundary (float): Range of acceptable
-        buy_performance_score for purchasing assets.
+    buy_signal_boundary (float): Range of acceptable
+        buy_signal_score for purchasing assets.
 
-    buy_performance_preference (int): Preference for buying assets
+    buy_signal_preference (int): Preference for buying assets
         with positive, negative, or closest performance.
 
-    profit_factor_target (float): Target profit factor for each asset.
+    profit_factor_target (float): Target profit factor to sell assets.
 
     profit_factor_target_min (float): Minimum profit factor
-        after _hold_time_increments.
+        after _hold_time_increments reached.
 
     hold_time_days (int): Number of days to hold an asset before
-        reducing the profit factor.
+        reducing to profit_factor_target_min.
 
     _hold_time_increments (int): Conversion of hold_time_days to
         increments based on the candle_interval.
@@ -87,6 +94,9 @@ Attributes:
 
     subset_amount (int): Number of subsets to create from
         the entire market history.
+
+    train_val_split_ratio (float): Ratio of training to validation
+                                    dataset size.
 
     assets_excluded (list of symbols): List of assets to
         be excluded from trading.
@@ -168,15 +178,15 @@ def _flatten_dict(input_config_dict: dict) -> dict:
 
     This is useful to disregard the structure of the nested configuration.
 
+    Note:
+        Configuration keys need to be unique!
+
     Params:
         input_config_dict: A dictionary potentially containing nested dictionaries.
 
     Returns:
         A new dictionary with the same keys and values as the input dictionary,
         but with all nested dictionaries flattened to a single level.
-
-    Note:
-        Configuration keys need to be unique!
     """
     output_dict: dict = {}
 
@@ -210,9 +220,9 @@ class Config:
     Provides default values to fall back on if param is not specified in user config.
     """
 
-    def __init__(self, root: Tradeforce, config_input: dict | None = None):
+    def __init__(self, root: Tradeforce, config_input: dict | None, config_file: str | None):
         self.log = root.logging.get_logger(__name__)
-        self.config_input: dict = self.load_config(config_input)
+        self.config_input: dict = self.load_config(config_input, config_file)
 
         # Set all config keys as attributes of the Config class
         # This allows us to access them via self.config.<config_key> in any module
@@ -444,9 +454,8 @@ class Config:
         self.moving_window_hours = self.config_input.get("moving_window_hours", 20)
         """moving_window_hours: int
 
-        Timeframe (in hours) for the moving window used in the simulation strategy,
-        affecting the aggregation of various metrics for each asset.
-        e.g. the mean or any other metric, like buy_performance_score.
+        Timeframe (in hours) of the moving window used in the buy_strategy,
+        to calculate the buy_signal_score.
         """
 
         self.moving_window_increments = _hours_to_increments(self.moving_window_hours, self.candle_interval)
@@ -458,29 +467,29 @@ class Config:
 
         # Default trading strategy parameters
 
-        self.buy_performance_score = self.config_input.get("buy_performance_score", 0.0)
-        """buy_performance_score: float
+        self.buy_signal_score = self.config_input.get("buy_signal_score", 0.0)
+        """buy_signal_score: float
 
         Performance score of an asset within the moving window.
         In the default strategy implementation typically calculated
         as the "sum of percentage changes" within the window.
         """
 
-        self.buy_performance_boundary = self.config_input.get("buy_performance_boundary", 0.02)
-        """buy_performance_boundary: float
+        self.buy_signal_boundary = self.config_input.get("buy_signal_boundary", 0.02)
+        """buy_signal_boundary: float
 
-        Lower and upper limit for the buy_performance_score,
+        Lower and upper limit for the buy_signal_score,
         defining a range of acceptable scores for purchasing assets.
-        e.g. boundary 0.02 means +/-0.02 the buy_performance_score to be considered for purchase.
+        e.g. boundary 0.02 means +/-0.02 the buy_signal_score to be considered for purchase.
         """
 
-        self.buy_performance_preference = self.config_input.get("buy_performance_preference", 1)
-        """buy_performance_preference: -1, 0, 1
+        self.buy_signal_preference = self.config_input.get("buy_signal_preference", 1)
+        """buy_signal_preference: -1, 0, 1
 
         Preference for buying assets with performance
         positive (1) -> decending, higher values prefered,
         negative (-1) -> ascending, lower values prefered,
-        or closest to the buy_performance_score (0).
+        or closest to the buy_signal_score (0).
         """
 
         self.profit_factor_target = self.config_input.get("profit_factor_target", 0.05)
@@ -524,8 +533,10 @@ class Config:
         self.investment_cap = self.config_input.get("investment_cap", 0.0)
         """investment_cap: float, currently only implemented for simulations
 
+        0.0 -> unlimited investment, no cap. All potential profits are reinvested.
+
         Maximum amount of budget (in base currency) that can be invested in the market simultaneously,
-        useful for limiting reinvestment of profits.
+        useful for limited reinvestment of profits.
         """
 
         self.maker_fee = self.config_input.get("maker_fee", 0.10)
@@ -572,6 +583,14 @@ class Config:
         subset_amount * subset_size_days > fetch_init_timeframe_days.
         """
 
+        self.train_val_split_ratio = self.config_input.get("train_val_split_ratio", 0.8)
+        """train_val_split_ratio: float
+
+        The whole market history can be split into a training and a validation set.
+        The ratio defines the proportional size of the training set.
+        Automatically the validation set will be the remaining part (1 - train_val_split_ratio).
+        """
+
         self.assets_excluded = [
             "UDC",
             "UST",
@@ -606,7 +625,7 @@ class Config:
     # Config methods
     # ---------------
 
-    def load_config(self, config_input: dict | None) -> dict:
+    def load_config(self, config_input: dict | None, config_file: str | None) -> dict:
         """Load the configuration from a provided input or a config.yaml file.
 
         First check if a configuration dictionary is provided. If not, try to load
@@ -627,8 +646,10 @@ class Config:
         config_type = "dict"
 
         # Load config.yaml file if no config dict is provided
-        if not self.config_input:
+        if not self.config_input or config_file:
+            config_paths.insert(0, str(config_file))
             self.config_input, config_type = _try_config_paths(config_paths)
+
         if not self.config_input:
             raise SystemExit(
                 "No config file found. Please provide a config.yaml file or a config dict. "

@@ -3,24 +3,58 @@
 Module: tradeforce.main
 -----------------------
 
-Tradeforce is a highly performant trading framework for backtesting and hyperparameter optimization.
-However, it can also be used for live trading.
+Tradeforce is a comprehensive Python trading framework designed for
+high-performance backtesting, hyperparameter optimization, and live trading.
+By leveraging JIT machine code compilation and providing a robust set of features,
+Tradeforce enables users to develop, test, and deploy trading strategies
+with efficiency and scalability.
 
 Key features:
-- Highly performant simulations enabled by Numba
-- Customizable trading strategies
-- Dedicated market server: 100+ simultanious Websocket connections
-- Backend support for PostgresSQL and MongoDB
-- Hyperparameter optimization
-- Live trading capabilities
-- Easy and flexible deployment with Docker
-- Scalable to cloud environments with Kubernetes
-- Juptyer Notebook support for result visualization and analysis
+    - Accelerated simulations using Numba, enabling 100k+ records per second
+    - Customizable trading strategies
+    - Dedicated market server supporting 100+ simultaneous WebSocket connections
+    - Backend support for PostgreSQL and MongoDB
+    - Local caching of market data in Arrow format for rapid loading times
+    - Hyperparameter optimization through the Optuna framework
+    - Live trading capabilities (currently only Bitfinex is supported)
+    - Simple and flexible deployment via Docker
+    - Scalability in cluster environments, such as Kubernetes
+    - Jupyter Notebook integration for analysis and visualization of results
 
+# Functionality
 
+Tradeforce can process any type of time series or financial market data, but it
+primarily utilizes the Bitfinex API for convenient access to historical data.
+Users can configure the module to fetch data for various timeframes (from days
+to years) and resolutions (1-minute to 1-week candle intervals) for numerous
+assets. Tradeforce can also maintain real-time market updates via WebSocket
+connections.
 
-It lets you test trading strategies on historical data and optimize them with Optuna.
+# Configuration
 
+Tradeforce is either configured through a Python dictionary or a YAML file. If a
+dictionary is passed to the Tradeforce() constructor it will override any YAML file.
+
+# Data storage
+
+For storing historical data, Tradeforce currently supports PostgreSQL and MongoDB as
+database backends.
+
+# Trade Strategy Testing and Optimization
+
+Tradeforce allows users to test trading strategies and receive a performance score.
+Using the Optuna framework, users can optimize this score by searching for the ideal
+parameters for their strategy. In Optuna, an optimization process is referred to as
+a "study." Tradeforce returns a Study object after a successful optimization run,
+which can be used for analyzing and visualizing results within a Jupyter Notebook.
+
+# Live Trading on Exchange
+Tradeforce also enables live trading of strategies on the Bitfinex exchange.
+
+# DISCLAIMER
+Use at your own risk! Tradeforce is currently in beta, and bugs may occur.
+Furthermore, there is no guarantee that strategies that have performed well
+in the past will continue to do so in the future.
 """
 
 from __future__ import annotations
@@ -77,7 +111,7 @@ class Tradeforce:
         assets List[str]: A list of asset symbols to be used. If not provided, all assets will be used.
     """
 
-    def __init__(self, config: dict | None = None, assets: list | None = None) -> None:
+    def __init__(self, config: dict | None = None, config_file: str | None = None, assets: list | None = None) -> None:
         """Initialize the Tradeforce instance
 
         with the provided configuration and asset symbols,
@@ -90,7 +124,7 @@ class Tradeforce:
         """
         self.log = self._register_logger()
         self.asset_symbols = [] if not assets else assets
-        self.config = self._register_config(config)
+        self.config = self._register_config(config, config_file)
         self.trader = self._register_trader()
         self.backend = self._register_backend()
         self.market_history = self._register_market_history()
@@ -115,7 +149,7 @@ class Tradeforce:
 
         return log
 
-    def _register_config(self, user_config: dict | None) -> Config:
+    def _register_config(self, user_config: dict | None, config_file: str | None) -> Config:
         """Initialize and register the configuration.
 
         Params:
@@ -126,7 +160,7 @@ class Tradeforce:
             Config object: Provides access to config settings
                             to all modules.
         """
-        config = Config(root=self, config_input=user_config)
+        config = Config(root=self, config_input=user_config, config_file=config_file)
 
         self.log.info("Current working directory: %s", config.working_dir)
 
@@ -265,13 +299,12 @@ class Tradeforce:
         # Run the tasks in the event loop, _exec_tasks() needs to be a coroutine
         asyncio.ensure_future(self._async_exec_tasks(tasks), loop=loop)
         loop_tasks = asyncio.all_tasks(loop)
-        print(loop_tasks)
         try:
             loop.run_forever()
 
         # On exit / interrupt: cancel all tasks
         except KeyboardInterrupt:
-            SystemExit()
+            SystemExit("")
             # print("Exiting. Stopping tasks...")
             # loop.stop()
             # future.cancel()
@@ -279,16 +312,15 @@ class Tradeforce:
             # loop_tasks = asyncio.all_tasks(loop)
             # print(loop_tasks)
             for task in loop_tasks:
-                print(task)
                 task.cancel()
 
             # Wait until all tasks are cancelled and return the gathered results
             # loop.run_until_complete(asyncio.gather(*loop_tasks, return_exceptions=True))
 
         finally:
-            print("Exit test")
-            loop.stop()
-            loop.close()
+            SystemExit("")
+            # loop.stop()
+            # loop.close()
 
         return self
 
@@ -296,7 +328,7 @@ class Tradeforce:
     # Tradeforce run modes
     # ---------------------
 
-    def run(self) -> "Tradeforce":
+    def run(self, load_history: bool = True) -> "Tradeforce":
         """Run the Tradeforce instance in normal mode.
 
         Following modes are available:
@@ -313,13 +345,45 @@ class Tradeforce:
             For analysis and visualization of sim results.
             See hyperparam_search_result_analysis.ipynb
             in examples.
+
+        Params:
+            load_history: Whether to load the market history
+                            on initialization. Default: True.
         """
         if _is_jupyter():
-            self._exec_tasks({"load_history": True})
+            self._exec_tasks({"load_history": load_history})
         else:
-            self._loop_handler({"load_history": True})
+            self._loop_handler({"load_history": load_history})
 
         return self
+
+    def _prepare_sim(
+        self,
+        pre_process: Callable | None = None,
+        buy_strategy: Callable | None = None,
+        sell_strategy: Callable | None = None,
+    ) -> None:
+        """Prepare the Tradeforce instance for simulation mode.
+        -> Set the is_sim flag and optionally monkey patch.
+
+        Some functions' logic adapts to the 'is_sim' flag, which
+        is indicating we are running in "sim mode".
+
+        If custom strategy or pre-process functions are provided,
+        we need to "monkey patch" them -> Replacing the default ones.
+
+        Params:
+            pre_process: An optional custom pre-process function.
+            buy_strategy: An optional custom buy strategy function.
+            sell_strategy: An optional custom sell strategy function.
+        """
+        #
+        self.config.is_sim = True
+
+        _monkey_patch(self, pre_process, buy_strategy, sell_strategy)
+
+        if not _is_jupyter():
+            asyncio.run(self.market_history.load_history())
 
     def run_sim(
         self,
@@ -329,18 +393,40 @@ class Tradeforce:
     ) -> dict[str, int | np.ndarray]:
         """Run the Tradeforce instance in simulation mode.
 
-        In Jupyter environment we need to async load_history()
-        before running the simulator.
+        Default strategies are used if no custom ones are provided.
+        For reference, how to define custom strategies, see:
+        examples/simulator_custom.py
+
+        Note:
+            In Jupyter environment we need to async load_history()
+            before running the simulator. For reference, see:
+            examples/hyperparam_search_result_analysis.ipynb
+
+        Params:
+            pre_process:   An optional function to pre-process market data.
+            buy_strategy:  An optional function to determine buy signals.
+            sell_strategy: An optional function to determine sell signals.
+
+        Returns:
+            Dictionary containing the simulation results:
+
+            - 'score'   (int):      The score calculated as:
+                                        mean(profit subsets) - std(profit subsets).
+
+            - 'trades'  (np.array): Array representing the trading history,
+                                        including buy and sell events.
+
+            - 'buy_log' (np.array): Array representing the buy log, containing
+                                        the details of each buy event.
         """
-        self.config.is_sim = True
-        _monkey_patch(self, pre_process, buy_strategy, sell_strategy)
-        if not _is_jupyter():
-            asyncio.run(self.market_history.load_history())
-        return simulator.run(self)
+        self._prepare_sim(pre_process, buy_strategy, sell_strategy)
+
+        return simulator.run_train_val_split(self)
 
     def run_sim_optuna(
         self,
         optuna_config: dict,
+        optuna_study: optuna.Study | None = None,
         pre_process: Callable | None = None,
         buy_strategy: Callable | None = None,
         sell_strategy: Callable | None = None,
@@ -348,15 +434,19 @@ class Tradeforce:
         """Run the Tradeforce instance in simulation mode
         -> combined with Optuna hyperparameter optimization.
 
+        Default strategies are used if no custom ones are provided.
+        For reference, how to define custom strategies, see:
+        examples/simulator_custom.py
+
         Note:
-            In the Jupyter environment we need to async load_history()
-            before running the simulator.
+            In Jupyter environment before running the simulator the
+            history needs to be loaded via "async load_history()".
+            For reference, see:
+            examples/hyperparam_search_result_analysis.ipynb
         """
-        self.config.is_sim = True
-        _monkey_patch(self, pre_process, buy_strategy, sell_strategy)
-        if not _is_jupyter():
-            asyncio.run(self.market_history.load_history())
-        return hyperparam_search.run(self, optuna_config)
+        self._prepare_sim(pre_process, buy_strategy, sell_strategy)
+
+        return hyperparam_search.run(self, optuna_config, optuna_study)
 
 
 # -----------------
@@ -365,7 +455,11 @@ class Tradeforce:
 
 
 def _is_jupyter() -> bool:
-    """Check if we are running in a Jupyter environment."""
+    """Check if we are running in a Jupyter environment.
+
+    Returns:
+        True if we are running in a Jupyter environment, False otherwise.
+    """
     try:
         get_ipython  # type: ignore
         return True
@@ -374,15 +468,25 @@ def _is_jupyter() -> bool:
 
 
 def _monkey_patch(
-    root: Tradeforce, pre_process: Callable | None, buy_strategy: Callable | None, sell_strategy: Callable | None
+    root: Tradeforce,
+    pre_process: Callable | None,
+    buy_strategy: Callable | None,
+    sell_strategy: Callable | None,
 ) -> None:
-    """Monkey patch user defined pre_process function or buy and sell strategies if provided.
+    """Monkey patch user-defined functions
+    -> pre-process, buy and sell strategy, if provided.
 
     Params:
-        root:          The Tradeforce main instance.
-        pre_process:   A function to be used as pre_process: Prepare data for simulation.
-        buy_strategy:  A function to be used as buy_strategy: Determine on which conditions to buy what.
-        sell_strategy: A function to be used as sell_strategy: Determine on which conditions to sell when.
+        root:          The Tradeforce instance containing the Logger.
+
+        pre_process:   A function to be used as pre_process:
+                        Prepare data for simulation.
+
+        buy_strategy:  A function to be used as buy_strategy:
+                        Determine on which conditions to buy what.
+
+        sell_strategy: A function to be used as sell_strategy:
+                        Determine on which conditions to sell when.
     """
 
     if pre_process:

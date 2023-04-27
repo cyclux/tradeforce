@@ -7,7 +7,8 @@ Provides functionality for running hyperparameter optimization using Optuna
 in conjunction with the Tradeforce trading simulation framework.
 The hyperparameter search is performed for a given Tradeforce instance
 and Optuna configuration, which specifies the settings for the optimization
-study and search parameters for each parameter to be optimized.
+"Study" and search parameters for each parameter to be optimized. A "study" is
+an Optuna object that contains the results of the optimization process.
 
 The module supports setting the search parameters for an optimization trial,
 determining the data type of parameter values, and defining the objective
@@ -24,8 +25,12 @@ Main Function:
 """
 from __future__ import annotations
 from typing import TYPE_CHECKING
+
 import optuna
 from optuna import Trial
+from optuna.study import MaxTrialsCallback
+from optuna.trial import TrialState
+
 from tradeforce import simulator
 
 # from tradeforce.simulator.default_strategies import pre_process
@@ -90,7 +95,21 @@ def _set_search_params(root: Tradeforce, params: dict, trial: optuna.trial.Trial
             setattr(root.config, param, trial.suggest_float(param, val["min"], val["max"], step=val["step"]))
 
 
-def run(root: Tradeforce, optuna_config: dict[str, dict]) -> optuna.study.Study:
+def _create_study(root: Tradeforce, config: dict, optuna_db_name: str = "optuna") -> optuna.study.Study:
+    # Creates an Optuna study with the specified settings, samplers, and pruners.
+    return optuna.create_study(
+        study_name=config["study_name"],
+        direction=config["direction"],
+        storage=root.backend.construct_uri(optuna_db_name),
+        load_if_exists=config["load_if_exists"],
+        sampler=optuna_samplers.get(config.get("sampler", lambda: None), lambda: None)(),
+        pruner=optuna_pruners.get(config.get("pruner", lambda: None), lambda: None)(),
+    )
+
+
+def run(
+    root: Tradeforce, optuna_config: dict[str, dict], optuna_study: optuna.study.Study | None
+) -> optuna.study.Study:
     """Run a hyperparameter optimization using Optuna
 
     for the given Tradeforce instance and Optuna configuration dictionary.
@@ -105,33 +124,39 @@ def run(root: Tradeforce, optuna_config: dict[str, dict]) -> optuna.study.Study:
         An Optuna study object containing the results of the optimization process.
     """
     if not hasattr(root.backend, "db_exists_or_create"):
-        raise ValueError("Optuna only works with Postgres backend. Please set backend to 'postgres' in config file.")
-
-    config = optuna_config["config"]
-    params = optuna_config["params"]
+        raise ValueError(
+            "Optuna only works with Postgres backend. " + "Please set backend.dbms to 'postgresql' in config file."
+        )
 
     optuna_db_name = "optuna"
+
+    config = optuna_config.get("config", {})
+    search_params = optuna_config.get("search_params", {})
+
+    if not search_params:
+        raise SystemExit(
+            "Optuna search parameters not specified. Needs to be a dict within optuna_config['search_params']"
+        )
+
     root.backend.db_exists_or_create(optuna_db_name)
 
     # Define objective function for optuna "study"
     def objective(trial: Trial) -> int:
-        _set_search_params(root, params, trial)
-        sim_result = simulator.run(root)
+        _set_search_params(root, search_params, trial)
+        sim_result = simulator.run_train_val_split(root)
         return int(sim_result["score"])
 
-    # Creates an Optuna study with the specified settings, samplers, and pruners.
-    study = optuna.create_study(
-        study_name=config["study_name"],
-        direction=config["direction"],
-        storage=root.backend.construct_uri(optuna_db_name),
-        load_if_exists=config["load_if_exists"],
-        sampler=optuna_samplers.get(config.get("sampler", lambda: None), lambda: None)(),
-        pruner=optuna_pruners.get(config.get("pruner", lambda: None), lambda: None)(),
-    )
+    study = optuna_study if optuna_study is not None else _create_study(root, config, optuna_db_name)
 
     n_jobs = config.get("n_jobs", 1)
     n_trials = config.get("n_trials", 100)
 
-    study.optimize(objective, n_trials=n_trials, n_jobs=n_jobs)
+    # Runs the optimization process / study
+    study.optimize(
+        objective,
+        n_jobs=n_jobs,
+        callbacks=[MaxTrialsCallback(n_trials, states=(TrialState.COMPLETE, TrialState.RUNNING, TrialState.PRUNED))],
+        show_progress_bar=True,
+    )
 
     return study

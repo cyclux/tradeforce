@@ -15,8 +15,7 @@ services:
       - RUN_MARKET_SERVER=${RUN_MARKET_SERVER}
     entrypoint: ["/bin/bash", "tradeforce_entrypoint.sh" ]
     ports:
-      - 8889:8889
-      #- 5000:5000
+      - 8889:8889 # jupyterlab
 
   docker_postgres:
     image: postgres:15.2-bullseye
@@ -25,11 +24,11 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
     ports:
-      - 5432:5432
+      - 5433:5433
+    command: -p 5433
 
-
-# $env:RUN_MARKET_SERVER=True; docker-compose up; Remove-Item Env:\RUN_MARKET_SERVER
-
+# Alternative: Use MongoDB instead of Postgres
+# The Tradeforce configuration needs to be adapted accordingly.
 
   # docker_mongodb:
   #   container_name: mongodb
@@ -42,3 +41,25 @@ services:
   #     - 27017:27017
   #   volumes:
   #     - /data/tradeforce_db:/data/db
+
+# ------------------
+# Window Powershell
+# ------------------
+
+# Run dedicated market server
+# $env:RUN_MARKET_SERVER=True; docker-compose up; Remove-Item Env:\RUN_MARKET_SERVER
+
+# Run JupyterLab
+# $env:RUN_JUPYTERLAB=True; docker-compose up; Remove-Item Env:\RUN_MARKET_SERVER
+
+# -----------
+# Linux Bash
+# -----------
+
+# Run dedicated market server
+# RUN_MARKET_SERVER=True docker-compose up
+
+# Run JupyterLab
+# RUN_JUPYTERLAB=True docker-compose up
+
+
