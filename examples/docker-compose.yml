@@ -47,19 +47,19 @@ services:
 # ------------------
 
 # Run dedicated market server
-# $env:RUN_MARKET_SERVER=True; docker-compose up; Remove-Item Env:\RUN_MARKET_SERVER
+# $env:RUN_MARKET_SERVER="True"; docker-compose up; Remove-Item Env:\RUN_MARKET_SERVER
 
 # Run JupyterLab
-# $env:RUN_JUPYTERLAB=True; docker-compose up; Remove-Item Env:\RUN_MARKET_SERVER
+# $env:RUN_JUPYTERLAB="True"; docker-compose up; Remove-Item Env:\RUN_JUPYTERLAB
 
 # -----------
 # Linux Bash
 # -----------
 
 # Run dedicated market server
-# RUN_MARKET_SERVER=True docker-compose up
+# RUN_MARKET_SERVER="True" docker-compose up
 
 # Run JupyterLab
-# RUN_JUPYTERLAB=True docker-compose up
+# RUN_JUPYTERLAB="True" docker-compose up
 
 
