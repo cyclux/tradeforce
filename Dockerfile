@@ -1,16 +1,17 @@
 # syntax=docker/dockerfile:1
 
-# https://gist.github.com/usr-ein/c42d98abca3cb4632ab0c2c6aff8c88a
-
+#----------------------
 # Setup build arguments
+#----------------------
+
 ARG PYTHON_VERSION=3.10.10
 ARG POETRY_VERSION=1.4.1
 ARG APP_NAME=tradeforce
 ARG APP_PATH=/opt/${APP_NAME}
 
-#------------------#
-# Stage 1: staging #
-#------------------#
+#----------------------
+# Stage 1: staging
+#----------------------
 
 FROM python:${PYTHON_VERSION}-bullseye AS staging
 
@@ -30,9 +31,9 @@ RUN --mount=type=cache,target=/root/.cache \
 ENV PATH="$POETRY_HOME/bin:$PATH"
 WORKDIR ${APP_PATH}
 
-#----------------------#
-# Stage 2: development #
-#----------------------#
+#----------------------
+# Stage 2: development
+#----------------------
 FROM staging AS development
 ARG APP_PATH
 
@@ -43,9 +44,9 @@ RUN --mount=type=cache,target=/root/.cache \
 
 ENTRYPOINT ["/bin/bash"]
 
-#----------------#
-# Stage 3: build #
-#----------------#
+#----------------------
+# Stage 3: build
+#----------------------
 
 FROM staging AS build
 ARG POETRY_HOME
@@ -60,9 +61,9 @@ RUN --mount=type=cache,target=/root/.cache \
     poetry install --without dev --with prod \
     && poetry build --format wheel
 
-#---------------------#
-# Stage 4: production #
-#---------------------#
+#----------------------
+# Stage 4: production
+#----------------------
 
 FROM python:${PYTHON_VERSION}-slim-bullseye AS production
 ENV PIP_DISABLE_PIP_VERSION_CHECK=on
