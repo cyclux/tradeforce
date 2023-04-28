@@ -68,6 +68,7 @@ Functions:
 
     get_init_relevant_assets(root: Root, capped: int | None = None) -> DictRelevantAssets:
         Fetches the initial relevant assets based on the root configuration and the relevant assets cap.
+
 """
 
 

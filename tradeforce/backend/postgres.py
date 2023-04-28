@@ -34,6 +34,7 @@ Some helper methods:
 
     _insert:              Insert multiple rows into the specified table
                             using the provided columns and values.
+
 """
 from __future__ import annotations
 from time import sleep

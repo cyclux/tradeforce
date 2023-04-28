@@ -19,6 +19,7 @@ Relevant configuration options are:
     for faster loading times after a restart or usage in simulations.
 
 See README.md for more information about the Tradeforce configuration options.
+
 """
 
 from tradeforce import Tradeforce
@@ -34,11 +35,11 @@ CONFIG = {
         "local_cache": True,
     },
     "market_history": {
-        "name": "bfx_market_server_test2",
+        "name": "bitfinex_history",
         "exchange": "bitfinex",
         "base_currency": "USD",
         "candle_interval": "5min",
-        "fetch_init_timeframe_days": 120,
+        "fetch_init_timeframe_days": 100,
         "update_mode": "live",
     },
 }

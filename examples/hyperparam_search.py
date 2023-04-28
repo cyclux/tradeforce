@@ -58,6 +58,7 @@ The search space still needs to be declared in optuna_config["search_params"].
 See the Optuna documentation for more information: https://optuna.readthedocs.io/en/stable/
 
 See README.md for more information about the Tradeforce configuration options.
+
 """
 
 from tradeforce import Tradeforce
@@ -79,16 +80,16 @@ CONFIG = {
         "check_db_sync": False,
     },
     "market_history": {
-        "name": "bitfinex_history_2y",
+        "name": "bitfinex_history",
         "exchange": "bitfinex",
         "base_currency": "USD",
         "candle_interval": "5min",
-        "fetch_init_timeframe_days": 20,
+        "fetch_init_timeframe_days": 100,
         "update_mode": "none",
         "force_source": "local_cache",
     },
     "simulation": {
-        "subset_size_days": 300,
+        "subset_size_days": 30,
         "subset_amount": 10,
         "train_val_split_ratio": 0.8,
     },
@@ -100,16 +101,16 @@ HYPERPARAM_SEARCH = {
         "n_trials": 100,
         "direction": "maximize",
         "load_if_exists": True,
-        "sampler": "RandomSampler",
-        # "pruner": "HyperbandPruner",
+        "sampler": "TPESampler",
+        "pruner": "HyperbandPruner",
     },
     "search_params": {
+        "amount_invest_per_asset": {"min": 50, "max": 250, "step": 50},
         "moving_window_hours": {"min": 10, "max": 1000, "step": 10},
         "buy_signal_score": {"min": -0.05, "max": 0.25, "step": 0.05},
         "buy_signal_boundary": {"min": 0.0, "max": 0.15, "step": 0.05},
         "buy_signal_preference": {"min": -1, "max": 1, "step": 1},
         "profit_factor_target": {"min": 1.05, "max": 2.5, "step": 0.05},
-        "amount_invest_per_asset": {"min": 50, "max": 250, "step": 50},
         "hold_time_days": {"min": 1, "max": 100, "step": 1},
         "profit_factor_target_min": {"min": 0.85, "max": 1.1, "step": 0.05},
     },

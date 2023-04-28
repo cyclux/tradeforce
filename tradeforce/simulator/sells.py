@@ -20,6 +20,7 @@ Main Functions:
 
     _calculate_sell_parameters: Calculates the selling-related parameters
                                     for each asset being sold.
+
 """
 
 import numpy as np

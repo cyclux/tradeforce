@@ -60,6 +60,7 @@ The search space still needs to be declared in optuna_config["search_params"].
 See the Optuna documentation for more information: https://optuna.readthedocs.io/en/stable/
 
 See README.md for more information about the Tradeforce configuration options.
+
 """
 
 from concurrent import futures
@@ -69,20 +70,9 @@ import optuna
 
 CONFIG = {
     "trader": {
-        "budget": 10000,
+        "budget": 1000,
         "maker_fee": 0.10,
         "taker_fee": 0.20,
-        "strategy": {
-            "amount_invest_per_asset": 100,
-            "investment_cap": 0,
-            "buy_signal_score": 0.10,
-            "buy_signal_boundary": 0.05,
-            "buy_signal_preference": 1,
-            "hold_time_days": 4,
-            "profit_factor_target": 1.10,
-            "profit_factor_target_min": 1.01,
-            "moving_window_hours": 180,
-        },
     },
     "backend": {
         "dbms": "postgresql",
@@ -95,36 +85,36 @@ CONFIG = {
         "check_db_sync": False,
     },
     "market_history": {
-        "name": "bitfinex_history_2y",
+        "name": "bitfinex_history",
         "exchange": "bitfinex",
         "base_currency": "USD",
         "candle_interval": "5min",
-        "fetch_init_timeframe_days": 20,
+        "fetch_init_timeframe_days": 100,
         "update_mode": "none",
         "force_source": "local_cache",
     },
     "simulation": {
-        "subset_size_days": 100,
+        "subset_size_days": 30,
         "subset_amount": 10,
     },
 }
 
 HYPERPARAM_SEARCH = {
     "config": {
-        "study_name": "test_study_multiprocess5",
-        "n_trials": 111,
+        "study_name": "test_study",
+        "n_trials": 100,
         "direction": "maximize",
-        "storage": "backend",
         "load_if_exists": True,
         "sampler": "TPESampler",
         "pruner": "HyperbandPruner",
     },
     "search_params": {
+        "amount_invest_per_asset": {"min": 50, "max": 250, "step": 50},
         "moving_window_hours": {"min": 10, "max": 1000, "step": 10},
         "buy_signal_score": {"min": -0.05, "max": 0.25, "step": 0.05},
         "buy_signal_boundary": {"min": 0.0, "max": 0.15, "step": 0.05},
+        "buy_signal_preference": {"min": -1, "max": 1, "step": 1},
         "profit_factor_target": {"min": 1.05, "max": 2.5, "step": 0.05},
-        "amount_invest_per_asset": {"min": 50, "max": 250, "step": 50},
         "hold_time_days": {"min": 1, "max": 100, "step": 1},
         "profit_factor_target_min": {"min": 0.85, "max": 1.1, "step": 0.05},
     },
@@ -137,6 +127,10 @@ N_WORKERS = 8
 # Create Tradeforce instance
 tradeforce = Tradeforce(config=CONFIG)
 
+# Need to create DB "optuna" if it does not exist
+# before running Optuna the first time
+tradeforce.backend.db_exists_or_create("optuna")
+
 
 def wrapper_run_sim_optuna() -> optuna.Study:
     return tradeforce.run_sim_optuna(HYPERPARAM_SEARCH)
@@ -147,11 +141,15 @@ def main() -> None:
         for _ in range(N_WORKERS):
             executor.submit(wrapper_run_sim_optuna)
 
+    # Once all workers are done, load the study from the DB
+    # and print the results or do further analysis
+
+    # First retrieve the study name from the config
     study_name = str(HYPERPARAM_SEARCH["config"]["study_name"])
+
     # The backend module provides a helper function to construct the storage URI
     storage_uri = tradeforce.backend.construct_uri(db_name="optuna")
 
-    # Load Study from DB (storage) to get the results.
     study = optuna.load_study(
         study_name=study_name,
         storage=storage_uri,

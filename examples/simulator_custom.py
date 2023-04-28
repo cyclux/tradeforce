@@ -22,6 +22,7 @@ supported types and their limitations.
 For more information on Numba see: https://numba.pydata.org/
 
 See README.md for more information about the Tradeforce configuration options.
+
 """
 
 import numpy as np
@@ -39,13 +40,13 @@ CONFIG = {
         "taker_fee": 0.20,
         "strategy": {
             "amount_invest_per_asset": 100,
+            "moving_window_hours": 180,
             "buy_signal_score": 0.10,
             "buy_signal_boundary": 0.05,
             "buy_signal_preference": 1,
-            "hold_time_days": 4,
             "profit_factor_target": 1.10,
+            "hold_time_days": 4,
             "profit_factor_target_min": 1.01,
-            "moving_window_hours": 180,
         },
     },
     "backend": {
@@ -59,7 +60,7 @@ CONFIG = {
         "check_db_sync": False,
     },
     "market_history": {
-        "name": "bitfinex_history_2y",
+        "name": "bitfinex_history",
         "exchange": "bitfinex",
         "base_currency": "USD",
         "candle_interval": "5min",

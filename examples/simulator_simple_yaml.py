@@ -15,6 +15,7 @@ See simulator_custom.py for details about the default strategy implementations
 and how to customize them.
 
 See README.md for more information about the Tradeforce configuration options.
+
 """
 
 from tradeforce import Tradeforce

@@ -33,24 +33,25 @@ Use at your own risk! Tradeforce is currently in beta, and bugs may occur.
 Furthermore, there is no guarantee that strategies that have performed well
 in the past will continue to do so in the future.
 ----------------------------------------------------------------------------
+
 """
 
 from tradeforce import Tradeforce
 
 CONFIG = {
     "trader": {
-        "id": 3,
+        "id": 1,
         "run_live": True,
         "maker_fee": 0.10,
         "taker_fee": 0.20,
         "strategy": {
-            "amount_invest_per_asset": 1000,
-            "moving_window_hours": 160,
+            "amount_invest_per_asset": 100,
+            "moving_window_hours": 180,
             "buy_signal_score": 0.10,
             "buy_signal_boundary": 0.05,
             "buy_signal_preference": 1,
-            "hold_time_days": 4,
             "profit_factor_target": 1.10,
+            "hold_time_days": 4,
             "profit_factor_target_min": 1.01,
         },
     },
@@ -64,7 +65,7 @@ CONFIG = {
         "local_cache": False,
     },
     "market_history": {
-        "name": "bfx_history_docker_test",
+        "name": "bitfinex_history",
         "exchange": "bitfinex",
         "base_currency": "USD",
         "candle_interval": "5min",

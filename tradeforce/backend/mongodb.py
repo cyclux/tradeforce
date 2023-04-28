@@ -33,6 +33,7 @@ Main methods:
 
 A helper function, _construct_mongodb_query, is also provided
 to construct MongoDB queries from dictionaries.
+
 """
 from __future__ import annotations
 from typing import TYPE_CHECKING
@@ -136,9 +137,9 @@ class BackendMongoDB(Backend):
         else:
             return False
 
-    # -----------------------------#
-    # MongoDB specific operations #
-    # -----------------------------#
+    # ----------------------------
+    # MongoDB specific operations
+    # ----------------------------
 
     def create_index(self, collection_name: str, index_name: str, unique: bool = False) -> None:
         """Create an index on the specified collection.
@@ -173,6 +174,27 @@ class BackendMongoDB(Backend):
             raise ValueError("Provide a collection name. Must not be None!")
 
         return self.dbms_db[collection_name]
+
+    # ---------------------------------
+    # Postgres specific operations
+    # ---------------------------------
+    # Only here to prevent type errors
+    # ---------------------------------
+
+    def db_exists_or_create(self, db_name: str | None = None) -> None:
+        """Dummy method to prevent type errors.
+
+        Params:
+            db_name: A string representing the name of the database.
+
+        Raises:
+            NotImplementedError if called on MongoDB.
+        """
+        raise NotImplementedError("MongoDB does not support database creation.")
+
+    # ----------------
+    # CRUD operations
+    # ----------------
 
     def query(
         self,

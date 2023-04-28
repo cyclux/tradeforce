@@ -19,6 +19,7 @@ Main Functions:
                                     for a given asset has been reached.
     _is_investment_cap_reached:    Checks if the total investment, including fees,
                                     has reached the specified investment cap.
+
 """
 
 import numpy as np

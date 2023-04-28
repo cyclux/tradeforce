@@ -6,6 +6,7 @@ Module: tradeforce.backend.sql_tables
 Contains the CreateTables class for creating and initializing tables in the Postgres DB.
 It provides methods for creating and initializing tables that store various types of data,
 such as historical market data, trader status, open orders, and closed orders.
+
 """
 
 from __future__ import annotations

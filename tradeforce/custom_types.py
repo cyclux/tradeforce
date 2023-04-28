@@ -29,6 +29,7 @@ The TypedDict classes in this module include:
     DictMarketHistoryUpdate: A dictionary mapping asset symbols to a list of dictionaries,
         where each dictionary contains market history updates with keys representing
         either a timestamp (integer) or a value (float).
+
 """
 
 

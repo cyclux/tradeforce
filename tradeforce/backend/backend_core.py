@@ -30,6 +30,7 @@ Classes:
         Base class for implementing database backends in the Tradeforce application.
         Provides methods for database operations, checking database consistency, and
         synchronizing data between internal and external databases.
+
 """
 
 from __future__ import annotations

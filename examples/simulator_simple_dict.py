@@ -12,6 +12,7 @@ See simulator_custom.py for details about the default strategy implementations
 and how to customize them.
 
 See README.md for more information about the Tradeforce configuration options.
+
 """
 
 from tradeforce import Tradeforce
@@ -23,14 +24,13 @@ CONFIG = {
         "taker_fee": 0.20,
         "strategy": {
             "amount_invest_per_asset": 100,
-            "investment_cap": 0,
+            "moving_window_hours": 180,
             "buy_signal_score": 0.10,
             "buy_signal_boundary": 0.05,
             "buy_signal_preference": 1,
-            "hold_time_days": 4,
             "profit_factor_target": 1.10,
+            "hold_time_days": 4,
             "profit_factor_target_min": 1.01,
-            "moving_window_hours": 180,
         },
     },
     "backend": {
@@ -43,7 +43,7 @@ CONFIG = {
         "local_cache": True,
     },
     "market_history": {
-        "name": "bfx_new_test",
+        "name": "bitfinex_history",
         "exchange": "bitfinex",
         "base_currency": "USD",
         "candle_interval": "5min",

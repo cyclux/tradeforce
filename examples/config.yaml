@@ -2,13 +2,12 @@
 ---
 
 market_history:
+  name: bitfinex_history
   base_currency: USD
   candle_interval: 5min
   exchange: bitfinex
-  fetch_init_timeframe_days: 60
-  name: bitfinex_history_2y
+  fetch_init_timeframe_days: 100
   update_mode: none
-  check_db_sync: False
   force_source: local_cache
 
 backend:
@@ -30,12 +29,12 @@ trader:
 
   strategy:
     amount_invest_per_asset: 100
+    moving_window_hours: 160
     buy_signal_boundary: 0.05
     buy_signal_score: 0.1
     buy_signal_preference: 1
-    hold_time_days: 4
-    moving_window_hours: 160
     profit_factor_target: 1.1
+    hold_time_days: 4
     profit_factor_target_min: 1.01
 
 simulation:

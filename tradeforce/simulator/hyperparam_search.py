@@ -22,6 +22,7 @@ Main Function:
                             the given Tradeforce instance and Optuna config,
                             returning an Optuna study object containing the
                             results of the optimization process.
+
 """
 from __future__ import annotations
 from typing import TYPE_CHECKING
