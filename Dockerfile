@@ -4,7 +4,8 @@
 # Setup build arguments
 #----------------------
 
-ARG PYTHON_VERSION=3.10.10
+ARG DEBIAN_VERSION=bullseye
+ARG PYTHON_VERSION=3.10.11
 ARG POETRY_VERSION=1.4.1
 ARG APP_NAME=tradeforce
 ARG APP_PATH=/opt/${APP_NAME}
@@ -13,7 +14,7 @@ ARG APP_PATH=/opt/${APP_NAME}
 # Stage 1: staging
 #----------------------
 
-FROM python:${PYTHON_VERSION}-bullseye AS staging
+FROM python:${PYTHON_VERSION}-${DEBIAN_VERSION} AS staging
 
 ARG POETRY_VERSION
 ARG APP_PATH
@@ -59,13 +60,14 @@ COPY pyproject.toml poetry.lock ./
 COPY --from=development ${APP_PATH} ${APP_PATH}
 RUN --mount=type=cache,target=/root/.cache \
     poetry install --without dev --with prod \
-    && poetry build --format wheel
+    && poetry build --format wheel \
+    && poetry export --without dev --with prod --format requirements.txt --output requirements.txt
 
 #----------------------
 # Stage 4: production
 #----------------------
 
-FROM python:${PYTHON_VERSION}-slim-bullseye AS production
+FROM python:${PYTHON_VERSION}-slim-${DEBIAN_VERSION} AS production
 ENV PIP_DISABLE_PIP_VERSION_CHECK=on
 
 # User and group id for non-root user
