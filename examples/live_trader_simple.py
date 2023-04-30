@@ -69,7 +69,7 @@ CONFIG = {
         "exchange": "bitfinex",
         "base_currency": "USD",
         "candle_interval": "5min",
-        "fetch_init_timeframe_days": 60,
+        "fetch_init_timeframe_days": 100,
         "update_mode": "live",
     },
 }
