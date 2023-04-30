@@ -1,10 +1,13 @@
 version: "3.9"
 
+name: tradeforce_stack
+
 services:
 
   docker_tradeforce:
     container_name: tradeforce
     image: cyclux/tradeforce:latest
+    restart: always
     depends_on:
       - docker_postgres
     volumes:
