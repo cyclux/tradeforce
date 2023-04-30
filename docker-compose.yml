@@ -1,9 +1,12 @@
 version: "3.9"
 
+name: "tradeforce_stack_dev"
+
 services:
 
   docker_tradeforce:
     container_name: tradeforce_dev
+    restart: always
     build:
       context: .
       dockerfile: Dockerfile
