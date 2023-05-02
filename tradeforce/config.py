@@ -1,9 +1,7 @@
-""" config.py
+""" Config module containing the Config class for Tradeforce.
 
 Module: tradeforce.config
 -------------------------
-
-Config module containing the Config class for Tradeforce.
 
 Loads config dict or config.yaml file and stores it in a Config class
 which can get passed to all other modules, classes and functions.
@@ -14,7 +12,7 @@ settings, and simulator configurations. It is responsible for loading, updating,
 and storing these settings, as well as providing a method to represent
 the configuration in a dictionary format.
 
-Attributes:
+Args:
     working_dir (str): Directory for storing configuration and data files.
 
     candle_interval (str): Time interval between candlesticks.
@@ -129,7 +127,7 @@ def _load_yaml_config(config_path: str) -> dict:
 
     Attempt to load a YAML configuration file from the given file path.
 
-    Params:
+    Args:
         config_path: A string representing the path to the configuration file.
 
     Returns:
@@ -151,7 +149,7 @@ def _try_config_paths(config_paths: list) -> tuple[dict, str]:
     load the YAML configuration file from each path. Stop once a valid
     configuration file is found and loaded.
 
-    Params:
+    Args:
         config_paths: A list of strings, each representing a file path
         to a configuration file.
 
@@ -181,7 +179,7 @@ def _flatten_dict(input_config_dict: dict) -> dict:
     Note:
         Configuration keys need to be unique!
 
-    Params:
+    Args:
         input_config_dict: A dictionary potentially containing nested dictionaries.
 
     Returns:
@@ -218,6 +216,11 @@ class Config:
 
     It gets passed to all other classes and allows us to access them via self.config.<config_key>
     Provides default values to fall back on if param is not specified in user config.
+
+    Args:
+        root: The root Tradeforce object.
+        config_input: A dictionary containing the user configuration.
+        config_file: The absolute path to the configuration file (yaml).
     """
 
     def __init__(self, root: Tradeforce, config_input: dict | None, config_file: str | None):
@@ -632,7 +635,7 @@ class Config:
         a configuration file from the specified search paths.
         If dict provided, flatten the configuration dictionary and return it.
 
-        Params:
+        Args:
             config_input: An optional dictionary containing configuration data. If None, the function
                         tries to load a config.yaml file from the specified search paths.
 
@@ -665,7 +668,7 @@ class Config:
 
         Reverse of method to_dict().
 
-        Params:
+        Args:
             config_input: A dict of config values.
         """
         # Set all config values as attributes. This ensures that user defined config keys are also accessible.
@@ -678,7 +681,7 @@ class Config:
         If for_sim is True, exclude attributes that are
         not used in the simulator (and not convertable to float).
 
-        Params:
+        Args:
             for_sim: Whether to exclude attributes that are not used in the simulator.
 
         Returns:

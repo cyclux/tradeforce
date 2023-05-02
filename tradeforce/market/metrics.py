@@ -63,7 +63,7 @@ if TYPE_CHECKING:
 def _nanmax_with_check(input_values: list) -> float:
     """Calculate the maximum value of a list, accounting for NaN values.
 
-    Params:
+    Args:
         input_values: List of numerical values.
 
     Returns:
@@ -84,7 +84,7 @@ def _nanmax_with_check(input_values: list) -> float:
 def _nanmin_with_check(input_values: list) -> float:
     """Calculate the minimum value of a list, accounting for NaN values.
 
-    Params:
+    Args:
         input_values: List of numerical values.
 
     Returns:
@@ -106,7 +106,7 @@ def _nanmin_with_check(input_values: list) -> float:
 def _nanstd_with_check(input_values: pd.DataFrame, ddof: int = 1) -> float:
     """Calculate the standard deviation, accounting for NaN values.
 
-    Params:
+    Args:
         input_values: DataFrame containing numerical values.
 
         ddof:         Delta degrees of freedom (default is 1).
@@ -140,7 +140,7 @@ async def get_init_relevant_assets(root: Tradeforce, capped: int = -1) -> DictRe
     configured criteria, and return a dictionary containing
     relevant assets, their metrics, and the market history data.
 
-    Params:
+    Args:
         root:   Tradeforce intance, providing access to the
                     configuration, logging, and API objects.
 
@@ -188,7 +188,7 @@ def _get_asset_performance_metrics(df_input: pd.DataFrame, candle_interval: str)
      - Candle sparsity
      - Asset volatility
 
-    Params:
+    Args:
         df_input:        DataFrame containing historical candle data
                             for multiple assets.
 
@@ -219,7 +219,7 @@ def _calculate_init_timespan(root: Tradeforce) -> str:
     The timespan is determined by the limit of the Bitfinex REST API for one request
     (10.000 candles) and the desired timeframe days defined in the configuration.
 
-    Params:
+    Args:
         root: Tradeforce instance containing the configuration settings.
 
     Returns:
@@ -241,7 +241,7 @@ def _filter_relevant_assets(root: Tradeforce, init_market_history: pd.DataFrame)
     Assets are considered relevant if they meet the minimum number of candles and maximum
     candle sparsity criteria specified in the configuration settings.
 
-    Params:
+    Args:
         root:                Tradeforce instance containing the configuration settings.
         init_market_history: DataFrame containing the initial market history data.
 
@@ -267,7 +267,7 @@ def _apply_agg_func_to_columns(
     """Apply the aggregation function to the columns of the input DataFrame
         as a rolling window based on the given candle type columns.
 
-    Params:
+    Args:
         df_input:         DataFrame containing the input data.
         candle_type_cols: List of column names related to a specific
                             candle type (e.g., 'o', 'h', 'l', 'c', 'v').
@@ -297,7 +297,7 @@ def _aggregate_history(df_input: pd.DataFrame, candle_interval: str, agg_timefra
     The function applies different aggregation functions
     to different types of candle data (e.g., open, high, low, close, volume).
 
-    Params:
+    Args:
         df_input:        DataFrame containing the market history data.
         candle_interval: String representing the original candle interval (e.g., '5m').
         agg_timeframe:   String representing the desired aggregation timeframe (e.g., '1h').
@@ -330,7 +330,7 @@ def _get_volume_usd(df_input: pd.DataFrame) -> pd.Series:
     sum the results to obtain the total volume in USD for that asset.
     The calculated volumes are then sorted and returned as a Series.
 
-    Params:
+    Args:
         df_input: DataFrame containing market history data with
                     columns for close and volume.
 
@@ -352,7 +352,7 @@ def _get_amount_candles(df_input: pd.DataFrame) -> pd.Series:
     Count the non-missing values in the volume columns for each asset,
     indicating the number of candles. Sort the results and return them as a Series.
 
-    Params:
+    Args:
         df_input: DataFrame containing market history data with columns for volume.
 
     Returns:
@@ -373,7 +373,7 @@ def _calculate_candle_sparsity(df_vol: pd.DataFrame) -> dict[str, int]:
     which represents the sparsity of candles for each asset.
     The calculated sparsity values are then returned as a dictionary.
 
-    Params:
+    Args:
         df_vol: DataFrame containing volume data for each asset.
 
     Returns:
@@ -392,7 +392,7 @@ def _calculate_candle_sparsity(df_vol: pd.DataFrame) -> dict[str, int]:
 def _get_candle_sparsity(df_input: pd.DataFrame) -> pd.Series:
     """Calculate and return the candle sparsity for each asset in the input DataFrame.
 
-    Params:
+    Args:
         df_input: DataFrame containing market history data with columns for volume.
 
     Returns:
@@ -412,7 +412,7 @@ def _get_candle_sparsity(df_input: pd.DataFrame) -> pd.Series:
 def _add_pct_change_cols(assets_history_asset: pd.DataFrame) -> pd.DataFrame:
     """Add percentage change columns to the input DataFrame.
 
-    Params:
+    Args:
         assets_history_asset: DataFrame containing asset history data.
 
     Returns:
@@ -434,7 +434,7 @@ def _get_asset_volatility(df_input: pd.DataFrame, candle_interval: str) -> pd.Se
     the _add_pct_change_cols function. Finally, compute the volatility of each asset
     as the standard deviation of the percentage changes.
 
-    Params:
+    Args:
         df_input:        DataFrame containing market history data with
                             columns for open prices.
 
@@ -467,7 +467,7 @@ def _calculate_start_end_idx_type(moving_window_increments: int, timestamp: int 
     Also determine the indexing type ('iloc' or 'loc')
     based on whether a timestamp is provided or not.
 
-    Params:
+    Args:
         moving_window_increments: Integer representing the number of moving
                                     window increments.
 
@@ -497,14 +497,14 @@ def _validate_and_calculate_price_performance(
     root: Tradeforce, market_window_pct_change: pd.DataFrame, moving_window_increments: int
 ) -> pd.Series:
     """Validate and calculate the price performance
-    -> for each asset in the market window.
+        for each asset in the market window.
 
     Check if the amount of historical values is within the acceptable range for the
     given moving_window_increments. tollerance = 5 is arbitrarily chosen.
     Then calculate the "buy signal" represented by price performance:
     summing the percentage change of prices for each asset.
 
-    Params:
+    Args:
         root:                     Tradeforce instance containing configuration
                                     and logging information.
 
@@ -538,7 +538,7 @@ def calc_buy_signals(root: Tradeforce, moving_window_increments: int, timestamp:
     Fetch the market history data, compute the percentage change, and validate
     the data before calculating the buy signals.
 
-    Params:
+    Args:
         root:                     Tradeforce instance containing configuration
                                     and logging information.
 

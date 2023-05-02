@@ -101,7 +101,7 @@ def pre_process(
     This function is only called once per dataset_type before iterating over the
     respective dataset.
 
-    Params:
+    Args:
         config:              Containing relevant settings for calculating
                                 buy signal scores.
 
@@ -158,7 +158,7 @@ def pre_process(
 
 def _clip_asset_prices_pct(asset_prices_pct: pd.DataFrame) -> pd.DataFrame:
     """Clip asset prices percentage changes
-    -> between a lower and an upper threshold.
+        between a lower and an upper threshold.
 
     This sanitizes anomalies in the market API data to realistic values.
 
@@ -168,7 +168,7 @@ def _clip_asset_prices_pct(asset_prices_pct: pd.DataFrame) -> pd.DataFrame:
     This approach is robust to the variance of the input and ensures
     only extreme outliers are clipped.
 
-    Params:
+    Args:
         asset_prices_pct : DataFrame containing asset price
                             percentage changes.
 
@@ -188,7 +188,7 @@ def _clip_asset_prices_pct(asset_prices_pct: pd.DataFrame) -> pd.DataFrame:
 
 def _compute_buy_signals(config: Config, asset_prices_pct: pd.DataFrame) -> pd.DataFrame:
     """Compute the buy signal scores
-    -> using a rolling window sum.
+        using a rolling window sum.
 
     Calculate the "buy signals" by applying a rolling window sum
     to the percentage changes in asset prices.
@@ -202,7 +202,7 @@ def _compute_buy_signals(config: Config, asset_prices_pct: pd.DataFrame) -> pd.D
     To skip those NaN values, they are dropped -> [window - 1 :]
 
 
-    Params:
+    Args:
         config:           Containing relevant settings for calculating
                                 buy signal scores.
 
@@ -254,7 +254,7 @@ def buy_strategy(params: dict, asset_prices_pct: np.ndarray, buy_signals: np.nda
     user-defined parameters. For details on this process see _get_buy_signal_mask()
     and _get_buy_option_array().
 
-    Params:
+    Args:
         params: Dict containing parameters relevant for the buy strategy, including:
 
                 - row_idx:                  Current row index of the iteration.
@@ -294,7 +294,7 @@ def _get_buy_signal_mask(params: dict, buy_signal_scores: np.ndarray) -> np.ndar
     'buy_signal_boundary'. By subtracting and adding the boundary we get the
     min and max scores for the range. The mask is then created accordingly.
 
-    Params:
+    Args:
         params: Dict containing the parameters for the buy strategy, including:
                 - buy_signal_score:    Targeted buy signal score.
                 - buy_signal_boundary: Range around the targeted buy_signal_score.
@@ -320,7 +320,7 @@ def _get_buy_signal_array(params: dict, buy_signal_scores: np.ndarray, buy_signa
     within the buy signal score boundary / range. Finally the array is sorted
     based on 'buy_signal_preference'.
 
-    Params:
+    Args:
         params: Dict containing the parameters for the buy strategy, including:
                 - buy_signal_score: Targeted buy signal score.
                 - buy_signal_boundary: Range around the targeted buy_signal_score.
@@ -373,7 +373,7 @@ def sell_strategy(params: dict, buybag: np.ndarray, history_prices_row: np.ndarr
     Whether the assets have reached their target prices or if the minimum sell conditions
     are met: hold time has elapsed and the current profit ratio meets the minimum profit.
 
-    Params:
+    Args:
         params: Dict containing the parameters for the sell strategy, including:
                 - "row_idx": Current row index.
                 - "_hold_time_increments": Hold time before trying to sell an asset for the
@@ -423,14 +423,14 @@ def sell_strategy(params: dict, buybag: np.ndarray, history_prices_row: np.ndarr
 @nb.njit(cache=True, parallel=False, fastmath=True)
 def _apply_sanity_check(current_prices: np.ndarray, target_prices: np.ndarray) -> np.ndarray:
     """Apply sanity check on the current prices
-    -> by comparing them to a threshold.
+        by comparing them to a threshold.
 
     If the ratio of the current price to the target price is greater than a
     specified threshold (1.2 in this case), the current price is replaced with
     the target price (capped). This helps prevent unrealistic and erroneous profits
     caused by anomalies in the exchange data.
 
-    Params:
+    Args:
         current_prices: Array containing the current prices of the assets in the buy bag.
         target_prices:  Array containing the target prices of the assets in the buy bag.
 
@@ -462,7 +462,7 @@ def _check_min_sell_conditions(
     and if the current profit ratio is greater or equal to the minimum target profit
     factor (min_profit_factor_reached).
 
-    Params:
+    Args:
         params:                Dict containing the parameters for the sell strategy, including:
                                - "_hold_time_increments": The number of increments for the hold time.
                                - "profit_factor_target_min": The minimum target profit factor.
@@ -493,7 +493,7 @@ def get_current_window(params: dict, history_prices_pct: np.ndarray) -> np.ndarr
     The moving window is useful to aggregate data from the past. So the
     start index is calculated by subtracting the size of the moving window.
 
-    Params:
+    Args:
         params: Dict containing the parameters for the buy strategy, including:
                 - "row_idx":                  Current row index.
                 - "moving_window_increments": Size of the moving window in increments.

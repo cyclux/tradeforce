@@ -61,7 +61,7 @@ def get_col_names(idx: pd.Index, specific_col: str = "") -> list[str]:
     underscore delimiter. An optional specific column can be provided to
     filter the column names.
 
-    Params:
+    Args:
         idx:          A Pandas Index object from a DataFrame or Series.
         specific_col: An optional string to filter the column names.
                       If provided, the filtered column names will include
@@ -79,7 +79,7 @@ def get_col_names(idx: pd.Index, specific_col: str = "") -> list[str]:
 def ms_to_ns(t_ms: int) -> int:
     """Convert milliseconds to nanoseconds
 
-    Params:
+    Args:
         t_ms: An integer representing a duration in milliseconds.
 
     Returns:
@@ -91,7 +91,7 @@ def ms_to_ns(t_ms: int) -> int:
 def ns_to_ms(t_ns: int) -> int:
     """Convert nanoseconds to milliseconds
 
-    Params:
+    Args:
         t_ns: An integer representing a duration in nanoseconds.
 
     Returns:
@@ -103,7 +103,7 @@ def ns_to_ms(t_ns: int) -> int:
 def ns_to_ms_array(t_ns: np.ndarray) -> np.ndarray:
     """Convert nanoseconds to milliseconds for an array of values
 
-    Params:
+    Args:
         t_ns: Array representing a duration in nanoseconds.
 
     Returns:
@@ -115,7 +115,7 @@ def ns_to_ms_array(t_ns: np.ndarray) -> np.ndarray:
 def candle_interval_to_min(candle_interval: str) -> int:
     """Convert candle interval to minutes. Quick mapping.
 
-    Params:
+    Args:
         candle_interval: A string representing the candle interval. e.g. "5m" etc.
 
     Returns:
@@ -150,7 +150,7 @@ def candle_interval_to_ms(candle_interval: str) -> int:
 
     Convinience function to convert candle interval to milliseconds.
 
-    Params:
+    Args:
         candle_interval: A string representing the candle interval. e.g. "5m" etc.
 
     Returns:
@@ -162,7 +162,7 @@ def candle_interval_to_ms(candle_interval: str) -> int:
 def _convert_to_array(symbol_input: str | list | np.ndarray) -> np.ndarray:
     """Convert input to array and flatten if necessary
 
-    Params:
+    Args:
         symbol_input: A string, list, or numpy array.
 
     Returns:
@@ -179,7 +179,7 @@ def convert_symbol_to_exchange(
     "with_trade_prefix" is only relevant for bitfinex
     e.g. BTC -> tBTCUSD or META -> tMETA:USD
 
-    Params:
+    Args:
         symbol_input:  A string, list, or numpy array.
         base_currency: A string representing the base currency.
         with_t_prefix: A boolean indicating whether to include the "t" prefix.
@@ -198,7 +198,7 @@ def convert_symbol_to_exchange(
 def convert_symbol_from_exchange(symbol_input: str | list | np.ndarray, base_currency: str = "USD") -> list[str]:
     """Convert symbol string from exchange format to standard format.
 
-    Params:
+    Args:
         symbol_input:  A string, list, or numpy array.
         base_currency: A string representing the base currency.
 
@@ -228,7 +228,7 @@ def get_timedelta(delta: str | int, unit: Literal["ms", "min", "h"] | None = Non
 
     E.g. "1h" -> {"datetime": pd.Timedelta("1h"), "timestamp": 3600000}
 
-    Params:
+    Args:
         delta: A string or integer representing a duration.
         unit:  A string representing the unit of the duration. e.g. "h", "m", "s", "ms"
 
@@ -266,7 +266,7 @@ def get_time_minus_delta(timestamp: int | None = None, delta: str = "") -> DictT
     E.g. get_time_minus_delta(timestamp=1672531200000, delta="1h") ->
     {"datetime": pd.Timestamp("2023-01-01 00:00:00"), "timestamp":1672531200000}
 
-    Params:
+    Args:
         timestamp: An integer representing a timestamp in milliseconds.
         delta:     A string representing a duration. e.g. "1min", "15min", "1h"
 
@@ -295,12 +295,12 @@ def get_time_minus_delta(timestamp: int | None = None, delta: str = "") -> DictT
 
 def get_reference_index(timeframe: dict[str, pd.Timestamp], freq: str = "5min") -> pd.DataFrame:
     """Get a DataFrame datetime index
-    -> with given timeframe and frequency.
+        with given timeframe and frequency.
 
     Can be utilized to create a ground truth to compare to
     and thus find differences (=missing data).
 
-    Params:
+    Args:
         timeframe: Dict containing start and end datetime.
         freq:      A string representing the frequency of the index.
                     e.g. "5min", "15min", "1h"
@@ -325,7 +325,7 @@ def calc_fee(config: Config, amount_asset: float, price_current: float, order_ty
 
     'exchange_fee' is either taker or maker fee depending on order type.
 
-    Params:
+    Args:
         config:        Contains exchange taker and maker fee.
         amount_asset:  A float representing the amount of the asset.
         price_current: A float representing the current price of the asset.
@@ -383,7 +383,7 @@ def convert_sim_items(input_array: np.ndarray, asset_names: list) -> dict:
 
     Mapping of metric labels to indices in simulation output array.
 
-    Params:
+    Args:
         input_array: Array containing simulation results.
         asset_names: A list of asset names.
 

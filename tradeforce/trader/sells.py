@@ -49,7 +49,7 @@ if TYPE_CHECKING:
 def _get_latest_prices(root: Tradeforce) -> tuple[int, dict]:
     """Get the latest prices for all symbols from the market history.
 
-    Params:
+    Args:
         root: The main Tradeforce instance providing
         access to the market_history module.
 
@@ -68,7 +68,7 @@ def _should_sell_simulation(root: Tradeforce, price_current: float, price_profit
     "1.2" is the maximum allowed profit ratio for a trade in a simulation.
     This prevents the simulation from selling assets for a profit that is not realistic.
 
-    Params:
+    Args:
         root:          The main Tradeforce instance.
         price_current: The current price of the asset.
         price_profit:  The target price for profit.
@@ -83,7 +83,7 @@ def _should_sell_simulation(root: Tradeforce, price_current: float, price_profit
 def _create_sell_option(root: Tradeforce, open_order: dict, price_current: float) -> dict:
     """Create a dictionary containing the sell option information.
 
-    Params:
+    Args:
         root:          The main Tradeforce instance.
         open_order:    The open order information.
         price_current: The current price of the asset.
@@ -108,7 +108,7 @@ def _create_sell_option(root: Tradeforce, open_order: dict, price_current: float
 def _get_current_profit_ratio(price_current: float, price_buy: float) -> float:
     """Calculate the current profit ratio.
 
-    Params:
+    Args:
         price_current: The current price of the asset.
         price_buy:     The initial buying price of the asset.
 
@@ -124,7 +124,7 @@ def _get_increments_since_buy(timestamp: int, timestamp_buy: int, candle_interva
     The amount of increments is variable and depends
     on the candle_interval of the market history.
 
-    Params:
+    Args:
         timestamp:     The current timestamp.
         timestamp_buy: The timestamp when the asset was bought.
 
@@ -139,7 +139,7 @@ def _get_increments_since_buy(timestamp: int, timestamp_buy: int, candle_interva
 def _is_ok_to_sell(root: Tradeforce, time_since_buy: int, current_profit_ratio: float) -> bool:
     """Determine selling the asset based on the time_since_buy and current_profit_ratio.
 
-    Params:
+    Args:
         root:                 The main Tradeforce instance.
         time_since_buy:       The time since the asset was bought.
         current_profit_ratio: The current profit ratio.
@@ -156,7 +156,7 @@ def _is_ok_to_sell(root: Tradeforce, time_since_buy: int, current_profit_ratio: 
 def _process_open_order(root: Tradeforce, open_order: dict, latest_prices: dict, timestamp: int) -> dict | None:
     """Process an open order and return a sell option if conditions are met.
 
-    Params:
+    Args:
         root:          The main Tradeforce instance.
         open_order:    The open order information.
         latest_prices: Dict containing the latest prices for all symbols.
@@ -191,7 +191,7 @@ def _process_open_order(root: Tradeforce, open_order: dict, latest_prices: dict,
 def check_sell_options(root: Tradeforce) -> list[dict]:
     """Check for sell options in the current portfolio.
 
-    Params:
+    Args:
         root: The main Tradeforce instance providing access
         to the config, trader, logger or any other module.
 
@@ -224,7 +224,7 @@ def _create_sell_order_edit(open_order: dict, sell_option: dict) -> dict:
     """Create a sell order dict
         by editing the given open order with the price_sell of the sell_option.
 
-    Params:
+    Args:
         open_order:  The open order dictionary.
         sell_option: The sell option dictionary.
 
@@ -244,7 +244,7 @@ def _create_sell_order_edit(open_order: dict, sell_option: dict) -> dict:
 async def _process_sell_option(root: Tradeforce, open_order: dict, sell_option: dict) -> bool:
     """Process a sell option and update the sell order if necessary.
 
-    Params:
+    Args:
         root:        The main Tradeforce instance.
         open_order:  The open order dictionary.
         sell_option: The sell option dictionary.
@@ -268,7 +268,7 @@ async def _process_sell_option(root: Tradeforce, open_order: dict, sell_option: 
 async def sell_assets(root: Tradeforce, sell_options: list[dict]) -> None:
     """Sell assets based on the provided sell options.
 
-    Params:
+    Args:
         root:         The main Tradeforce instance.
         sell_options: A list of sell options.
     """
@@ -286,7 +286,7 @@ async def sell_assets(root: Tradeforce, sell_options: list[dict]) -> None:
 def _create_sell_order(open_order: dict) -> dict:
     """Create a dictionary containing the sell order items.
 
-    Params:
+    Args:
         open_order: The open order.
 
     Returns:
@@ -304,7 +304,7 @@ def _create_sell_order(open_order: dict) -> dict:
 async def submit_sell_order(root: Tradeforce, open_order: dict) -> None:
     """Submit a sell order based on the given open order.
 
-    Params:
+    Args:
         root:       The main Tradeforce instance.
         open_order: The open order dictionary.
 
@@ -321,7 +321,7 @@ async def submit_sell_order(root: Tradeforce, open_order: dict) -> None:
 def _create_closed_order(root: Tradeforce, open_order: dict, sell_order: dict) -> dict:
     """Create a closed order dictionary based on the open order and sell order.
 
-    Params:
+    Args:
         root:       The main Tradeforce instance.
         open_order: The open order dictionary.
         sell_order: The sell order dictionary.
@@ -345,7 +345,7 @@ def _create_closed_order(root: Tradeforce, open_order: dict, sell_order: dict) -
 def update_budget(root: Tradeforce, closed_order: dict) -> None:
     """Update the budget based on the closed order.
 
-    Params:
+    Args:
         root:         The main Tradeforce instance.
         closed_order: The closed order dictionary.
     """
@@ -356,7 +356,7 @@ def update_budget(root: Tradeforce, closed_order: dict) -> None:
 def sell_confirmed(root: Tradeforce, sell_order: dict) -> None:
     """Process the confirmed sell order and update the open and closed orders accordingly.
 
-    Params:
+    Args:
         root:       The main Tradeforce instance.
         sell_order: The sell order dictionary.
     """

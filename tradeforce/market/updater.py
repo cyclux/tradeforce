@@ -49,7 +49,7 @@ def _append_market_history_update(assets_hist_update: dict, assets_candles: list
     If the asset is not present in the assets_hist_update dictionary,
     initialize its history with the new data.
 
-    Params:
+    Args:
         assets_hist_update: Dict containing the market history of assets.
         assets_candles: A list of new candle data for the current asset.
         symbol_current: The asset symbol (e.g. "BTC") for which the
@@ -82,7 +82,7 @@ def _calculate_ms_until_wait_over(start_timestamp: int, end_timestamp: int) -> i
     The function computes the difference between the end_timestamp and the start_timestamp
     plus an additional waiting time (e.g., 2 minutes).
 
-    Params:
+    Args:
         start_timestamp: The starting timestamp of the time window.
         end_timestamp: The ending timestamp of the time window.
 
@@ -98,7 +98,7 @@ def _get_end_timestamp(end: int | None = None) -> int:
 
     If an end timestamp is provided, return it. Otherwise, return the current timestamp.
 
-    Params:
+    Args:
         end: The optional end timestamp for the time window.
 
     Returns:
@@ -118,7 +118,7 @@ async def _get_symbols_async(symbols: list[str]) -> AsyncIterator[str]:
 
     Utilizes tqdm to display a progress bar.
 
-    Params:
+    Args:
         symbols: A list of asset symbols (e.g., ["BTC", "ETH", "XRP", "ADA", "LTC"]).
 
     Yields:
@@ -134,7 +134,7 @@ class MarketUpdater:
     def __init__(self, root: Tradeforce):
         """Initialize the MarketUpdater class.
 
-        Params:
+        Args:
             root: The instance of the Tradeforce class, which contains configuration and logging.
         """
         self.root = root
@@ -144,7 +144,7 @@ class MarketUpdater:
     def _get_start_timestamp_adjusted(self, start_timestamp: int) -> int:
         """Adjust the start timestamp by adding the candle frequency in milliseconds.
 
-        Params:
+        Args:
             start_timestamp: The original start timestamp.
 
         Returns:
@@ -159,7 +159,7 @@ class MarketUpdater:
         If a start timestamp is provided, return it. Otherwise, return the latest local candle
         timestamp or the latest remote candle timestamp minus a specified time delta.
 
-        Params:
+        Args:
             start: The optional start timestamp for the time window.
 
         Returns:
@@ -184,7 +184,7 @@ class MarketUpdater:
         Calculate start and end timestamps, and convert them to datetime objects. Additionally,
         compute the time until the waiting period is over and new candle data is available.
 
-        Params:
+        Args:
             start: The optional start timestamp for the time window.
             end: The optional end timestamp for the time window.
 
@@ -212,7 +212,7 @@ class MarketUpdater:
     async def _fetch_candles(self, symbol: str, timeframe: DictTimeframe) -> list:
         """Fetch candles for a given symbol and timeframe.
 
-        Params:
+        Args:
             symbol: The asset symbol, e.g. "BTCUSD".
             timeframe: The dictionary containing start and end timestamps for the time window.
 
@@ -237,7 +237,7 @@ class MarketUpdater:
         Take API call rate limits into account and add
         an asynchronous sleep to avoid hitting the rate limits.
 
-        Params:
+        Args:
             timeframe: The dictionary containing start and end timestamps for the time window.
 
         Returns:
@@ -263,7 +263,7 @@ class MarketUpdater:
     def _create_asset_history_df(self, asset_hist: list) -> pd.DataFrame:
         """Create a DataFrame given the asset history data.
 
-        Params:
+        Args:
             asset_hist: A list of asset history data.
 
         Returns:
@@ -276,7 +276,7 @@ class MarketUpdater:
     def _merge_dataframes(self, history_df_list: list[pd.DataFrame]) -> pd.DataFrame:
         """Merge a list of DataFrames containing asset history data.
 
-        Params:
+        Args:
             history_df_list: A list of pandas DataFrames containing asset history data.
 
         Returns:
@@ -297,7 +297,7 @@ class MarketUpdater:
         Finally, merge all the DataFrames in the list using the _merge_dataframes method
         and set the index to the timestamp column.
 
-        Params:
+        Args:
             history_update: Dict containing the market history update for each asset symbol.
             timeframe: Dict containing start and end timestamps as Timestamp objects.
 
@@ -331,7 +331,7 @@ class MarketUpdater:
         Check if the required wait time between updates is over
         and fetch the market history data if it is.
 
-        Params:
+        Args:
             timeframe: Dict containing the start and end
                         timestamps, and the remaining milliseconds
                         until the wait time is over.
@@ -372,7 +372,7 @@ class MarketUpdater:
         Update the market history by fetching new data, if needed, based on the
         given start and end timestamps, or the init_timespan provided.
 
-        Params:
+        Args:
             start: The start timestamp for the time window (optional).
             end: The end timestamp for the time window (optional).
             init_timespan: A string representing the initial timespan,

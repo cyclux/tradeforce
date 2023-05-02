@@ -55,7 +55,7 @@ if TYPE_CHECKING:
 def get_timeframe_from_index(index: pd.Index) -> dict[str, pd.Timestamp]:
     """Get the start and end datetimes from a given pandas DatetimeIndex.
 
-    Params:
+    Args:
         index: The DatetimeIndex.
 
     Returns:
@@ -72,7 +72,7 @@ def get_timeframe_from_index(index: pd.Index) -> dict[str, pd.Timestamp]:
 def calculate_index_diff(reference_index: list, current_index: list) -> list:
     """Calculate the difference between the reference index and the current index.
 
-    Params:
+    Args:
         reference_index: The reference index to compare with.
         current_index: The current index to compare.
 
@@ -85,7 +85,7 @@ def calculate_index_diff(reference_index: list, current_index: list) -> list:
 def filter_nan_values(payload_update_copy: dict) -> dict:
     """Filter out all NaN values from a given dictionary.
 
-    Params:
+    Args:
         payload_update_copy: The dictionary to filter NaN values from.
 
     Returns:
@@ -96,7 +96,7 @@ def filter_nan_values(payload_update_copy: dict) -> dict:
 def prepare_payload_update_copy(payload_update: dict, filter_nan: bool) -> tuple[int, dict]:
     """Prepare the payload update copy for the DB update.
 
-    Params:
+    Args:
         payload_update: The payload update to be prepared.
         filter_nan:     A flag indicating if NaN values should be filtered.
 
@@ -120,7 +120,7 @@ def drop_dict_na_values(record: dict, dbms: str) -> dict:
     Do not drop values for PostgreSQL, because the length of
     all inserts must always be the same.
 
-    Params:
+    Args:
         record: The record to drop NaN values from.
         dbms:   The DBMS in use. For example, 'postgresql' or 'mongodb'.
 
@@ -143,9 +143,9 @@ class Backend(ABC):
 
     def __init__(self, root: Tradeforce):
         """Initialize the Backend class
-        -> for fetching market history from local or remote DBs and storing it in a DataFrame.
+            for fetching market history from local or remote DBs and storing it in a DataFrame.
 
-        Params:
+        Args:
             root: A Tradeforce instance used to access the configuration,
             logging, and other shared resources.
 
@@ -168,7 +168,7 @@ class Backend(ABC):
     def construct_uri(self, db_name: str | None = None) -> str:
         """Construct the URI for the DBMS connection.
 
-        Params:
+        Args:
             db_name (optional): The name of the database to connect to.
             If None, uses the default database from the configuration.
 
@@ -237,7 +237,7 @@ class Backend(ABC):
 
     def get_internal_db_index(self) -> pd.Index:
         """Get the index of the internal in-memory database history
-        -> in sorted order.
+            in sorted order.
 
         Returns:
             A pandas Index object containing the sorted index of the internal
@@ -268,7 +268,7 @@ class Backend(ABC):
 
     def check_db_consistency(self) -> bool:
         """Check the consistency of the internal in-memory database
-        -> by comparing it with the reference index.
+            by comparing it with the reference index.
 
         Returns:
             True if the internal database history is consistent, otherwise False.
@@ -422,9 +422,9 @@ class Backend(ABC):
 
     def get_trader_status(self, trader_id: int) -> dict | None:
         """Retrieve the trader status from the external database
-        -> based on the trader_id.
+            based on the trader_id.
 
-        Params:
+        Args:
             trader_id: The unique identifier of the trader.
 
         Returns:
@@ -441,7 +441,7 @@ class Backend(ABC):
         with the values retrieved from the 'trader_status' dictionary. If the
         'config.budget' is set to 0, update with the value from the 'trader_status'.
 
-        Params:
+        Args:
             trader_status: A dictionary containing the trader status information.
         """
         self.root.trader.gid = trader_status["gid"]
@@ -457,7 +457,7 @@ class Backend(ABC):
         other configuration values, then insert the 'trader_status' dictionary
         into the external database.
 
-        Params:
+        Args:
             trader_id: The unique identifier of the trader.
         """
         trader_status = {
@@ -497,7 +497,7 @@ class Backend(ABC):
         Create a new trader status entry with the provided trader_id and other config
         values, then insert the trader_status dictionary into the external database.
 
-        Params:
+        Args:
             trader_id: The unique identifier of the trader.
         """
         for status, value in status_updates.items():
@@ -512,13 +512,13 @@ class Backend(ABC):
 
     def db_add_history(self, df_history_update: pd.DataFrame) -> None:
         """Add new history data to the internal market history DataFrame
-        -> and synchronize with the external database.
+            and synchronize with the external database.
 
         Update the internal market history with the given DataFrame and,
         if the 'use_dbms' flag is enabled, prepare and insert or update
         the external database accordingly.
 
-        Params:
+        Args:
             df_history_update: A DataFrame containing the new history data.
         """
         self.root.market_history.update_internal_db_market_history(df_history_update)
@@ -529,12 +529,12 @@ class Backend(ABC):
 
     def prepare_payload_update(self, df_history_update: pd.DataFrame) -> list[dict]:
         """Prepare the payload update
-        -> for inserting or updating the external database with new history data.
+            for inserting or updating the external database with new history data.
 
         Converts the given DataFrame into a list of dictionaries and drop any NaN
         values from the records based on the DBMS configuration.
 
-        Params:
+        Args:
             df_history_update: A DataFrame containing the new history data.
 
         Returns:c
@@ -548,7 +548,7 @@ class Backend(ABC):
 
     def update_or_insert_history(self, payload_update: list[dict]) -> None:
         """Update or insert new history data in the external database
-        -> based on the given payload update.
+            based on the given payload update.
 
         Updates the external database with the provided payload update:
 
@@ -557,7 +557,7 @@ class Backend(ABC):
 
             - Otherwise, insert multiple records at once.
 
-        Params:
+        Args:
             payload_update: A list of dictionaries containing the new history data.
         """
         if len(payload_update) <= 1:
@@ -567,14 +567,14 @@ class Backend(ABC):
 
     def update_exchange_history(self, payload_update: dict, upsert: bool = False, filter_nan: bool = False) -> bool:
         """Update the exchange history in the external database
-        -> with the given payload update.
+            with the given payload update.
 
         Update the external database with the provided payload for a specific timestamp index.
         If the upsert flag is enabled, insert the record if it doesn't already exist.
 
         The 'filter_nan' flag determines whether to filter out NaN values from the payload.
 
-        Params:
+        Args:
             payload_update: A dictionary containing the new history data.
             upsert:         A boolean flag indicating whether to perform an upsert operation.
             filter_nan:     A boolean flag indicating whether to filter out NaNs from the payload.

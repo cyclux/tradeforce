@@ -49,13 +49,13 @@ if TYPE_CHECKING:
 
 def _construct_mongodb_query(query: dict | None) -> dict:
     """Construct a MongoDB query
-    -> from the given input dictionary.
+        from the given input dictionary.
 
     Takes an optional dictionary as a parameter and returns a MongoDB
     query as a dictionary. Supports the "in" operator for checking
     the presence of a value in a list.
 
-    Params:
+    Args:
         query: An optional dictionary containing the query parameters.
 
     Returns:
@@ -122,7 +122,7 @@ class BackendMongoDB(Backend):
             is_new_entity method is also implemented in the BackendSQL interface
             and there refers to a SQL table.
 
-        Params:
+        Args:
             collection_name: A string representing the name of the collection.
 
         Returns:
@@ -148,7 +148,7 @@ class BackendMongoDB(Backend):
         The 'unique' parameter indicates whether the index should enforce
         uniqueness constraints.
 
-        Params:
+        Args:
             collection_name: A string representing the name of the collection.
             index_name:      A string representing the name of the index to be created.
             unique:          An optional boolean value indicating whether the index
@@ -164,7 +164,7 @@ class BackendMongoDB(Backend):
         If the collection doesn't exist, it will be created automatically
         by the MongoDB server.
 
-        Params:
+        Args:
             collection_name: A string representing the name of the collection.
 
         Returns:
@@ -184,7 +184,7 @@ class BackendMongoDB(Backend):
     def db_exists_or_create(self, db_name: str | None = None) -> None:
         """Dummy method to prevent type errors.
 
-        Params:
+        Args:
             db_name: A string representing the name of the database.
 
         Raises:
@@ -210,7 +210,7 @@ class BackendMongoDB(Backend):
         Query the specified collection in the MongoDB database with the provided
         query parameters, projection, sort order, limit, and skip options.
 
-        Params:
+        Args:
             collection_name: A string representing the name of the collection.
             query:           An optional dictionary containing the query parameters.
             projection:      An optional dictionary specifying the fields to return.
@@ -254,7 +254,7 @@ class BackendMongoDB(Backend):
         Upsert means that if no document matches the query,
         a new document will be created.
 
-        Params:
+        Args:
             collection_name: A string representing the name of the collection.
             query:           A dictionary containing the query parameters.
             set_value:       A value or dictionary to set in the document.
@@ -282,7 +282,7 @@ class BackendMongoDB(Backend):
 
         Insert a single document into the specified collection.
 
-        Params:
+        Args:
             collection_name: A string representing the name of the collection.
             payload_insert:  A dictionary representing the document to insert.
 
@@ -305,7 +305,7 @@ class BackendMongoDB(Backend):
 
         Insert multiple documents into the specified collection.
 
-        Params:
+        Args:
             collection_name: A string representing the name of the collection.
             payload_insert:  A list of dictionaries representing the documents to insert.
 
@@ -327,7 +327,7 @@ class BackendMongoDB(Backend):
         Delete a single document from the specified collection using the provided
         query parameters.
 
-        Params:
+        Args:
             collection_name: A string representing the name of the collection.
             query:           A dictionary containing the query parameters to
                                 identify the document to delete.

@@ -55,7 +55,7 @@ def _calculate_order_amount(order_type: str, amount: float) -> float:
     Positive amounts are used for buy orders,
     negative amounts for sell orders.
 
-    Params:
+    Args:
         order_type: The type of order, either "buy" or "sell".
         amount:     The amount of the order.
 
@@ -71,7 +71,7 @@ class ExchangeAPI:
     def __init__(self, root: Tradeforce):
         """Initialize and connect to the Bitfinex APIs.
 
-        Params:
+        Args:
             root: The main Tradeforce instance providing access to
             the config and logging or any other module.
         """
@@ -134,9 +134,9 @@ class ExchangeAPI:
 
     async def get_active_assets(self, consider_exclude_list: bool = True) -> list[str]:
         """Retrieve active / available assets from the exchange
-        -> by default considering the assets_excluded list.
+            by default considering the assets_excluded list.
 
-        Params:
+        Args:
             consider_exclude_list: If True, exclude assets listed in the
                                     config's assets_excluded list.
 
@@ -158,9 +158,9 @@ class ExchangeAPI:
 
     async def get_asset_stats(self, symbols: list[str]) -> dict[str, dict[str, float]]:
         """Retrieve asset statistics from the exchange.
-        -> Those metrics will be helpful to determine the assets to inclulde in the portfolio.
+            Those metrics will be helpful to determine the assets to inclulde in the portfolio.
 
-        Params:
+        Args:
             symbols: A list of asset symbols e.g: ["BTC", "ETH", "XRP", "ADA", "LTC"].
 
         Returns:
@@ -192,7 +192,7 @@ class ExchangeAPI:
     ) -> list:
         """Retrieve all public candles between start and end period for a given symbol.
 
-        Params:
+        Args:
             symbol:          The asset symbol e.g: "BTCUSD".
             timestamp_start: The start timestamp for the candle data.
             timestamp_end:   The end timestamp for the candle data.
@@ -224,7 +224,7 @@ class ExchangeAPI:
         strictly incremented by the candle interval in milliseconds.
         e.g: 5 min candles are incremented by 300.000 (5min * 60sec * 1000ms).
 
-        Params:
+        Args:
             minus_delta: A string representing a time delta
                          to subtract from the latest candle timestamp.
 
@@ -291,7 +291,7 @@ class ExchangeAPI:
         FOK means "Fill or Kill" and will cancel the order if it cannot be filled immediately.
         LIMIT orders will be placed on the order book and only filled if the price is reached.
 
-        Params:
+        Args:
             order_type:    The type of order, either "buy" or "sell".
             order_payload: Dict containing order details.
 
@@ -319,7 +319,7 @@ class ExchangeAPI:
     async def edit_order(self, order_type: str, order_payload: dict) -> bool:
         """Update an existing order in the exchange.
 
-        Params:
+        Args:
             order_type: The type of order, either "buy" or "sell".
             order_payload: Dict containing order details.
 
@@ -342,7 +342,7 @@ class ExchangeAPI:
     async def get_order_history(self, raw: bool = False) -> list[dict[str, Any]]:
         """Retrieve order history from exchange.
 
-        Params:
+        Args:
             raw: If True, return raw order history data directly from exchange.
                  If False, return a list of dictionaries containing relevant order items.
 
@@ -373,9 +373,9 @@ class ExchangeAPI:
 
     async def get_active_orders(self, symbol: str) -> list[Order]:
         """Retrieve active orders
-        -> for a given symbol from the exchange.
+            for a given symbol from the exchange.
 
-        Params:
+        Args:
             symbol: The asset symbol e.g. "BTCUSD".
 
         Returns:
@@ -386,9 +386,9 @@ class ExchangeAPI:
 
     async def cancel_order(self, cid: int) -> bool:
         """Cancel an order on the exchange
-        -> based on the order ID.
+            based on the order ID.
 
-        Params:
+        Args:
             cid: The order ID.
 
         Returns:

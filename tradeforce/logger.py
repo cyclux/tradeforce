@@ -49,7 +49,7 @@ class TqdmLoggingHandler(logging.Handler):
     def __init__(self, level: int = logging.NOTSET) -> None:
         """Initialize the TqdmLoggingHandler instance.
 
-        Params:
+        Args:
             level: The minimum logging level (e.g., logging.INFO) at which this handler processes log records.
         """
         super().__init__(level)
@@ -61,7 +61,7 @@ class TqdmLoggingHandler(logging.Handler):
         Formats the log record and writes it to the tqdm progress bar.
         Handles exceptions that may occur during formatting and writing.
 
-        Params:
+        Args:
             record: The log record to be emitted.
         """
         try:
@@ -85,7 +85,7 @@ class TqdmLoggingHandler(logging.Handler):
 
         Append a log record to the buffer.
 
-        Params:
+        Args:
             record: The log record to be buffered.
         """
         self.buffered_records.append(record)
@@ -97,7 +97,7 @@ class TqdmLoggingHandler(logging.Handler):
         If a tqdm progress bar is active (locked), buffer the record.
         Otherwise, flush the buffer and emit the record.
 
-        Params:
+        Args:
             record: The log record to be handled.
         """
         if record.levelno < self.level:
@@ -126,7 +126,7 @@ class Logger:
 
         Creates and returns a logger for the given namespace.
 
-        Params:
+        Args:
             name_space: The namespace for the logger.
 
         Returns:

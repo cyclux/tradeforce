@@ -48,7 +48,7 @@ def buy_asset(
     the remaining budget. Then return an array containing the relevant parameters for the
     purchased asset and the updated budget.
 
-    Params:
+    Args:
         buy_option_idx: A float representing the index of the asset buy option.
         row_idx: A float representing the index of the current row in the market history.
         price_current: A float representing the current price of the asset.
@@ -91,7 +91,7 @@ def buy_asset(
 def _is_max_buy_per_asset_reached(buy_option_idx: np.float64, buybag: np.ndarray, max_buy_per_asset: int) -> bool:
     """Check if the maximum allowed number of buys for a given asset has been reached.
 
-    Params:
+    Args:
         buy_option_idx: A float representing the index of the asset being considered for purchase.
         buybag: Array containing the purchased assets and their parameters.
         max_buy_per_asset: An integer representing the maximum allowed number of buys per asset.
@@ -111,7 +111,7 @@ def _is_max_buy_per_asset_reached(buy_option_idx: np.float64, buybag: np.ndarray
 def _is_investment_cap_reached(buybag: np.ndarray, investment_cap: np.float64) -> bool:
     """Check if the total investment, including fees, has reached the specified investment cap.
 
-    Params:
+    Args:
         buybag: Array containing the purchased assets and their parameters.
         investment_cap: A float representing the maximum allowed investment.
 
@@ -138,7 +138,7 @@ def check_buy(
     Evaluate assets for purchase using the specified strategy: check whether the
     budget and investment cap allow for purchasing, and update the buybag accordingly.
 
-    Params:
+    Args:
         params: Dict containing strategy parameters and other settings.
         df_asset_prices_pct: Array containing asset price percentage changes.
         df_buy_signals: Array containing asset performance metrics.

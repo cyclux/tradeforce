@@ -55,7 +55,7 @@ def _get_significant_digits(num: float, digits: int) -> float:
          and 0.0001234 rounded to 2 significant digits is 0.00012
          and 1234.567800 has 8 significant digits.
 
-    Params:
+    Args:
         num:    The input number.
         digits: The number of significant digits to round to.
 
@@ -68,7 +68,7 @@ def _get_significant_digits(num: float, digits: int) -> float:
 def _get_latest_prices_and_timestamp(root: Tradeforce) -> tuple[dict, int]:
     """Get the latest prices and their corresponding timestamp.
 
-    Params:
+    Args:
         root: The main Tradeforce instance providing access
         to the market_history module.
 
@@ -86,7 +86,7 @@ def _filter_buy_signals(buy_signals: pd.Series, buy_signal_score: float, buy_sig
     """Filter price performance (signal score)
     based on buy opportunity factors and boundaries.
 
-    Params:
+    Args:
         buy_performance:          The buy performance series.
         buy_signal_score:   The buy opportunity factor.
         buy_signal_boundary: The buy opportunity boundary.
@@ -111,7 +111,7 @@ def _filter_and_sort_buy_signals(
     buy_signal_preference == 1 means that those assets with the highest performance are preferred.
     buy_signal_preference == 0 means that those assets closest to the signal score are preferred.
 
-    Params:
+    Args:
         df_buy_options:         The dataframe containing buy options.
         buy_signal_preference:     Performance preference (-1 for low, 0 for neutral, 1 for high).
         buy_signal_score: The buy opportunity factor.
@@ -133,7 +133,7 @@ def _filter_and_sort_buy_signals(
 def _log_buy_options(root: Tradeforce, buy_options: list[dict]) -> None:
     """Log the buy options.
 
-    Params:
+    Args:
         root:        The main Tradeforce instance.
         buy_options: The list of buy options as dictionaries.
     """
@@ -155,7 +155,7 @@ def _log_buy_options(root: Tradeforce, buy_options: list[dict]) -> None:
 def check_buy_options(root: Tradeforce, latest_prices: dict | None = None, timestamp: int | None = None) -> list[dict]:
     """Check buy options / buy signal based on the given latest prices and timestamp.
 
-    Params:
+    Args:
         root:          The main Tradeforce instance.
         latest_prices: The latest prices of all assets as a dictionary.
         timestamp:     The timestamp of the latest prices.
@@ -189,7 +189,7 @@ def check_buy_options(root: Tradeforce, latest_prices: dict | None = None, times
 async def _update_sim_budget(root: Tradeforce) -> None:
     """Update the simulated budget.
 
-    Params:
+    Args:
         root: The main Tradeforce instance providing
         access to the config the backend.
     """
@@ -202,7 +202,7 @@ async def _execute_buy_order(root: Tradeforce, buy_order: dict) -> bool:
     """Execute a buy order.
         gid is the global id of the buy order.
 
-    Params:
+    Args:
         root:      The main Tradeforce instance.
         buy_order: The buy order as a dictionary.
 
@@ -224,7 +224,7 @@ async def _process_buy_order(root: Tradeforce, asset_symbol: str, price: float, 
     """Process a buy order for a given asset symbol
         or price, and buy amount in asset.
 
-    Params:
+    Args:
         root:              The main Tradeforce instance.
         asset_symbol:      The asset symbol.
         price:             The price of the asset.
@@ -252,7 +252,7 @@ async def _should_skip_asset(root: Tradeforce, asset_symbol: str, asset: dict) -
     """Determines if the asset should be skipped
         based on exclusion list and existing open orders.
 
-    Params:
+    Args:
         root:         Tradeforce main instance.
         asset_symbol: The symbol of the asset.
         asset:        The asset dictionary.
@@ -275,7 +275,7 @@ async def _adjust_buy_amount_asset(root: Tradeforce, asset_symbol: str, buy_amou
     """Adjusts the buy amount of assetcurrency to meet the minimum order size.
         Adds 2% to the minimum order size to account for fees.
 
-    Params:
+    Args:
         root:              Tradeforce main instance.
         asset_symbol:      The symbol of the asset.
         buy_amount_asset: The initial buy amount of assetcurrency.
@@ -299,7 +299,7 @@ async def _adjust_buy_amount_asset(root: Tradeforce, asset_symbol: str, buy_amou
 async def _process_buy_option(root: Tradeforce, asset: dict) -> tuple[bool, bool]:
     """Processes a single buy option for a given asset.
 
-    Params:
+    Args:
         root:  Tradeforce main instance.
         asset: The asset dictionary containing the asset symbol and price.
 
@@ -334,7 +334,7 @@ async def buy_assets(root: Tradeforce, buy_options: list[dict]) -> None:
 
     compensate_rate_limit prevents the rate limit of the exchange API from being exceeded
 
-    Params:
+    Args:
         root:        Tradeforce main instance.
         buy_options: A list of buy option dictionaries.
     """
@@ -361,7 +361,7 @@ def _log_summary(root: Tradeforce, assets_out_of_funds_to_buy: list[str], assets
     including assets that were out of funds to buy and assets that reached
     the maximum buying amount.
 
-    Params:
+    Args:
         root:                       Tradeforce main instance.
         assets_out_of_funds_to_buy: A list of asset symbols that were out of funds to buy.
         assets_max_amount_bought:   A list of asset symbols that reached the maximum buying amount.
@@ -391,7 +391,7 @@ def _log_summary(root: Tradeforce, assets_out_of_funds_to_buy: list[str], assets
 def _get_buy_volume_asset(root: Tradeforce, asset_symbol: str) -> float:
     """Gets the buy volume of an asset.
 
-    Params:
+    Args:
         root:         Tradeforce main instance.
         asset_symbol: The symbol of the asset.
 
@@ -404,7 +404,7 @@ def _get_buy_volume_asset(root: Tradeforce, asset_symbol: str) -> float:
 async def _build_open_order(root: Tradeforce, buy_order: Order) -> dict:
     """Builds an open order dictionary based on the provided buy order.
 
-    Params:
+    Args:
         root:      Tradeforce main instance.
         buy_order: The buy order object.
 
@@ -441,7 +441,7 @@ async def buy_confirmed(root: Tradeforce, buy_order: Order) -> None:
     by building an open order, adding it to the trader,
     and submitting a sell order which includes the profit factor.
 
-    Params:
+    Args:
         root:      Tradeforce main instance.
         buy_order: The buy order object.
     """

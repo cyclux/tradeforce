@@ -69,7 +69,7 @@ def load_credentials(root: Tradeforce) -> SecureCredentials:
     Main function to be used for loading API credentials
     from the credentials config file.
 
-    Params:
+    Args:
         root: The main Tradeforce instance providing access
         to the config and logging or any other module.
 
@@ -89,7 +89,7 @@ class SecureCredentials:
 
     Manages the loading, encryption, and decryption of API credentials.
 
-    Params:
+    Args:
         root: The main Tradeforce instance providing access
         to the config and logging or any other module.
     """
@@ -136,7 +136,7 @@ class SecureCredentials:
     def _extract_salt_and_credentials(self, encrypted_credentials_and_salt: bytes) -> None:
         """Extract salt and encrypted credentials from the provided data.
 
-        Params:
+        Args:
             encrypted_credentials_and_salt: Data containing salt and encrypted credentials.
         """
 
@@ -163,7 +163,7 @@ class SecureCredentials:
     def _generate_encryption_key(self, password: str) -> bytes | None:
         """Generate an encryption key from the given password and the salt.
 
-        Params:
+        Args:
             password: The user's password.
 
         Returns:
@@ -232,7 +232,7 @@ class SecureCredentials:
 
         Set file permissions to read/write for the user only.
 
-        Params:
+        Args:
             encrypted_api_key: Encrypted API key.
             encrypted_api_secret: Encrypted API secret.
         """
@@ -288,7 +288,7 @@ class SecureCredentials:
     def _securely_clear_sensitive_data(self, **data_dict: str | None) -> None:
         """Securely clear sensitive data from memory.
 
-        Params:
+        Args:
             **data_dict: Dict containing the names and values of sensitive data.
         """
         for data_name, data_value in data_dict.items():
@@ -300,7 +300,7 @@ class SecureCredentials:
     def _securely_overwrite(data: str) -> None:
         """Overwrite the given string data with zeros to securely clear it from memory.
 
-        Params:
+        Args:
             data: The string data to securely overwrite.
         """
         data_len = len(data)
@@ -312,7 +312,7 @@ class SecureCredentials:
 class DecryptedCredentials(AbstractContextManager):
     """Context manager for handling decrypted credentials.
 
-    Params:
+    Args:
         secure_credentials: An instance of the SecureCredentials class.
     """
 

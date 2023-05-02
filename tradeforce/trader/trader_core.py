@@ -83,7 +83,7 @@ if TYPE_CHECKING:
 def _build_query(asset: dict) -> str:
     """Build a query string for searching assets in the open_orders DataFrame.
 
-    Params:
+    Args:
         asset: Dict containing the asset details.
 
     Returns:
@@ -104,7 +104,7 @@ def _build_query(asset: dict) -> str:
 def _filter_sold_orders(exchange_order_history: list[dict], sell_order_ids: list[int]) -> list[dict]:
     """Filter out the sold orders from the given order history.
 
-    Params:
+    Args:
         exchange_order_history: A list of dictionaries containing the order history.
         sell_order_ids:         A list of sell order IDs, returned by the exchange.
 
@@ -125,7 +125,7 @@ def _get_base_currency_balance(wallet: Wallet) -> float:
     Regular Wallet updates contain the balance_available attribute.
     Snapshot Wallet updates instead contain the balance attribute.
 
-    Params:
+    Args:
         wallet: A Wallet object containing balance details.
 
     Returns:
@@ -159,7 +159,7 @@ class Trader:
     def _handle_db_operations(self, action: str, order: dict, order_type: str) -> None:
         """Perform database operations to insert, edit, or delete an order.
 
-        Params:
+        Args:
             action:     A string indicating the type of database operation to perform,
                         must be one of 'new', 'edit', or 'delete'.
             order:      Dict containing the order details.
@@ -192,7 +192,7 @@ class Trader:
 
         Performs this operation on the in memory list of orders and the DB if available.
 
-        Params:
+        Args:
             order:      Dict containing the order details.
             order_type: A string representing the type of order, e.g., 'open_orders' or 'closed_orders'.
         """
@@ -205,7 +205,7 @@ class Trader:
 
         Performs this operation on the in memory list of orders and the DB if available.
 
-        Params:
+        Args:
             order:      Dict containing the updated order details.
             order_type: A string representing the type of order, e.g., 'open_orders' or 'closed_orders'.
         """
@@ -219,7 +219,7 @@ class Trader:
 
         Performs this operation on the in-memory list of orders and the DB if available.
 
-        Params:
+        Args:
             order:      Dict containing the order details to be deleted.
             order_type: A string representing the type of order, e.g., 'open_orders' or 'closed_orders'.
         """
@@ -234,7 +234,7 @@ class Trader:
     def get_open_order(self, asset: dict) -> list[dict]:
         """Get the open orders for a specific asset based on the provided asset details.
 
-        Params:
+        Args:
             asset: Dict containing the asset details.
 
         Returns:
@@ -275,7 +275,7 @@ class Trader:
         If a timestamp is provided, the trader will check if it is time to sell assets
         based on the elapsed time since buy.
 
-        Params:
+        Args:
             latest_prices: Dict containing the latest price data.
             timestamp: An integer representing the current timestamp.
         """
@@ -317,7 +317,7 @@ class Trader:
 
         Its amount is equivalent to the current available budget.
 
-        Params:
+        Args:
             ws_wallet_snapshot: A list of Wallet objects.
 
         Returns:
@@ -334,7 +334,7 @@ class Trader:
         based on the available balance of the base currency wallet.
         Retrieve the base currency wallet and update the budget with its available balance.
 
-        Params:
+        Args:
             ws_wallet_snapshot: A list of Wallet objects.
         """
         base_currency_wallet = self._find_base_currency_wallet(ws_wallet_snapshot)

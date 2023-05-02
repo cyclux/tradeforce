@@ -75,7 +75,7 @@ def update_budget_from_last_transaction(row_idx: int, budget: float, bag: np.nda
     current row_idx. Ensures that the budget accurately reflects the latest transaction within the
     same row index in the given bag (buy or sell).
 
-    Params:
+    Args:
         row_idx:  The current row index representing the position in the market history.
                     This is used to determine whether the budget should be updated based
                     on the last transaction.
@@ -119,7 +119,7 @@ def iterate_market_history(
 
     performing trading operations based on the given parameters.
 
-    Params:
+    Args:
         params:            Dict containing simulation parameters.
         subset_bounds:     Tuple with the start and end indices of the current subset.
         asset_prices:      Array with the asset prices.
@@ -165,7 +165,7 @@ def perform_trading_simulations(
     Finally calculate the score, also gather trades history and buy log for
     the entire simulation.
 
-    Params:
+    Args:
         params:            Dict containing simulation parameters,
                             such as trading strategy, investment amount, and trading fees.
 
@@ -227,7 +227,7 @@ def perform_trading_simulations(
 def print_simulation_details(root: Tradeforce, asset_prices: pd.DataFrame, dataset_type: str) -> None:
     """Print simulation details.
 
-    Params:
+    Args:
         root:         The Tradeforce instance containing the configuration.
         asset_prices: A DataFrame containing the asset prices.
     """
@@ -264,7 +264,7 @@ def run(root: Tradeforce, dataset_type: str, train_val_split_idx: int) -> dict[s
 
         mean(profit subset) - std(profit subset).
 
-    Params:
+    Args:
         root: The Tradeforce instance containing the necessary configuration and market history data.
 
     Returns:

@@ -36,12 +36,12 @@ class CreateTables:
 
     def history(self, asset_symbols: list[str]) -> None:
         """Create and initialize the history table
-        -> for storing historical market data.
+            for storing historical market data.
 
         Create the history table with columns for each asset symbol
         and its OHLCV values. Do not create the table if it already exists.
 
-        Params:
+        Args:
             asset_symbols: A list of asset symbols for which historical
                             market data will be stored.
 
@@ -75,7 +75,7 @@ class CreateTables:
 
     def trader_status(self) -> None:
         """Create and initialize the trader_status table
-        -> for storing trader status data.
+            for storing trader status data.
 
         Create the 'trader_status' table with columns
         for various trader-related data.
@@ -101,7 +101,7 @@ class CreateTables:
 
     def open_orders(self) -> None:
         """Create and initialize the open_orders table
-        -> for storing open orders data.
+            for storing open orders data.
 
         Create the 'open_orders' table with columns
         for various order-related data for open orders.
@@ -130,7 +130,7 @@ class CreateTables:
 
     def closed_orders(self) -> None:
         """Creat and initialize the closed_orders table
-        -> for storing closed orders data.
+            for storing closed orders data.
 
         Creates the 'closed_orders' table with columns
         for various order-related data for closed orders.

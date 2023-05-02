@@ -3,42 +3,61 @@
 Module: tradeforce.main
 -----------------------
 
+# Functionality
+
 Tradeforce is a comprehensive Python trading framework designed for
 high-performance backtesting, hyperparameter optimization, and live trading.
 By leveraging JIT machine code compilation and providing a robust set of features,
 Tradeforce enables users to develop, test, and deploy trading strategies
-with efficiency and scalability.
+with efficiency and optional scalability.
 
 Key features:
-    - Accelerated simulations using Numba, enabling 100k+ records per second
-    - Customizable trading strategies
-    - Dedicated market server supporting 100+ simultaneous WebSocket connections
-    - Backend support for PostgreSQL and MongoDB
-    - Local caching of market data in Arrow format for rapid loading times
-    - Hyperparameter optimization through the Optuna framework
-    - Live trading capabilities (currently only Bitfinex is supported)
-    - Simple and flexible deployment via Docker
-    - Scalability in cluster environments, such as Kubernetes
-    - Jupyter Notebook integration for analysis and visualization of results
+- Numba accelerated simulations, processing 100k+ records / second / thread
+- Customizable trading strategies
+- Dedicated market server supporting 100+ simultaneous WebSocket connections
+- Backend support for PostgreSQL and MongoDB
+- Local caching of market data in Arrow format for rapid loading times
+- Hyperparameter optimization through the Optuna framework
+- Live trading capabilities (currently only Bitfinex is supported)
+- Easy and flexible deployment via Docker
+- Scalability in cluster environments, such as Kubernetes
+- Jupyter Notebook integration for analysis and visualization of results
 
-# Functionality
+# Data
 
-Tradeforce can process any type of time series or financial market data, but it
-primarily utilizes the Bitfinex API for convenient access to historical data.
-Users can configure the module to fetch data for various timeframes (from days
-to years) and resolutions (1-minute to 1-week candle intervals) for numerous
-assets. Tradeforce can also maintain real-time market updates via WebSocket
-connections.
+Tradeforce can process any type of time series or financial market datasets. However,
+for the sake of convenience, the Bitfinex API is integrated into the framework to
+provide access to a large amount of historical market data. Users can configure to
+fetch data for different timeframes (from days to years) and resolutions (1-minute to
+1-week candle intervals) for numerous assets. Tradeforce can also maintain real-time
+market updates via WebSocket connections.
+
+# Data storage
+
+For storing historical data, Tradeforce currently supports Postgres and MongoDB as
+database backends. However, only Postgres supports the full range of features and
+is therefore the recommended default. MongoDB is supported for historical data
+storage, live trading and standard simulations. Hyperparameter optimization is not
+suppported though. This is because Optuna relies on SQL / Postgres.
+
+# Deployment
+
+Tradeforce offers various deployment options. The most convenient and powerful
+method is using the provided Docker Compose stack, which retrieves the latest image
+from Docker Hub and sets up a database backend (Postgres or MongoDB) required for
+most use cases. There is also the option to spin up a Jupyter Notebook server for
+analyzing and visualizing results. The docker ecosystem also enables scalability to
+cluster environments like Kubernetes.
+
+Alternatively, Tradeforce can be installed via pip from PyPI in a virtual environment,
+combined with a self-hosted database backend. Running without a database backend is
+possible, but its use cases are limited. Generally, a local cache of market data should
+be available at minimum.
 
 # Configuration
 
 Tradeforce is either configured through a Python dictionary or a YAML file. If a
 dictionary is passed to the Tradeforce() constructor it will override any YAML file.
-
-# Data storage
-
-For storing historical data, Tradeforce currently supports PostgreSQL and MongoDB as
-database backends.
 
 # Trade Strategy Testing and Optimization
 
@@ -107,7 +126,7 @@ class Tradeforce:
         exchange_api (ExchangeAPI):            The exchange API object for interacting with the exchange.
         exchange_ws (ExchangeWebsocket):       The exchange WebSocket object for real-time updates.
 
-    Params:
+    Args:
         config (dict):    A dictionary containing user-defined configuration settings.
         assets List[str]: A list of asset symbols to be used. If not provided, all assets will be used.
     """
@@ -118,7 +137,7 @@ class Tradeforce:
         with the provided configuration and asset symbols,
         and register the required modules.
 
-        Params:
+        Args:
             config: A dictionary containing user-defined configuration settings.
             assets: A list of asset symbols to be used in the platform.
                         If not provided, all assets will be used.
@@ -153,7 +172,7 @@ class Tradeforce:
     def _register_config(self, user_config: dict | None, config_file: str | None) -> Config:
         """Initialize and register the configuration.
 
-        Params:
+        Args:
             user_config: An optional dictionary containing user-
                             defined configuration settings.
 
@@ -169,7 +188,7 @@ class Tradeforce:
 
     def _register_backend(self) -> BackendMongoDB | BackendSQL:
         """Initialize and register the database backend
-        -> based on the configuration settings.
+            based on the configuration settings.
 
         Manages Backend database operations.
 
@@ -252,7 +271,7 @@ class Tradeforce:
         Which tasks to run is either determined by the input
         dictionary or in the user-defined configuration.
 
-        Params:
+        Args:
             tasks: A dictionary containing tasks to be
                     executed, with task names as keys
                     and boolean values as flags.
@@ -274,7 +293,9 @@ class Tradeforce:
 
     async def _async_exec_tasks(self, tasks: dict) -> None:
         """Convert _exec_tasks() to a coroutine
-        -> The ensure_future() wrapper in _loop_handler() requires a coroutine.
+
+        The ensure_future() wrapper in _loop_handler()
+        requires a coroutine.
         """
         self._exec_tasks(tasks)
 
@@ -330,24 +351,24 @@ class Tradeforce:
     # ---------------------
 
     def run(self, load_history: bool = True) -> "Tradeforce":
-        """Run the Tradeforce instance in normal mode.
+        """Run the Tradeforce instance in "normal" mode.
 
-        Following modes are available:
+        This method enables following use cases:
 
-        - Run as dedicated market server:
+        - Dedicated market server:
             See dedicated_market_server.py in examples.
 
-        - Run as a live trading bot:
+        - Live trading bot:
             See live_trader_simple.py in examples.
             Note: Custom strategies are not yet available
             for the live trader.
 
-        - Run in a Jupyter notebook:
+        - Analysis in a Jupyter notebook:
             For analysis and visualization of sim results.
             See hyperparam_search_result_analysis.ipynb
             in examples.
 
-        Params:
+        Args:
             load_history: Whether to load the market history
                             on initialization. Default: True.
         """
@@ -365,7 +386,7 @@ class Tradeforce:
         sell_strategy: Callable | None = None,
     ) -> None:
         """Prepare the Tradeforce instance for simulation mode.
-        -> Set the is_sim flag and optionally monkey patch.
+            Set the is_sim flag and optionally monkey patch.
 
         Some functions' logic adapts to the 'is_sim' flag, which
         is indicating we are running in "sim mode".
@@ -373,7 +394,7 @@ class Tradeforce:
         If custom strategy or pre-process functions are provided,
         we need to "monkey patch" them -> Replacing the default ones.
 
-        Params:
+        Args:
             pre_process: An optional custom pre-process function.
             buy_strategy: An optional custom buy strategy function.
             sell_strategy: An optional custom sell strategy function.
@@ -403,7 +424,7 @@ class Tradeforce:
             before running the simulator. For reference, see:
             examples/hyperparam_search_result_analysis.ipynb
 
-        Params:
+        Args:
             pre_process:   An optional function to pre-process market data.
             buy_strategy:  An optional function to determine buy signals.
             sell_strategy: An optional function to determine sell signals.
@@ -433,7 +454,7 @@ class Tradeforce:
         sell_strategy: Callable | None = None,
     ) -> optuna.Study:
         """Run the Tradeforce instance in simulation mode
-        -> combined with Optuna hyperparameter optimization.
+            combined with Optuna hyperparameter optimization.
 
         Default strategies are used if no custom ones are provided.
         For reference, how to define custom strategies, see:
@@ -475,9 +496,9 @@ def _monkey_patch(
     sell_strategy: Callable | None,
 ) -> None:
     """Monkey patch user-defined functions
-    -> pre-process, buy and sell strategy, if provided.
+        pre-process, buy and sell strategy, if provided.
 
-    Params:
+    Args:
         root:          The Tradeforce instance containing the Logger.
 
         pre_process:   A function to be used as pre_process:

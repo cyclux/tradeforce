@@ -35,7 +35,7 @@ NB_CACHE = True
 def to_numba_dict(sim_params: dict) -> nb_types.Dict[types.unicode_type, types.float64]:
     """Convert a Python dictionary to a Numba typed dictionary.
 
-    Params:
+    Args:
         sim_params: A dictionary with keys as strings and values as float64.
 
     Returns:
@@ -58,7 +58,7 @@ def _check_min_subset_size_increments(
     This function prints warnings or errors if the _subset_size_increments value is too small,
     less than 1, or greater than subset_idx_boundary.
 
-    Params:
+    Args:
         _subset_size_increments: The size increment of each subset.
         subset_amount: The total number of subsets.
         subset_idx_boundary: The upper boundary for subset indices.
@@ -94,7 +94,7 @@ def _check_min_subset_size_increments(
 def sanitize_subset_params(params: dict, subset_idx_boundary: np.float64) -> tuple:
     """Sanitize the subset parameters to ensure they are within acceptable limits.
 
-    Params:
+    Args:
         params: Dict containing _subset_size_increments and subset_amount keys.
         subset_idx_boundary: The upper boundary for subset indices.
 
@@ -123,7 +123,7 @@ def array_diff(arr1: np.ndarray, arr2: np.ndarray) -> np.ndarray:
     This function finds the set difference between two arrays
     and returns the result as a new array.
 
-    Params:
+    Args:
         arr1: The first array.
         arr2: The second array.
 
@@ -141,7 +141,7 @@ def calc_fee(
 ) -> tuple:
     """Calculate the fee for a given order.
 
-    Params:
+    Args:
         volume_asset: The volume of the asset.
         maker_fee: The maker fee percentage.
         taker_fee: The taker fee percentage.
@@ -169,7 +169,7 @@ def get_subset_indices(
 ) -> np.ndarray:
     """Generate an array of subset indices.
 
-    Params:
+    Args:
         moving_window_increments: The moving window increments.
         subset_idx_boundary: The upper boundary for subset indices.
         subset_amount: The total number of subsets.
@@ -187,7 +187,7 @@ def get_subset_indices(
 def calc_metrics(soldbag: np.ndarray) -> np.int64:
     """Calculate the total profit metric from the sold bag.
 
-    Params:
+    Args:
         soldbag: A NumPy array containing information about sold assets.
                 The 15th column (index 14) should contain the profit values.
 
@@ -202,7 +202,7 @@ def calc_metrics(soldbag: np.ndarray) -> np.int64:
 def get_pct_change(df_history_prices: np.ndarray) -> np.ndarray:
     """Calculate the percent change between consecutive rows in a NumPy array.
 
-    Params:
+    Args:
         df_history_prices: A NumPy array containing historical prices.
 
     Returns:
@@ -221,7 +221,7 @@ def get_pct_change(df_history_prices: np.ndarray) -> np.ndarray:
 def fill_nan(nd_array: np.ndarray) -> np.ndarray:
     """Replace NaN values in a NumPy array with zeros.
 
-    Params:
+    Args:
         nd_array: A NumPy array potentially containing NaN values.
 
     Returns:

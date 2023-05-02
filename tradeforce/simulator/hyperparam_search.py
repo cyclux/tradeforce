@@ -43,7 +43,7 @@ if TYPE_CHECKING:
 def determine_param_type(param_vals: dict[str, int | float]) -> str:
     """Determine the data type of the parameter values in the provided dictionary.
 
-    Params:
+    Args:
         param_vals: Dict containing the parameter names and their
                         corresponding values.
 
@@ -80,7 +80,7 @@ def _set_search_params(root: Tradeforce, params: dict, trial: optuna.trial.Trial
     uses the appropriate suggest_int or suggest_float method from the trial object to
     update the parameter value in the Tradeforce instance's config.
 
-    Params:
+    Args:
         root:    A Tradeforce instance.
 
         params:  Dict containing the parameter names and their corresponding search
@@ -115,7 +115,7 @@ def run(
 
     for the given Tradeforce instance and Optuna configuration dictionary.
 
-    Params:
+    Args:
         root:          A Tradeforce instance.
         optuna_config: Dict containing the configuration settings for the
                         optimization study and search parameters for each parameter

@@ -99,7 +99,7 @@ class BackendSQL(Backend):
         If the connection is successful, the set `self.connected` to True
         Otherwise, set `self.connected` to False.
 
-        Params:
+        Args:
             db_name: The name of the PostgreSQL database to connect to.
 
         Returns:
@@ -141,7 +141,7 @@ class BackendSQL(Backend):
 
     def _check_new_tables(self) -> None:
         """Check for the existence of specific tables in the database
-        -> and create them if they do not exist.
+            and create them if they do not exist.
 
         Check for the existence of the history entity table (defined in the
         config file) and update the 'is_new_history_entity' attribute accordingly.
@@ -164,7 +164,7 @@ class BackendSQL(Backend):
 
     def _try_reconnect(self, db_name: str) -> None:
         """Attempt to reconnect to the specified database
-        -> considering the maximum number of attempts and the delay between retries.
+            considering the maximum number of attempts and the delay between retries.
 
         Increase the 'reconnect_count' attribute for each attempt, and if the maximum number of
         attempts is reached, raise a SystemExit exception. Update the 'reconnect_max_attempts'
@@ -173,7 +173,7 @@ class BackendSQL(Backend):
         If the 'reconnect_count' attribute exceeds 3, a cool-down period (reconnect_delay_sec)
         is applied before the next connection attempt.
 
-        Params:
+        Args:
             db_name: The name of the database to reconnect to.
 
         Raises:
@@ -203,7 +203,7 @@ class BackendSQL(Backend):
 
     def _establish_connection(self, db_name: str | None = None) -> None:
         """Establish a connection to the specified database
-        -> and ensure necessary tables exist.
+            and ensure necessary tables exist.
 
         If no database name is provided, connect to the default database specified
         in the configuration. Once connected, if the database name matches the
@@ -216,7 +216,7 @@ class BackendSQL(Backend):
         If the connection fails, trigger the _try_reconnect() method
         to attempt reconnection.
 
-        Params:
+        Args:
             db_name: The name of the database to establish a connection to. Defaults to None.
         """
 
@@ -242,7 +242,7 @@ class BackendSQL(Backend):
 
         Attempt to execute the provided SQL query using the database connection's cursor.
 
-        Params:
+        Args:
             query (Composed): The SQL query to execute.
 
         Returns:
@@ -274,7 +274,7 @@ class BackendSQL(Backend):
         If the database does not exist, create the database.
         If the database already exists, proceed with the existing database.
 
-        Params:
+        Args:
             db_name: The name of the database to check and create if necessary.
                 Defaults to the value specified in the configuration.
         """
@@ -301,14 +301,14 @@ class BackendSQL(Backend):
 
     def is_new_entity(self, table_name: str) -> bool:
         """Determine if a given table is new
-        -> by checking its existence in the database.
+            by checking its existence in the database.
 
         Note:
             "Entity" is either a SQL table or a MongoDB collection.
             is_new_entity method is also implemented in the BackendMongoDB
             interface and there refers to a Collection.
 
-        Params:
+        Args:
             table_name: The name of the table to check for existence in the database.
 
         Returns:
@@ -331,12 +331,12 @@ class BackendSQL(Backend):
 
     def create_index(self, table_name: str, index_name: str, unique: bool = False) -> None:
         """Create an index on the specified table
-        -> with the given index_name and optional unique constraint.
+            with the given index_name and optional unique constraint.
 
         Constructs an SQL query to create an index on the specified table.
         If the 'unique' parameter is set to True, add a UNIQUE constraint to the index.
 
-        Params:
+        Args:
             table_name: The name of the table on which to create the index.
             index_name: The name of the index to be created.
             unique:     Whether to enforce a unique constraint on the index. Defaults to False.
@@ -361,7 +361,7 @@ class BackendSQL(Backend):
         skip: int | None = None,
     ) -> list:
         """Perform a query on the specified table
-        -> with the given filters, projection, sorting, limit, and skip options.
+            with the given filters, projection, sorting, limit, and skip options.
 
         Construct an SQL query to retrieve data from the specified table based on the
         provided filter criteria: projection, sorting, limit, and skip options.
@@ -369,7 +369,7 @@ class BackendSQL(Backend):
         Return a list of dictionaries, where each dictionary represents a row in the table
         with keys being the column names and values being the corresponding cell values.
 
-        Params:
+        Args:
             table_name: The name of the table to query.
 
             query:      Filter criteria for the query, as a dictionary with keys
@@ -427,12 +427,12 @@ class BackendSQL(Backend):
         set_value: str | int | list | dict,
     ) -> Composed:
         """Create an SQL update query for the specified table
-        -> using the provided filter and update values.
+            using the provided filter and update values.
 
         Construct an SQL update query to modify the data in the specified table
         based on the provided filter criteria and update values.
 
-        Params:
+        Args:
             table_name: The name of the table to update.
 
             query:      Filter criteria for the query, as a dictionary with keys
@@ -469,13 +469,13 @@ class BackendSQL(Backend):
         upsert: bool = False,
     ) -> bool:
         """Update a single row in the specified table
-        -> based on the given query and set_value.
+            based on the given query and set_value.
 
         Update a single row in the specified table based on the provided filter criteria
         and new values. If the row does not exist and the upsert flag is True, insert the
         row with the provided values.
 
-        Params:
+        Args:
             table_name: The name of the table to update.
 
             query:      Filter criteria for the query, as a dictionary with keys
@@ -508,12 +508,12 @@ class BackendSQL(Backend):
 
     def _insert(self, table_name: str, columns: list, values_list: list) -> bool:
         """Insert multiple rows into the specified table
-        -> using the provided columns and values.
+            using the provided columns and values.
 
         Constructs and execute an SQL INSERT query for the specified table,
         columns, and values.
 
-        Params:
+        Args:
             table_name:  The name of the table to insert data into.
             columns:     A list of column names for which data is being inserted.
             values_list: A list of lists, where each inner list contains values
@@ -539,11 +539,11 @@ class BackendSQL(Backend):
 
     def insert_one(self, table_name: str, payload_insert: dict) -> bool:
         """Insert a single row into the specified table
-        -> using the provided payload.
+            using the provided payload.
 
         Constructs and execute an SQL INSERT query for the specified table and payload.
 
-        Params:
+        Args:
             table_name:     The name of the table to insert data into.
             payload_insert: A dictionary containing key-value pairs, where each key
                                 represents a column name and each value represents
@@ -563,12 +563,12 @@ class BackendSQL(Backend):
 
     def insert_many(self, table_name: str, payload_insert: list[dict], chunk_size: int = 1000) -> bool:
         """Insert multiple rows into the specified table
-        -> using the provided payload.
+            using the provided payload.
 
         Construct and execute an SQL INSERT query for each chunk of the specified
         table and payload.
 
-        Params:
+        Args:
             table_name:     The name of the table to insert data into.
 
             payload_insert: A list of dictionaries, where each dictionary contains
@@ -595,12 +595,12 @@ class BackendSQL(Backend):
 
     def delete_one(self, table_name: str, query: dict[str, str | int]) -> bool:
         """Delete a single row from the specified table
-        -> that matches the given query.
+            that matches the given query.
 
         Construct and execute an SQL DELETE query for the specified
         table and query.
 
-        Params:
+        Args:
             table_name: The name of the table to delete a row from.
             query:      A dictionary containing key-value pairs representing
                             the attribute (column name) and value to be

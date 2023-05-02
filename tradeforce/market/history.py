@@ -99,7 +99,7 @@ def _get_pct_change(
     pct_change() returns NaN for the first row, which is not always desired.
     Also renames the columns of the output DataFrame to include "_pct" (e.g. "BTC_o" -> "BTC_o_pct").
 
-    Params:
+    Args:
         df_history: The input DataFrame containing market history data.
         pct_first_row: The value to be set for the first row of the output DataFrame.
         as_factor: If True, converts percentage changes to factors. Default is True.
@@ -126,7 +126,7 @@ def _get_timestamp_intervals(start: int, end: int, candle_interval: str) -> list
     The intervals are created to have a maximum length of 10,000, which is the maximum
     number of data points allowed in a single request by the Bitfinex API.
 
-    Params:
+    Args:
         start:           The start timestamp of the range.
         end:             The end timestamp of the range.
         candle_interval: The interval between each candle in the format accepted by pandas (e.g., '5min').
@@ -156,7 +156,7 @@ def _get_timestamp_intervals(start: int, end: int, candle_interval: str) -> list
 def set_internal_db_column_type(inmemory_db: pd.DataFrame) -> pd.DataFrame:
     """Set the internal database column types to float32 for optimized memory usage.
 
-    Params:
+    Args:
         inmemory_db: The input DataFrame representing the in-memory database.
 
     Returns:
@@ -174,7 +174,7 @@ def _df_fill_na(df_input: pd.DataFrame) -> None:
 
     Note that this function modifies the input DataFrame in-place.
 
-    Params:
+    Args:
         df_input: The input DataFrame containing market history data with NaN values.
     """
     hist_update_cols = df_input.columns
@@ -191,7 +191,7 @@ def _df_fill_na(df_input: pd.DataFrame) -> None:
 def _filter_assets(internal_history_db: pd.DataFrame, assets: list[str], metrics: list) -> pd.DataFrame:
     """Filter the in-memory DB by the given assets and metrics.
 
-    Params:
+    Args:
         internal_history_db: The internal history database DataFrame.
         assets:              A list of asset symbols to filter by.
         metrics:             A list of metrics to filter by.
@@ -207,7 +207,7 @@ def _filter_assets(internal_history_db: pd.DataFrame, assets: list[str], metrics
 def _iloc_filter_assets(internal_history_db: pd.DataFrame, assets_to_filter: list) -> pd.DataFrame:
     """Filter the in-memory DB by the given asset columns using integer-location based indexing.
 
-    Params:
+    Args:
         internal_history_db: The internal history database DataFrame.
         assets_to_filter:    A list of asset columns to filter by.
 
@@ -224,7 +224,7 @@ def _uniform_columns(internal_history_db: pd.DataFrame, metrics: list[str]) -> p
     If the metrics list contains only one item, the column names are
     set to the base asset symbol without the metric.
 
-    Params:
+    Args:
         internal_history_db: The internal history database DataFrame.
         metrics:             A list of metrics.
 
@@ -241,7 +241,7 @@ def _calculate_index(position: str, skip: int) -> int:
 
     position == "latest" means most recent candle.
 
-    Params:
+    Args:
         position: The requested position of the data point.
         skip:     The number of candles to skip.
     """
@@ -270,7 +270,7 @@ class MarketHistory:
     def __init__(self, root: Tradeforce, path_current: str | None = None, path_history_dumps: str | None = None):
         """Initialize a MarketHistory instance.
 
-        Params:
+        Args:
             root:               A reference to the main Tradeforce instance.
             path_current:       The current working directory. If None, uses the working directory from the config.
             path_history_dumps: The directory for history dumps. Defaults to "data" if None.
@@ -333,7 +333,7 @@ class MarketHistory:
     def update_internal_db_market_history(self, df_history_update: pd.DataFrame) -> None:
         """Update the internal market history DataFrame with new candle data.
 
-        Params:
+        Args:
             df_history_update: A DataFrame containing new market history data to be added.
         """
         self.internal_history_db = pd.concat([self.internal_history_db, df_history_update], axis=0)
@@ -417,7 +417,7 @@ class MarketHistory:
         in the feather format. If the data is successfully loaded, it updates the
         internal history database and sets the force_source attribute to "local_cache".
 
-        Params:
+        Args:
             raise_on_failure: If True, raise a SystemExit if unable to load market
                 history via API. This flag is set to True if the user
                 wants to force the data loading method to be used.
@@ -452,7 +452,7 @@ class MarketHistory:
         attribute to "backend". raise_on_failure is a flag that gets set to True
         if the user wants to force the data loading method to be used.
 
-        Params:
+        Args:
             raise_on_failure: If True, raise a SystemExit if unable to load market
                 history via API. This flag is set to True if the user
                 wants to force the data loading method to be used.
@@ -526,7 +526,7 @@ class MarketHistory:
         data and update the internal history database with the
         data fetched between these timestamps.
 
-        Params:
+        Args:
             raise_on_failure: If True, raise a SystemExit if
                                 unable to load market history via API.
                                 This flag is set to True if the user wants to
@@ -631,15 +631,14 @@ class MarketHistory:
             self.root.backend.check_db_consistency()
 
     def save_to_local_cache(self) -> None:
-        """Save the internal history database to local cache as a Feather file.
+        """Save the internal history DB to local cache path as a Feather file.
 
-        Create the cache directory if it does not exist, and save
-        the internal history database as a Feather file in the local cache directory.
+        Create the cache directory if it does not exist.
         """
 
         Path(self.path_local_cache).mkdir(parents=True, exist_ok=True)
         self.internal_history_db.reset_index(drop=False).to_feather(self.path_local_cache / self.local_cache_filename)
-        self.log.info("Assets dumped via local_cache to: %s", str(self.path_local_cache / self.local_cache_filename))
+        self.log.info("DB saved to local_cache: %s", str(self.path_local_cache / self.local_cache_filename))
 
     def get_market_history(
         self,
@@ -658,34 +657,34 @@ class MarketHistory:
     ) -> pd.DataFrame:
         """Retrieve (a filtered subset of) the market history data as a DataFrame.
 
-            Params:
-                assets: A list of asset symbols to include in the result.
-                            Defaults to all available assets.
+        Args:
+            assets: A list of asset symbols to include in the result.
+                        Defaults to all available assets.
 
-                start: The start index or timestamp for the data.
+            start: The start index or timestamp for the data.
 
-                end: The end index or timestamp for the data.
+            end: The end index or timestamp for the data.
 
-                from_list: A NumPy array of indexes or timestamps to select from.
+            from_list: A NumPy array of indexes or timestamps to select from.
 
-                latest_candle: If True, return only the latest candle.
+            latest_candle: If True, return only the latest candle.
 
-                idx_type: Indexing type to use. Either "loc" (default) or "iloc".
+            idx_type: Indexing type to use. Either "loc" (default) or "iloc".
 
-                metrics: A list of metrics to include in the result.
-                            Defaults to ["o", "h", "l", "c", "v"].
+            metrics: A list of metrics to include in the result.
+                        Defaults to ["o", "h", "l", "c", "v"].
 
-                pct_change: If True, return percentage change values.
+            pct_change: If True, return percentage change values.
 
-                pct_as_factor: If True, return percentage change
-                                as a factor (1.0 + pct_change).
+            pct_as_factor: If True, return percentage change
+                            as a factor (1.0 + pct_change).
 
-                pct_first_row: The first row value to use
-                                when calculating percentage change.
+            pct_first_row: The first row value to use
+                            when calculating percentage change.
 
-                fill_na: If True, fill NaN values in the DataFrame.
+            fill_na: If True, fill NaN values in the DataFrame.
 
-                uniform_cols: If True, return a DataFrame with uniform column naming.
+            uniform_cols: If True, return a DataFrame with uniform column naming.
 
         Returns:
             A DataFrame containing the filtered market history data.
@@ -731,7 +730,7 @@ class MarketHistory:
         timestamp range, using the configured candle interval, and update the backend
         database accordingly.
 
-        Params:
+        Args:
             history_data: A DataFrame containing market history data to update.
                         If None, data will be fetched from the API.
             start: The start timestamp for the data to fetch.
@@ -765,7 +764,7 @@ class MarketHistory:
     def get_asset_symbols(self, updated: bool = False) -> list[str]:
         """Retrieve a list of all asset symbols in the in-memory database.
 
-        Params:
+        Args:
             updated: If True, update the asset symbols list by extracting
                 them from the internal history database.
 
@@ -792,7 +791,7 @@ class MarketHistory:
     def get_local_candle_timestamp(self, position: str = "latest", skip: int = 0, offset: int = 0) -> int:
         """Retrieve the local candle timestamp for a given position, skip, and offset.
 
-        Params:
+        Args:
             position: A string indicating the position of the candle ("latest" or "first").
             skip:     An integer representing the number of candles to skip before retrieving the timestamp.
             offset:   An integer representing the number of candles to offset from the selected position.
@@ -813,7 +812,7 @@ class MarketHistory:
         history database. If the internal history database is empty and the DBMS is MongoDB,
         query the backend to retrieve the timestamp.
 
-        Params:
+        Args:
             idx: Integer representing the index of the desired timestamp.
 
         Returns:

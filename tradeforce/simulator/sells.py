@@ -47,7 +47,7 @@ def _calculate_sell_parameters(
     Including the fiat value including fees, profit in fiat,
     sold asset amount including fees, and the fees in fiat.
 
-    Params:
+    Args:
         params: Dict containing the parameters for the sell strategy.
 
         assets_to_sell: Array containing the assets to be sold,
@@ -94,7 +94,7 @@ def sell_asset(
     and the fees in fiat. Finally append the sold assets and their
     parameters to the soldbag.
 
-    Params:
+    Args:
         params:         Dict containing the parameters for the sell strategy.
         assets_to_sell: Array containing the assets to be sold,
                         including their buy parameters.
@@ -149,7 +149,7 @@ def check_sell(
     update the soldbag with the sold assets and their parameters.
     Finally remove the sold assets from the buybag.
 
-    Params:
+    Args:
         params:             Dict containing the parameters
                                 for the sell strategy.
 
