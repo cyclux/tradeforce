@@ -55,7 +55,7 @@ if TYPE_CHECKING:
 def _check_timestamp_difference(log: Logger, start: int, end: int, freq: str) -> np.ndarray:
     """Check the difference between the DB and the latest websocket timestamps of candles.
 
-    Params:
+    Args:
         log:    Logger object to log debug information.
         start:  Starting timestamp in ms. This is the _init_reference_timestamp from DB or API.
         end:    Ending timestamp in ms. This is the last_candle_timestamp from the websocket.
@@ -81,7 +81,7 @@ def _check_timestamp_difference(log: Logger, start: int, end: int, freq: str) ->
 def _convert_order_to_dict(order_obj: Order) -> dict[str, int | float | str]:
     """Convert an bfx websocket Order object into a dictionary.
 
-    Params:
+    Args:
         order_obj: Order object from bitfinex to convert.
 
     Returns:
@@ -103,7 +103,7 @@ def _get_order_type(ws_order: Order) -> str:
     within the bfx websocket Order object:
     Positive amounts are buy orders, negative amounts are sell orders.
 
-    Params:
+    Args:
         ws_order: The websocket Order object.
 
     Returns:
@@ -119,7 +119,7 @@ def _is_order_closed_and_filled(ws_order_closed: Order) -> bool:
     Thus, take absolute values to ensure correct calculation of the difference.
     Threshold accounts for rounding errors.
 
-    Params:
+    Args:
         ws_order_closed: The websocket Order object.
 
     Returns:
@@ -132,7 +132,7 @@ def _is_order_closed_and_filled(ws_order_closed: Order) -> bool:
 def _convert_min_to_m(interval: str) -> str:
     """Convert the interval from "min" to "m" to match the Bitfinex API.
 
-    Params:
+    Args:
         interval: The interval to convert.
 
     Returns:
@@ -153,7 +153,7 @@ class ExchangeWebsocket:
     def __init__(self, root: Tradeforce):
         """Initialize the ExchangeWebsocket instance.
 
-        Params:
+        Args:
             root: The main Tradeforce instance provides access to the API,
             config and logging or any other module.
         """
@@ -210,14 +210,15 @@ class ExchangeWebsocket:
 
     def _prune_race_condition_prevention_cache(self) -> None:
         """Remove the oldest entry from the race condition prevention cache
-        -> if its size exceeds the limit (3).
+        if its size exceeds the limit (3).
         """
         if len(self.prevent_race_condition_cache) > 3:
             del self.prevent_race_condition_cache[0]
 
     def _prune_candle_cache(self) -> None:
         """Remove the oldest entries from the candle cache
-        -> if its size exceeds candle_cache_cap."""
+        if its size exceeds candle_cache_cap.
+        """
 
         candles_timestamps = self.ws_candle_cache.keys()
         candle_cache_size = len(self.ws_candle_cache.keys())
@@ -238,7 +239,7 @@ class ExchangeWebsocket:
     def _ws_error(self, ws_error: dict) -> None:
         """Log websocket errors.
 
-        Params:
+        Args:
             ws_error: The websocket error.
         """
         self.log.error("ws_error: %s", str(ws_error))
@@ -247,7 +248,7 @@ class ExchangeWebsocket:
         """Update the asset_candle_subs dictionary
             with the subscribed asset.
 
-        Params:
+        Args:
             ws_subscribed: The Bitfinex specific Subscription object.
         """
         symbol = convert_symbol_from_exchange(ws_subscribed.symbol)[0]
@@ -256,7 +257,7 @@ class ExchangeWebsocket:
     def _ws_unsubscribed(self, ws_unsubscribed: Subscription) -> None:
         """Log unsubscribed events.
 
-        Params:
+        Args:
             ws_unsubscribed: The unsubscribed event.
         """
         print("[DEBUG] type ws_unsubscribed", type(ws_unsubscribed))
@@ -266,7 +267,7 @@ class ExchangeWebsocket:
         """Log websocket status updates.
             Includes info about the exchange status, maintenance, etc.
 
-        Params:
+        Args:
             ws_status: Emmits the websocket status.
         """
         print("[DEBUG] type ws_status", type(ws_status))
@@ -281,7 +282,7 @@ class ExchangeWebsocket:
         Sleep 0.1 seconds between each subscription
         to avoid hitting the websocket rate limit.
 
-        Params:
+        Args:
             asset_list: A list of asset symbols to subscribe to.
         """
         if len(asset_list) == 0:
@@ -325,7 +326,7 @@ class ExchangeWebsocket:
 
     async def _ws_init_connection(self) -> None:
         """Initialize the public websocket connection
-        -> Fetch the 'init_reference_timestamp' and subscribe to candle updates.
+            Fetch the 'init_reference_timestamp' and subscribe to candle updates.
 
         Wait for the market history to finish loading:
         This ensures that the local market history and 'asset_list_symbols'
@@ -365,7 +366,7 @@ class ExchangeWebsocket:
             },
         )
 
-        Params:
+        Args:
             candle: A custom dictionary containing the new candle data.
         """
         # 'mts' is the candle timestamp in milliseconds from bfx exchange.
@@ -379,9 +380,9 @@ class ExchangeWebsocket:
 
     def _update_candle_cache(self, candle: DictCandle) -> None:
         """Update the websocket candle cache
-        -> with the new candle data.
+            with the new candle data.
 
-        Params:
+        Args:
             candle: A custom dictionary containing the new candle data.
         """
         symbol_converted = convert_symbol_from_exchange(candle["symbol"])[0]
@@ -405,7 +406,7 @@ class ExchangeWebsocket:
 
     def _set_last_candle_timestamp(self) -> None:
         """Set the 'last_candle_timestamp' attribute
-        -> if there are at least 2 candles in the cache.
+        if there are at least 2 candles in the cache.
         """
         candles_timestamps = self.ws_candle_cache.keys()
         candle_cache_size = len(candles_timestamps)
@@ -466,21 +467,26 @@ class ExchangeWebsocket:
     async def _handle_new_candle(self) -> None:
         """Handle new candle data received from the websocket.
 
-        Process the new candle if conditions are met -> see is_new_candle()
-        and trigger trader updates if configured to run live trading.
+        Save new candle to DB and cache if conditions are met -> see is_new_candle()
+        and trigger trader updates if live trading is active (`run_live is True`).
 
-        'prevent_race_condition_cache' is used to prevent the same candle from being processed
-        multiple times as the asynchronous websocket updates may overlap.
+        Note:
+            'prevent_race_condition_cache' is used to prevent the same candle
+                from being processed multiple times as the asynchronous
+                websocket updates may overlap.
         """
         if self._is_new_candle():
             self.prevent_race_condition_cache.append(self.current_candle_timestamp)
+
             await self._save_new_candle_to_db()
+            self.root.market_history.save_to_local_cache()
+
             if self.config.run_live:
                 await self._trigger_trader_updates()
 
     def _is_new_candle(self) -> bool:
         """Check if the current candle is new
-        -> and thus conditions are met to process it.
+            and thus conditions are met to process it.
 
         Returns True under following conditions:
 
@@ -561,7 +567,7 @@ class ExchangeWebsocket:
     def _ws_priv_order_confirmed(self, ws_confirmed: Order) -> None:
         """Handle the confirmation of an order from the private websocket.
 
-        Params:
+        Args:
             ws_confirmed: A Bitfinex specific Order object.
         """
         self.log.debug("order_confirmed: %s", str(ws_confirmed))
@@ -579,9 +585,9 @@ class ExchangeWebsocket:
 
     def _handle_sell_order(self, buy_order: dict, ws_confirmed: Order) -> None:
         """Handle a sell order
-        -> by updating the open order.
+            by updating the open order.
 
-        Params:
+        Args:
             buy_order:    Dict containing the buy order information.
             ws_confirmed: A Bitfinex specific Order object.
         """
@@ -594,9 +600,9 @@ class ExchangeWebsocket:
 
     def _update_open_order(self, open_order: dict, ws_confirmed: Order) -> None:
         """Update an open order
-        -> with the sell order ID from the websocket data.
+            with the sell order ID from the websocket data.
 
-        Params:
+        Args:
             open_order:   Dict containing the open order's details.
             ws_confirmed: A Bitfinex specific Order object containing the sell order ID.
         """
@@ -607,9 +613,9 @@ class ExchangeWebsocket:
 
     async def _ws_priv_order_closed(self, ws_order_closed: Order) -> None:
         """Handle a websocket event
-        -> for a closed order.
+            for a closed order.
 
-        Params:
+        Args:
             ws_order_closed: A Bitfinex specific Order object.
         """
         self.log.debug("order_closed: %s", str(ws_order_closed))
@@ -621,7 +627,7 @@ class ExchangeWebsocket:
         """Handle the closed order
                 based on its type (buy or sell).
 
-        Params:
+        Args:
             ws_order_closed: A Bitfinex specific Order object.
         """
         order_type = _get_order_type(ws_order_closed)
@@ -641,7 +647,7 @@ class ExchangeWebsocket:
         also sync states of trader and order
         and trigger the minimum order size update.
 
-        Params:
+        Args:
             ws_wallet_snapshot: List of Wallets containing the wallet balances.
         """
         self.log.debug("wallet_snapshot: %s", str(ws_wallet_snapshot))
@@ -659,7 +665,7 @@ class ExchangeWebsocket:
         with the latest balances from the websocket event. The balance
         of the base currency is equivalent to the trader's budget. e.g. USD
 
-        Params:
+        Args:
             ws_wallet_update: A Wallet instance containing the updated wallet information.
         """
         if ws_wallet_update.currency == self.config.base_currency:
