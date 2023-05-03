@@ -467,8 +467,9 @@ class ExchangeWebsocket:
     async def _handle_new_candle(self) -> None:
         """Handle new candle data received from the websocket.
 
-        Save new candle to DB and cache if conditions are met -> see is_new_candle()
+        Save new candle to DB (and optionally cache) if conditions are met.
         and trigger trader updates if live trading is active (`run_live is True`).
+        See is_new_candle() for conditions.
 
         Note:
             'prevent_race_condition_cache' is used to prevent the same candle
@@ -479,7 +480,8 @@ class ExchangeWebsocket:
             self.prevent_race_condition_cache.append(self.current_candle_timestamp)
 
             await self._save_new_candle_to_db()
-            self.root.market_history.save_to_local_cache()
+            if self.config.local_cache:
+                self.root.market_history.save_to_local_cache()
 
             if self.config.run_live:
                 await self._trigger_trader_updates()
