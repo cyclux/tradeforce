@@ -1,29 +1,8 @@
-""" main.py
+""" Module: ``tradeforce`` @ ``main.py``
 
-Module: tradeforce.main
------------------------
 
-# Functionality
-
-Tradeforce is a comprehensive Python trading framework designed for
-high-performance backtesting, hyperparameter optimization, and live trading.
-By leveraging JIT machine code compilation and providing a robust set of features,
-Tradeforce enables users to develop, test, and deploy trading strategies
-with efficiency and optional scalability.
-
-Key features:
-- Numba accelerated simulations, processing 100k+ records / second / thread
-- Customizable trading strategies
-- Dedicated market server supporting 100+ simultaneous WebSocket connections
-- Backend support for PostgreSQL and MongoDB
-- Local caching of market data in Arrow format for rapid loading times
-- Hyperparameter optimization through the Optuna framework
-- Live trading capabilities (currently only Bitfinex is supported)
-- Easy and flexible deployment via Docker
-- Scalability in cluster environments, such as Kubernetes
-- Jupyter Notebook integration for analysis and visualization of results
-
-# Data
+Data
+----
 
 Tradeforce can process any type of time series or financial market datasets. However,
 for the sake of convenience, the Bitfinex API is integrated into the framework to
@@ -32,34 +11,39 @@ fetch data for different timeframes (from days to years) and resolutions (1-minu
 1-week candle intervals) for numerous assets. Tradeforce can also maintain real-time
 market updates via WebSocket connections.
 
-# Data storage
+Storage
+-------
 
-For storing historical data, Tradeforce currently supports Postgres and MongoDB as
-database backends. However, only Postgres supports the full range of features and
+For storing historical trading data, Tradeforce currently supports Postgres and MongoDB
+as database backends. However, only Postgres supports the full range of features and
 is therefore the recommended default. MongoDB is supported for historical data
 storage, live trading and standard simulations. Hyperparameter optimization is not
-suppported though. This is because Optuna relies on SQL / Postgres.
+suppported because Optuna relies on SQL / Postgres.
 
-# Deployment
+Deployment
+----------
 
 Tradeforce offers various deployment options. The most convenient and powerful
 method is using the provided Docker Compose stack, which retrieves the latest image
-from Docker Hub and sets up a database backend (Postgres or MongoDB) required for
-most use cases. There is also the option to spin up a Jupyter Notebook server for
-analyzing and visualizing results. The docker ecosystem also enables scalability to
-cluster environments like Kubernetes.
+from Docker Hub and sets up a database backend required for most use cases. There is
+also the option to spin up a Jupyter Notebook server for analyzing and visualizing
+results. Furthermore, the Docker ecosystem enables scalability through cluster
+environments like Kubernetes.
 
 Alternatively, Tradeforce can be installed via pip from PyPI in a virtual environment,
 combined with a self-hosted database backend. Running without a database backend is
 possible, but its use cases are limited. Generally, a local cache of market data should
-be available at minimum.
+be available at minimum (per default `local_cache` is set `True` and dumps the DB in
+ `arrow` format).
 
-# Configuration
+Configuration
+-------------
 
 Tradeforce is either configured through a Python dictionary or a YAML file. If a
 dictionary is passed to the Tradeforce() constructor it will override any YAML file.
 
-# Trade Strategy Testing and Optimization
+Trade Strategy Testing and Optimization
+---------------------------------------
 
 Tradeforce allows users to test trading strategies and receive a performance score.
 Using the Optuna framework, users can optimize this score by searching for the ideal
@@ -67,10 +51,13 @@ parameters for their strategy. In Optuna, an optimization process is referred to
 a "study." Tradeforce returns a Study object after a successful optimization run,
 which can be used for analyzing and visualizing results within a Jupyter Notebook.
 
-# Live Trading on Exchange
+Live Trading on Exchange
+------------------------
+
 Tradeforce also enables live trading of strategies on the Bitfinex exchange.
 
-# DISCLAIMER
+**DISCLAIMER**
+
 Use at your own risk! Tradeforce is currently in beta, and bugs may occur.
 Furthermore, there is no guarantee that strategies that have performed well
 in the past will continue to do so in the future.
@@ -114,17 +101,6 @@ class Tradeforce:
 
     of the trading framework, providing methods to run the application
     in different modes and manage its components.
-
-    Attributes:
-        log (logging.Logger):                  The logger instance used for logging.
-        asset_symbols (List[str]):             A list of asset symbols to be used in the platform.
-        config (Config):                       The configuration object for the trading platform.
-        trader (Trader):                       The trader object responsible for managing trades.
-        backend (BackendMongoDB | BackendSQL): The database backend object for storing data.
-        market_history (MarketHistory):        The market history object for handling historical data.
-        market_updater_api (MarketUpdater):    The market updater object for updating market data.
-        exchange_api (ExchangeAPI):            The exchange API object for interacting with the exchange.
-        exchange_ws (ExchangeWebsocket):       The exchange WebSocket object for real-time updates.
 
     Args:
         config (dict):    A dictionary containing user-defined configuration settings.

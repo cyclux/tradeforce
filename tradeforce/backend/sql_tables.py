@@ -53,7 +53,7 @@ class CreateTables:
             return
 
         if not asset_symbols:
-            raise ValueError(f"Cannot create {self.config.dbms_history_entity_name} table: No asset_symbols provided!")
+            raise ValueError(f"Cannot create {self.config._dbms_history_entity_name} table: No asset_symbols provided!")
 
         # Append suffixes to asset symbols to create column names
         ohlcv = ("_o", "_h", "_l", "_c", "_v")
@@ -66,12 +66,12 @@ class CreateTables:
 
         query = SQL(
             "CREATE TABLE {table_name} (" + "t BIGINT NOT NULL," + f"{sql_columns}," + "PRIMARY KEY (t)" + ");"
-        ).format(table_name=Identifier(self.config.dbms_history_entity_name))
+        ).format(table_name=Identifier(self.config._dbms_history_entity_name))
         self.backend.execute(query)
 
         self.backend.is_new_history_entity = False
 
-        self.log.info("Created table %s", self.config.dbms_history_entity_name)
+        self.log.info("Created table %s", self.config._dbms_history_entity_name)
 
     def trader_status(self) -> None:
         """Create and initialize the trader_status table

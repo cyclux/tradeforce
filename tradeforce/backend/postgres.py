@@ -151,7 +151,7 @@ class BackendSQL(Backend):
         corresponding creation methods from the CreateTables instance
         (self.create_table) to create the missing tables.
         """
-        self.is_new_history_entity = self.is_new_entity(self.config.dbms_history_entity_name)
+        self.is_new_history_entity = self.is_new_entity(self.config._dbms_history_entity_name)
 
         if self.is_new_entity("trader_status"):
             self.create_table.trader_status()

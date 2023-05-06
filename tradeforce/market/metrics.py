@@ -1,7 +1,4 @@
-""" market/metrics.py
-
-Module: tradeforce.metrics
---------------------------
+""" Module: ``tradeforce.metrics`` @ ``market/metrics.py``
 
 Provides functions for analyzing the historical market data and calculating asset
 performance metrics, such as trading volume, number of candles, candle sparsity,
@@ -248,11 +245,12 @@ def _filter_relevant_assets(root: Tradeforce, init_market_history: pd.DataFrame)
     Returns:
         DataFrame containing the relevant assets based on their performance metrics.
     """
-    min_amount_candles = root.config.min_amount_candles
-    max_candle_sparsity = root.config.max_candle_sparsity
+    relevant_assets_min_amount_candles = root.config.relevant_assets_min_amount_candles
+    relevant_assets_max_candle_sparsity = root.config.relevant_assets_max_candle_sparsity
 
     return _get_asset_performance_metrics(init_market_history, root.config.candle_interval).query(
-        f"amount_candles >= {min_amount_candles} & candle_sparsity <= {max_candle_sparsity}"
+        f"amount_candles >= {relevant_assets_min_amount_candles} "
+        + f"& candle_sparsity <= {relevant_assets_max_candle_sparsity}"
     )
 
 

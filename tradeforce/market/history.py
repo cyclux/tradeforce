@@ -249,32 +249,22 @@ def _calculate_index(position: str, skip: int) -> int:
 
 
 class MarketHistory:
-    """MarketHistory is the central unit for fetching and storing market history data.
+    """Central unit for fetching and storing market history data.
 
-    It keeps a local cache of the candle history data in memory (pd.DataFrame) and on disk (feather file).
-    It provides methods for data retrieval, updates, and caching.
-    It interacts with various backends via interfaces: Currently MongoDB and PostgreSQL.
-    Bitfinex is the only supported exchange at the moment.
+    Keeps a local cache of the candle history data in memory (pd.DataFrame)
+    and on disk (feather file). Provides methods for data retrieval, updates,
+    and caching. Interacts with various backends via interfaces: Currently
+    MongoDB and PostgreSQL. Bitfinex is the only supported exchange at the moment.
 
-    Attributes:
+    Args:
         root (Tradeforce): The main Tradeforce instance.
-        config (Config): User defined configurations.
-        log (Logger): Logger init with the name of this module.
-        internal_history_db (DataFrame): Stores market history data in-memory. Mirror of backend DB.
-        is_load_history_finished (Event): Indicates whether the loading of the history from the backend is finished.
-        path_current (Path): The current working directory.
-        path_local_cache (Path): The path to the local cache.
-        local_cache_filename (str): The filename for the local cache.
+                            Provides access to config, logger or any other module.
+
+        path_current (str): The current working directory.
+                            Defaults to the directory of execution.
     """
 
-    def __init__(self, root: Tradeforce, path_current: str | None = None, path_history_dumps: str | None = None):
-        """Initialize a MarketHistory instance.
-
-        Args:
-            root:               A reference to the main Tradeforce instance.
-            path_current:       The current working directory. If None, uses the working directory from the config.
-            path_history_dumps: The directory for history dumps. Defaults to "data" if None.
-        """
+    def __init__(self, root: Tradeforce, path_current: str | None = None):
         self.root = root
         self.config = root.config
         self.log = root.logging.get_logger(__name__)
@@ -283,9 +273,9 @@ class MarketHistory:
 
         # Set paths
         self.path_current = Path(path_current) if path_current else self.config.working_dir
-        history_dumps_dir = path_history_dumps if path_history_dumps else "data"
-        self.path_local_cache = self.path_current / history_dumps_dir
-        self.local_cache_filename = f"{self.config.dbms_history_entity_name}.arrow"
+
+        self.path_local_cache = self.path_current / "data"
+        self.filename_local_cache = f"{self.config._dbms_history_entity_name}.arrow"
 
     def _create_backend_db_index(self) -> None:
         """Create a unique index on the 't' column of the backend database
@@ -299,7 +289,7 @@ class MarketHistory:
             return
 
         self.root.backend.is_new_history_entity = False
-        self.root.backend.create_index(self.config.dbms_history_entity_name, "t", unique=True)
+        self.root.backend.create_index(self.config._dbms_history_entity_name, "t", unique=True)
 
     def _inmemory_db_set_index(self) -> None:
         """Set the index for the internal_history_db DataFrame
@@ -369,7 +359,7 @@ class MarketHistory:
 
         if self.internal_history_db.empty:
             raise SystemExit(
-                f"[ERROR] No local_cache or DB storage found for '{self.config.dbms_history_entity_name}'. "
+                f"[ERROR] No local_cache or DB storage found for '{self.config._dbms_history_entity_name}'. "
                 + f"No API connection ({self.config.exchange}) to fetch new exchange history: "
                 + "Set update_mode to 'once' or 'live' or check your internet connection."
             )
@@ -429,7 +419,7 @@ class MarketHistory:
         Raises:
             SystemExit: If raise_on_failure is True and data loading fails.
         """
-        read_feather_path = Path(self.path_local_cache, self.local_cache_filename)
+        read_feather_path = Path(self.path_local_cache, self.filename_local_cache)
 
         try:
             internal_history_db = pd.read_feather(read_feather_path)
@@ -465,12 +455,12 @@ class MarketHistory:
             SystemExit: If raise_on_failure is True and data loading fails.
         """
         if not self.root.backend.is_new_history_entity:
-            exchange_market_history = self.root.backend.query(self.config.dbms_history_entity_name, sort=[("t", 1)])
+            exchange_market_history = self.root.backend.query(self.config._dbms_history_entity_name, sort=[("t", 1)])
             internal_history_db = pd.DataFrame(exchange_market_history)
             self.update_internal_db_market_history(internal_history_db)
         else:
             dbms_name = {"mongodb": "MongoDB Collection", "postgresql": "PostgreSQL Table"}.get(self.config.dbms)
-            self.log.info("%s '%s' does not exist!", dbms_name, self.config.dbms_history_entity_name)
+            self.log.info("%s '%s' does not exist!", dbms_name, self.config._dbms_history_entity_name)
             if raise_on_failure:
                 raise SystemExit(f"[ERROR] Was not able to load market history via {self.config.dbms}.")
             return True
@@ -637,8 +627,8 @@ class MarketHistory:
         """
 
         Path(self.path_local_cache).mkdir(parents=True, exist_ok=True)
-        self.internal_history_db.reset_index(drop=False).to_feather(self.path_local_cache / self.local_cache_filename)
-        self.log.info("DB saved to local_cache: %s", str(self.path_local_cache / self.local_cache_filename))
+        self.internal_history_db.reset_index(drop=False).to_feather(self.path_local_cache / self.filename_local_cache)
+        self.log.info("DB saved to local_cache: %s", str(self.path_local_cache / self.filename_local_cache))
 
     def get_market_history(
         self,
@@ -824,7 +814,7 @@ class MarketHistory:
         elif self.config.dbms == "mongodb" and not self.root.backend.is_new_history_entity:
             sort_id = -1 if idx < 0 else 1
             query_result = self.root.backend.query(
-                self.config.dbms_history_entity_name, sort=[("t", sort_id)], skip=abs(idx), limit=1
+                self.config._dbms_history_entity_name, sort=[("t", sort_id)], skip=abs(idx), limit=1
             )
             return int(query_result[0]["t"])
         return 0

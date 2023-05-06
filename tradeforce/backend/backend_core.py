@@ -256,7 +256,7 @@ class Backend(ABC):
             An array containing the index of the external database history.
         """
         query_result = self.query(
-            self.config.dbms_history_entity_name,
+            self.config._dbms_history_entity_name,
             projection={"t": True},
             sort=[("t", 1)],
         )
@@ -353,7 +353,7 @@ class Backend(ABC):
         )
 
         external_db_entries_to_sync = self.query(
-            self.config.dbms_history_entity_name,
+            self.config._dbms_history_entity_name,
             query={
                 "attribute": "t",
                 "in": True,
@@ -394,7 +394,7 @@ class Backend(ABC):
             for record in internal_db_entries.reset_index(drop=False).to_dict("records")
         ]
 
-        self.insert_many(self.config.dbms_history_entity_name, internal_db_entries_to_sync)
+        self.insert_many(self.config._dbms_history_entity_name, internal_db_entries_to_sync)
 
     # ------------------------------
     # Trader status synchronization
@@ -563,7 +563,7 @@ class Backend(ABC):
         if len(payload_update) <= 1:
             self.update_exchange_history(payload_update[0], upsert=True)
         else:
-            self.insert_many(self.config.dbms_history_entity_name, payload_update)
+            self.insert_many(self.config._dbms_history_entity_name, payload_update)
 
     def update_exchange_history(self, payload_update: dict, upsert: bool = False, filter_nan: bool = False) -> bool:
         """Update the exchange history in the external database
@@ -585,7 +585,7 @@ class Backend(ABC):
         t_index, payload_update_copy = prepare_payload_update_copy(payload_update, filter_nan)
 
         update_success = self.update_one(
-            self.config.dbms_history_entity_name,
+            self.config._dbms_history_entity_name,
             query={"attribute": "t", "value": t_index},
             set_value=payload_update_copy,
             upsert=upsert,

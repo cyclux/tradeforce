@@ -78,7 +78,7 @@ class BackendMongoDB(Backend):
     def __init__(self, root: Tradeforce):
         super().__init__(root)
         self.backend_client = self._connect()
-        self.is_new_history_entity = self.is_new_entity(self.config.dbms_history_entity_name)
+        self.is_new_history_entity = self.is_new_entity(self.config._dbms_history_entity_name)
 
     def _connect(self) -> MongoClient:
         """Connect to the MongoDB instance

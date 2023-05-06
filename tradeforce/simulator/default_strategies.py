@@ -1,7 +1,6 @@
-""" simulator/default_strategies.py
+""" Module: ``tradeforce.simulator.default_strategies``
+@ ``simulator/default_strategies.py``
 
-Module: tradeforce.simulator.default_strategies
------------------------------------------------
 
 Contains the default pre-processing, buy, and sell strategies for the
 tradeforce trading simulation. Those default functions can be replaced by custom functions.
@@ -9,22 +8,18 @@ See examples/simulator_custom.py as an example.
 
 Includes following functions:
 
-    pre_process():        Prepare input data for the trading simulation by processing
-                            historical market data and calculating buy signals.
+    :py:attr:`pre_process`: Prepare input data for the trading simulation by processing
+    historical market data and calculating buy signals.
 
-    buy_strategy():       Execute the buy strategy by selecting assets that meet specific
-                            conditions based on the buy signal scores and user-defined
-                            preferences.
+    :py:attr:`buy_strategy`: Execute the buy strategy by selecting assets that meet specific
+    conditions based on the buy signal scores and user-defined preferences.
 
-    sell_strategy():      Execute the sell strategy by identifying assets that meet specific
-                            selling conditions based on whether the assets have reached their
-                            target prices or if the hold time has elapsed and the current profit
-                            ratio meets the "profit_factor_target_min".
+    :py:attr:`sell_strategy`: Execute the sell strategy by identifying assets that meet specific
+    selling conditions based on whether the assets have reached their target prices or if the
+    hold time has elapsed and the current profit ratio meets the "profit_factor_target_min".
 
-    get_current_window(): Get the current moving window of price percentage changes from
-                            the given historical price data. This is a potential helper
-                            function for the buy strategy.
-
+    :py:attr:`get_current_window`: Get the current moving window of price percentage changes from
+    the given historical price data. This is a potential helper function for the buy strategy.
 """
 
 
@@ -50,22 +45,22 @@ if TYPE_CHECKING:
 def pre_process(
     config: Config, market_history: MarketHistory, dataset_type: str, train_val_split_idx: int
 ) -> dict[str, DataFrame]:
-    """Prepare input data for the trading sim
+    """Prepare and pre(process) input data for the trading simulation by
 
-    by processing historical market data and calculating "buy signal scores":
+        - Retrieving the asset prices and their percentage changes.
+        - Applying clipping to the percentage changes to sanitize anomalies.
+        - Computing scores which act as "buy signals" (using rolling window sum).
 
-    Retrieve the asset prices and their percentage changes, apply clipping
-    to the percentage changes to sanitize anomalies and compute the buy signal
-    scores, using a rolling window sum.
+    The ``dataset_type`` determines whether to retrieve the training or validation
+    set, which is defined by the range of records "before" or "after"
+    ``train_val_split_idx``.
 
-    The dataset_type determines whether to retrieve the training or validation
-    set, which is defined by the range "before" or "after" train_val_split_idx.
+    If nor "train" or "val" is set as 'dataset_type': ``start`` and ``end`` are
+    both ``None``, which will return the entire dataset.
 
-    If nor "train" or "val" is set as 'dataset_type': start and end are both None,
-    which will return the entire dataset.
-
-    This function is only called once per dataset_type before iterating over the
-    respective dataset.
+    Note:
+        This function is only called once per ``dataset_type`` before iterating over the
+        respective dataset records.
 
     Args:
         config:              Containing relevant settings for calculating
@@ -81,9 +76,9 @@ def pre_process(
 
     Returns:
         Dict containing the following keys and their corresponding DataFrames:
-        - asset_prices:      Original asset prices.
-        - asset_prices_pct:  Percentage changes in asset prices after clipping.
-        - buy_signals:       Based on a rolling window sum of asset_prices_pct.
+        - ``asset_prices``:      Original asset prices.
+        - ``asset_prices_pct``:  Percentage changes in asset prices after clipping.
+        - ``buy_signals``:       Based on a rolling window sum of asset_prices_pct.
     """
 
     # None as start or end will default to the first or last index
@@ -201,12 +196,14 @@ def buy_strategy(params: dict, asset_prices_pct: np.ndarray, buy_signals: np.nda
     by selecting assets that meet specific conditions, based on user-defined
     preferences / given parameters: A buy signal.
 
-    This function is called for each iteration step / candle record in the dataset.
+    Note:
+        This function is called on each iteration / candle record in the dataset:
+        Be aware of performance implications when logic is added or modified.
 
     In this default implementation the "buy signal" was calculated by a moving
     window sum of the percentage changes in asset prices. This is a very simple
     approach to define a comparable score for asset price performance over a
-    specific time period.
+    specific time period. See :py:attr:`_compute_buy_signals`.
 
     If possible, it is recommended to pre-compute the buy signal scores for the
     whole dataset, as this is usually much faster than computing it "on the fly" on
@@ -331,36 +328,46 @@ def sell_strategy(params: dict, buybag: np.ndarray, history_prices_row: np.ndarr
     """Execute the sell strategy
 
     by identifying assets that meet specific selling conditions based on the given parameters.
-    So it determines whether assets in the buy bag can be sold.
+    Determines whether assets in the buy bag will be sold.
 
-    This function is called for each iteration step / candle record in the dataset.
+    Note:
+        This function is called on each iteration / candle record in the dataset:
+        Be aware of performance implications when logic is added or modified.
 
     The default implementation checks for the following conditions:
     Whether the assets have reached their target prices or if the minimum sell conditions
     are met: hold time has elapsed and the current profit ratio meets the minimum profit.
 
     Args:
-        params: Dict containing the parameters for the sell strategy, including:
-                - "row_idx": Current row index.
-                - "_hold_time_increments": Hold time before trying to sell an asset for the
-                                            minimum profit factor target. Rerived from
-                                            'hold_time_days' and 'candle_interval'.
+        params:
+            Dict containing `Config` and simulation parameters
+            relevant for the sell strategy, including:
 
-                - "profit_factor_target_min": Minimum profit factor target for selling an
-                                                asset after _hold_time_increments is reached.
+            - ``row_idx``:
+                Current row index of the iteration / candle record.
 
-        buybag:             Array containing the buy bag, which stores buy times, buy prices,
-                                target prices etc.
+            - ``_hold_time_increments``:
+                From `Config`. Hold time before trying to sell an asset for the
+                minimum profit factor target. Derived from
+                'hold_time_days' and 'candle_interval'.
+
+            - ``profit_factor_target_min``:
+                From `Config`. Minimum profit factor target for selling an
+                asset after _hold_time_increments is reached.
+
+        buybag: Array containing the buy bag, which stores buy times, buy prices,
+                    target prices etc.
 
         history_prices_row: Array containing the current prices of all assets in the market.
 
     Returns:
-        A tuple containing two arrays:
-
-        - Boolean array representing the sell decision for each asset in the buy bag.
+        - Array, bool
+            representing the sell decision for each asset in the buy bag.
             True indicates that the asset should be sold,
             and False indicates that the asset should be kept.
-        - Array containing the current prices of the assets in the buy bag.
+
+        - Array, float
+            containing the current prices of the assets in the buy bag.
     """
     # Retrieve the indices and transform them,
     # so that they can be used to index the history_prices_row
