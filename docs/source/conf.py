@@ -8,20 +8,19 @@
 
 import sys
 import os
-import importlib
+import importlib.metadata
 
 import sphinx_rtd_theme  # type: ignore
 
 sys.path.insert(0, os.path.abspath(".."))
 
-# Get current version from pyproject.toml
-VERSION = importlib.metadata.version("tradeforce")
 
 project = "tradeforce"
+# Get current version from pyproject.toml
+version = importlib.metadata.version(project)
 copyright = "2023, cyclux"
 author = "cyclux"
-version = VERSION
-release = VERSION
+release = version
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
