@@ -34,7 +34,7 @@ Alternatively, Tradeforce can be installed via pip from PyPI in a virtual enviro
 combined with a self-hosted database backend. Running without a database backend is
 possible, but its use cases are limited. Generally, a local cache of market data should
 be available at minimum (per default `local_cache` is set `True` and dumps the DB in
- `arrow` format).
+`arrow` format).
 
 Configuration
 -------------
