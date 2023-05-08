@@ -9,7 +9,7 @@
 import sys
 import os
 
-# import importlib.metadata
+import importlib.metadata
 
 import sphinx_rtd_theme  # type: ignore
 
@@ -18,9 +18,9 @@ sys.path.insert(0, os.path.abspath(".."))
 
 project = "tradeforce"
 # Get current version from pyproject.toml
-# version = importlib.metadata.version(project)
+version = importlib.metadata.version(project)
 # TODO: quick workaround for readthedocs
-version = "0.0.1"
+# version = "0.0.1"
 copyright = "2023, cyclux"
 author = "cyclux"
 release = version
