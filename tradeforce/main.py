@@ -68,7 +68,7 @@ from __future__ import annotations
 
 # import sys
 from typing import TYPE_CHECKING, Callable
-import importlib
+import importlib.metadata
 import asyncio
 import numpy as np
 import optuna
