@@ -41,7 +41,7 @@ ARG APP_PATH
 WORKDIR ${APP_PATH}
 COPY . .
 RUN --mount=type=cache,target=/root/.cache \
-    poetry install --with=dev --with=docs
+    poetry install --with dev,docs
 
 ENTRYPOINT ["/bin/bash"]
 
@@ -59,9 +59,9 @@ WORKDIR ${APP_PATH}
 COPY pyproject.toml poetry.lock ./
 COPY --from=development ${APP_PATH} ${APP_PATH}
 RUN --mount=type=cache,target=/root/.cache \
-    poetry install --without dev --without docs \
+    poetry install --without dev,docs \
     && poetry build --format wheel \
-    && poetry export --without dev --without docs --format requirements.txt --output requirements.txt
+    && poetry export --without dev,docs --format requirements.txt --output requirements.txt
 
 #----------------------
 # Stage 4: production
