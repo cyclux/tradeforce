@@ -434,7 +434,7 @@ class Config:
         Only used for simulations. This value sets the initial budget balance.
 
         Note:
-            In live trading this setting will be ignored / overwritten. The budget
+            In live trading (:py:attr:`run_live` -> ``True``) this setting will be ignored / overwritten. The budget
             balance will be dynamically derived from the wallet of the exchange.
 
         Default: ``0``
