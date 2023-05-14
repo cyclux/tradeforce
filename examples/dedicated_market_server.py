@@ -27,7 +27,7 @@ from tradeforce import Tradeforce
 CONFIG = {
     "backend": {
         "dbms": "postgresql",
-        "dbms_host": "docker_postgres",
+        "dbms_host": "docker_db",
         "dbms_port": 5433,
         "dbms_connect_db": "postgres",
         "dbms_user": "postgres",

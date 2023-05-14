@@ -33,7 +33,7 @@ config = {
     },
     "backend": {
         "dbms": "postgresql",
-        "dbms_host": "docker_postgres",
+        "dbms_host": "docker_db",
         "dbms_port": 5432,
         "dbms_connect_db": "postgres",
         "dbms_user": "postgres",

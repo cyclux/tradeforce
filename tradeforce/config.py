@@ -278,16 +278,16 @@ class Config:
         """
 
         # TODO: Reference docker-compose.yml
-        self.dbms_host = self.config_input.get("dbms_host", "docker_postgres")
+        self.dbms_host = self.config_input.get("dbms_host", "docker_db")
         """str: Fully qualified domain name (FQDN)
         of the Database Management System (DBMS)
         such as ``localhost`` or a remote address.
 
         Note:
-            The default host ``docker_postgres`` is defined by docker-compose.yml
+            The default host ``docker_db`` is defined by docker-compose.yml
             in the examples folder.
 
-        Default: ``docker_postgres``
+        Default: ``docker_db``
         """
 
         # TODO: Reference docker-compose.yml
@@ -305,7 +305,7 @@ class Config:
         """
 
         # TODO: Reference docker-compose.yml
-        self.dbms_user = self.config_input.get("dbms_user", "postgres")
+        self.dbms_user = self.config_input.get("dbms_user", "")
         """str: Username of :py:attr:`dbms_db`.
 
         Default user is defined by docker-compose.yml in the examples folder.
@@ -314,7 +314,7 @@ class Config:
         """
 
         # TODO: Reference docker-compose.yml
-        self.dbms_pw = self.config_input.get("dbms_pw", "postgres")
+        self.dbms_pw = self.config_input.get("dbms_pw", "")
         """str: Password for :py:attr:`dbms_db`.
 
         Default password is defined by docker-compose.yml in the examples folder.

@@ -8,10 +8,11 @@ run_sim() method of the Tradeforce class. If no pre_process, buy_strategy
 or sell_strategy functions are passed to run_sim(), the default
 implementations will be applied.
 
-See simulator_custom.py for details about the default strategy implementations
-and how to customize them.
+See `examples/simulator_custom.py` for details about the default pre_process,
+buy_strategy, sell_strategy implementations and how to customize them.
 
-See README.md for more information about the Tradeforce configuration options.
+See Config Documentation: https://tradeforce.readthedocs.io/en/latest/config.html
+for more information about the Tradeforce configuration options.
 
 """
 
@@ -35,7 +36,7 @@ CONFIG = {
     },
     "backend": {
         "dbms": "postgresql",
-        "dbms_host": "docker_postgres",
+        "dbms_host": "docker_db",
         "dbms_port": 5433,
         "dbms_connect_db": "postgres",
         "dbms_user": "postgres",
@@ -52,7 +53,7 @@ CONFIG = {
         "check_db_sync": False,
     },
     "simulation": {
-        "subset_size_days": 30,
+        "subset_size_days": 100,
         "subset_amount": 10,
         "train_val_split_ratio": 0.8,
     },
