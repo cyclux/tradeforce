@@ -1,0 +1,30 @@
+# Run Tradeforce with MongoDB
+
+# This file is used to override / extend the base docker-compose.yml file
+# To use this setup, run the following command:
+
+# docker compose -f docker-compose.yml -f docker-compose.mongodb.yml up
+
+version: "3.9"
+name: tradeforce_stack
+services:
+
+  docker_tradeforce:
+    # The entrypoint is the script which is executed when the container is started.
+    # docker_mongodb.py is modified to use the MongoDB database.
+    entrypoint: [ "python", "docker_mongodb.py" ]
+
+  docker_db:
+    container_name: mongodb
+    image: mongo:6.0.4-jammy
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: tradeforce
+      MONGO_INITDB_ROOT_PASSWORD: tradeforce
+    ports:
+      - 27017:27017
+    volumes:
+      - /data/tradeforce_db:/data/db
+
+    # Reset / override command from base docker-compose.yml
+    command: ""

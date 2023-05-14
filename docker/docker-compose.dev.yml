@@ -1,0 +1,14 @@
+version: "3.9"
+name: "tradeforce_stack_dev"
+services:
+
+  docker_tradeforce:
+    container_name: tradeforce_dev
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: development
+
+    volumes:
+      - ../:/opt/tradeforce
+    entrypoint: [ "/bin/bash" ]

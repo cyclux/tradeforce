@@ -1,0 +1,34 @@
+version: "3.9"
+name: tradeforce_stack
+services:
+
+  docker_tradeforce:
+    container_name: tradeforce
+    image: cyclux/tradeforce:latest
+    restart: on-failure
+    depends_on:
+      - docker_db
+    volumes:
+      # Any folders / files which should be accessible from within the container
+      # need to be mounted to '/home/tf_docker/user_code/'
+
+      # Here we mount the examples folder which contains all the scripts
+      # used to showcase scenarios in the documentation:
+      - ../examples/:/home/tf_docker/user_code/
+
+    # The entrypoint is the script which is executed when the container is started.
+    # See `examples/docker_default.py` for more details.
+    entrypoint: ["python", "docker_default.py" ]
+
+  docker_db:
+    image: postgres:15.2-bullseye
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+
+    # Prevent conflict with default port 5432 of potential
+    # existing Postgres instance on the host system.
+    ports:
+      - 5433:5433
+    command: -p 5433

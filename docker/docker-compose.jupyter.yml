@@ -1,0 +1,17 @@
+version: "3.9"
+
+name: tradeforce_stack
+services:
+  docker_tradeforce:
+    # Mount jupyter_entrypoint.sh into the container for execution
+    # via entrypoint on startup
+    volumes:
+      - ./jupyter_entrypoint.sh:/home/tf_docker/jupyter_entrypoint.sh
+
+    # jupyter_entrypoint.sh can be modified to preinstall any packages
+    # needed for analysis with Jupyter Notebook
+    entrypoint: ["/bin/bash", "../jupyter_entrypoint.sh"]
+
+    # Port for Jupyter Notebook
+    ports:
+      - 8889:8889
