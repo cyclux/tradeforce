@@ -177,13 +177,18 @@ class Backend(ABC):
         """
         db_name = self.config.dbms_connect_db if db_name is None else db_name
 
+        # TODO: Replace hotfix -> self.config.dbms != 'mongodb'
+
+        self.config.dbms_user = self.config.dbms_user or ""
+        self.config.dbms_pw = self.config.dbms_pw or ""
+
         return (
             f"{self.config.dbms}://"
             + f"{quote_plus(self.config.dbms_user) if self.config.dbms_user else ''}"
             + f"{':' + quote_plus(self.config.dbms_pw) + '@' if self.config.dbms_pw else ''}"
             + f"{self.config.dbms_host}"
             + f":{str(self.config.dbms_port)}"
-            + f"/{db_name}"
+            + f"{'/' + db_name if self.config.dbms != 'mongodb' else ''}"
         )
 
     # -------------------------------------

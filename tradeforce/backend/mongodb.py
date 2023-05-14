@@ -93,7 +93,7 @@ class BackendMongoDB(Backend):
         Raises:
             ConnectionFailure: If the connection to the MongoDB instance fails.
         """
-        dbms_uri = self.construct_uri()
+        dbms_uri = self.construct_uri(db_name=self.config.dbms_db)
 
         dbms_client: MongoClient = MongoClient(dbms_uri, connect=True)
         self.dbms_db = dbms_client[self.config.dbms_db]
