@@ -172,16 +172,16 @@ docker push -a cyclux/tradeforce
 
 
 [Docker Desktop]: https://docs.docker.com/get-docker/
-[docker]: ../blob/master/docker
 
-[examples]: ../blob/master/examples
+[docker]: ../tree/master/docker
+[examples]: ../tree/master/examples
 
-[simulator_simple_dict.py]: ../blob/master/examples/simulator_simple_dict.py
-[simulator_simple_yaml.py]: ../blob/master/examples/simulator_simple_yaml.py
-[config.yaml]: ../blob/master/examples/config.yaml
+[simulator_simple_dict.py]: ../master/examples/simulator_simple_dict.py
+[simulator_simple_yaml.py]: ../master/examples/simulator_simple_yaml.py
+[config.yaml]: ../master/examples/config.yaml
 
-[docker/docker-compose.yml]: ../blob/master/docker/docker-compose.yml
-[examples/docker_default.py]: ../blob/master/examples/docker_default.py
+[docker/docker-compose.yml]: ../master/docker/docker-compose.yml
+[examples/docker_default.py]: ../master/examples/docker_default.py
 
 [Docker Hub]: https://hub.docker.com/r/cyclux/tradeforce/tags
 [Configuration Documentation]: https://tradeforce.readthedocs.io/en/latest/config.html
