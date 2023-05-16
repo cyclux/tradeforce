@@ -35,9 +35,15 @@ Supported features depend on the choice of data backend:
 | **MongoDB**  | &#9745;       | &#9745;     | &#9745;      | &#9744;|
 | **Arrow**    | &#9745;       | &#9745;     | &#9744;      | &#9744;|
 
->**Note** The recommended [setup with Docker compose](#docker-recommended)\
->includes Postgres as backend and is therefore fully featured.
+>**Note** - The recommended [setup with Docker compose](#docker-recommended) includes\
+> Postgres as backend and is therefore fully featured.
 <!-- TODO: Explain differences and link to documentation -->
+
+## Architecture
+
+<img src="./docs/architecture_diagram.svg" width="700em">
+
+> **Note** - See the [Documentation] for a more detailed description of the architecture.
 
 ## Installation
 
@@ -73,8 +79,8 @@ Supported features depend on the choice of data backend:
     <!-- TODO: Add documentation for different deployments options -->
     Check out the [docker] folder for further examples of deployment options.
 
-    >**Note** On the first run of `docker compose up` the images of the services specified
-    >in [docker/docker-compose.yml] will be fetched from [Docker Hub].
+    >**Note** - On the first run of `docker compose up` the images of the services\
+    > specified in [docker/docker-compose.yml] will be fetched from [Docker Hub].
 
 ### pip
 
@@ -103,7 +109,17 @@ Supported features depend on the choice of data backend:
 
 ## Usage
 
-#### Configuration
+### Run modes
+
+Tradeforce can be run in different modes depending on the use case:
+
+- `run_sim()`: Run single simulation on historical data. See [simulator_simple_dict.py] as an example.
+- `run()`: Run mode primarily for [dedicated market server] and [live trading].
+- `run_optuna()`: Run multiple simulations for hyperparameter optimization via [Optuna]. See [hyperparam_search.py], [hyperparam_search_multiprocess.py] as an example. Also [hyperparam_search_result_analysis.ipynb] for a Jupyter notebook on analyzing the results.
+
+> **Note** - See Documentation: [Run modes] for more details on how to use and configure the different run modes.
+
+### Configuration
 
 See the [Configuration Documentation] which details all the available config options.
 
@@ -121,7 +137,7 @@ Generally Tradeforce can either be configured via
     sim_result = Tradeforce(config=CONFIG).run_sim()
     ```
 
-    > **Note** See [simulator_simple_dict.py] for a working example.
+    > **Note** | See [simulator_simple_dict.py] for a working example.
 
 - **YAML file**:
 
@@ -131,26 +147,25 @@ Generally Tradeforce can either be configured via
     sim_result = Tradeforce(config_file="config.yaml").run_sim()
     ```
 
-    > **Note** See [simulator_simple_yaml.py] and [config.yaml] for a working example.
+    > **Note** | See [simulator_simple_yaml.py] and [config.yaml] for a working example.
 
+### Shell in container
 
-#### Shell in container
+In some use cases it might be helpful to open a shell in the Tradeforce container.
+For instance if `docker compose` is run in detached mode: `docker compose up -d`.
 
-In some use cases it can be helpful to open a shell in the Tradeforce container.
-For instance if docker compose is run in detached mode (`docker compose up -d`).
-
-To connect to the Tradeforce container and open a shell run:
+To connect to the Tradeforce container and open a bash shell run:
 
 ```shell
 docker exec -it tradeforce bash
 ```
 
-> **Note** Here "tradeforce" refers to the `container_name` specified in
-> [docker/docker-compose.yml] and might defer depending on the deployment option or setup.
+> **Note** | Here "tradeforce" refers to the `container_name` specified in [docker/docker-compose.yml]\
+> and might defer depending on the deployment option or setup.
 
 ## DISCLAIMER
-> **Warning** Use at your own risk! Tradeforce is currently in beta, and bugs may occur.
-> Furthermore, there is no guarantee that strategies that have performed well
+> **Warning** Use at your own risk! Tradeforce is currently in beta, and bugs may occur.\
+> Furthermore, there is no guarantee that strategies that have performed well \
 > in the past will continue to do so in the future.
 
 
@@ -172,17 +187,27 @@ docker push -a cyclux/tradeforce
 
 
 [Docker Desktop]: https://docs.docker.com/get-docker/
+[Optuna]: https://optuna.org/
 
-[docker]: ../tree/master/docker
+[docker]: tree/master/docker
 [examples]: ../tree/master/examples
 
 [simulator_simple_dict.py]: ../master/examples/simulator_simple_dict.py
 [simulator_simple_yaml.py]: ../master/examples/simulator_simple_yaml.py
 [config.yaml]: ../master/examples/config.yaml
+[dedicated market server]: ../master/examples/dedicated_market_server.py
+[live trading]: ../master/examples/live_trader_simple.py
+
+[hyperparam_search.py]: ../master/examples/hyperparam_search.py
+[hyperparam_search_multiprocess.py]: ../master/examples/hyperparam_search_multiprocess.py
+[hyperparam_search_result_analysis.ipynb]: ../master/examples/hyperparam_search_result_analysis.ipynb
 
 [docker/docker-compose.yml]: ../master/docker/docker-compose.yml
 [examples/docker_default.py]: ../master/examples/docker_default.py
 
 [Docker Hub]: https://hub.docker.com/r/cyclux/tradeforce/tags
+
+[Documentation]: https://tradeforce.readthedocs.io/en/latest/
 [Configuration Documentation]: https://tradeforce.readthedocs.io/en/latest/config.html
+[Run modes]: https://tradeforce.readthedocs.io/en/latest/run_modes.html
 
