@@ -69,10 +69,15 @@ from tradeforce import Tradeforce
 import optuna
 
 CONFIG = {
-    "trader": {
-        "budget": 1000,
-        "maker_fee": 0.10,
-        "taker_fee": 0.20,
+    "market_history": {
+        "name": "bitfinex_history",
+        "exchange": "bitfinex",
+        "base_currency": "USD",
+        "candle_interval": "5min",
+        "fetch_init_timeframe_days": 100,
+        "update_mode": "none",
+        "force_source": "local_cache",
+        "check_db_consistency": False,
     },
     "backend": {
         "dbms": "postgresql",
@@ -84,14 +89,10 @@ CONFIG = {
         "local_cache": True,
         "check_db_sync": False,
     },
-    "market_history": {
-        "name": "bitfinex_history",
-        "exchange": "bitfinex",
-        "base_currency": "USD",
-        "candle_interval": "5min",
-        "fetch_init_timeframe_days": 100,
-        "update_mode": "none",
-        "force_source": "local_cache",
+    "trader": {
+        "budget": 1000,
+        "maker_fee": 0.10,
+        "taker_fee": 0.20,
     },
     "simulation": {
         "subset_size_days": 30,

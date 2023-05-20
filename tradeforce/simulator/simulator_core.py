@@ -1,7 +1,4 @@
-""" simulator/simulator_core.py
-
-Module: tradeforce.simulator
-----------------------------
+"""  Module: ``simulator`` @ ``simulator/simulator_core.py``
 
 Provides the core functionality for running trading simulations using Tradeforce.
 It defines the main entry point, run(), which takes a Tradeforce instance as
@@ -262,16 +259,20 @@ def run(root: Tradeforce, dataset_type: str, train_val_split_idx: int) -> dict[s
     numpy arrays for usage in Numba, and then performs the trading simulations to calculate the
     score, which is defined as:
 
-        mean(profit subset) - std(profit subset).
+        ``mean(profit subset) - std(profit subset)``
+
+    The standard deviation is subtracted from the mean profit to penalize simulations with high variance of profit
+    among subsets. This prevents overfitting to some specific market conditions which are not representative of the
+    overall market (the total sum of subsets).
 
     Args:
-        root: The Tradeforce instance containing the necessary configuration and market history data.
+        ``root``: The Tradeforce instance containing the necessary configuration and market history data.
 
     Returns:
         Dictionary containing the simulation results:
-        - 'score'   (int):      The score calculated as: mean(profit subsets) - std(profit subsets).
-        - 'trades'  (np.array): Array representing the trading history, including buy and sell events.
-        - 'buy_log' (np.array): Array representing the buy log, containing the details of each buy event.
+        - ``score``   (int):      The score. See explanation of calculation above.
+        - ``trades``  (np.array): Array representing the trading history, including buy and sell events.
+        - ``buy_log`` (np.array): Array representing the buy log, containing the details of each buy event.
     """
     preprocess_result = pre_process(root.config, root.market_history, dataset_type, train_val_split_idx)
     sim_config = sim_utils.to_numba_dict(root.config.to_dict())

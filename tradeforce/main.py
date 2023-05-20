@@ -1,67 +1,6 @@
 """ Module: ``tradeforce`` @ ``main.py``
 
-
-Data
-----
-
-Tradeforce can process any type of time series or financial market datasets. However,
-for the sake of convenience, the Bitfinex API is integrated into the framework to
-provide access to a large amount of historical market data. Users can configure to
-fetch data for different timeframes (from days to years) and resolutions (1-minute to
-1-week candle intervals) for numerous assets. Tradeforce can also maintain real-time
-market updates via WebSocket connections.
-
-Storage
--------
-
-For storing historical trading data, Tradeforce currently supports Postgres and MongoDB
-as database backends. However, only Postgres supports the full range of features and
-is therefore the recommended default. MongoDB is supported for historical data
-storage, live trading and standard simulations. Hyperparameter optimization is not
-suppported because Optuna relies on SQL / Postgres.
-
-Deployment
-----------
-
-Tradeforce offers various deployment options. The most convenient and powerful
-method is using the provided Docker Compose stack, which retrieves the latest image
-from Docker Hub and sets up a database backend required for most use cases. There is
-also the option to spin up a Jupyter Notebook server for analyzing and visualizing
-results. Furthermore, the Docker ecosystem enables scalability through cluster
-environments like Kubernetes.
-
-Alternatively, Tradeforce can be installed via pip from PyPI in a virtual environment,
-combined with a self-hosted database backend. Running without a database backend is
-possible, but its use cases are limited. Generally, a local cache of market data should
-be available at minimum (per default `local_cache` is set `True` and dumps the DB in
-`arrow` format).
-
-Configuration
--------------
-
-Tradeforce is either configured through a Python dictionary or a YAML file. If a
-dictionary is passed to the Tradeforce() constructor it will override any YAML file.
-
-Trade Strategy Testing and Optimization
----------------------------------------
-
-Tradeforce allows users to test trading strategies and receive a performance score.
-Using the Optuna framework, users can optimize this score by searching for the ideal
-parameters for their strategy. In Optuna, an optimization process is referred to as
-a "study." Tradeforce returns a Study object after a successful optimization run,
-which can be used for analyzing and visualizing results within a Jupyter Notebook.
-
-Live Trading on Exchange
-------------------------
-
-Tradeforce also enables live trading of strategies on the Bitfinex exchange.
-
-**DISCLAIMER**
-
-Use at your own risk! Tradeforce is currently in beta, and bugs may occur.
-Furthermore, there is no guarantee that strategies that have performed well
-in the past will continue to do so in the future.
-
+TODO: Explain run modes.
 """
 
 from __future__ import annotations
@@ -336,8 +275,14 @@ class Tradeforce:
 
         - Live trading bot:
             See live_trader_simple.py in examples.
-            Note: Custom strategies are not yet available
-            for the live trader.
+
+        Warning:
+            Use at your own risk! Tradeforce is currently in beta, and bugs may occur.
+            Furthermore, there is no guarantee that strategies that have performed well
+            in the past will continue to do so in the future.
+
+        Note:
+            Custom strategies are not yet available for the live trader.
 
         - Analysis in a Jupyter notebook:
             For analysis and visualization of sim results.
@@ -375,7 +320,7 @@ class Tradeforce:
             buy_strategy: An optional custom buy strategy function.
             sell_strategy: An optional custom sell strategy function.
         """
-        #
+
         self.config.is_sim = True
 
         _monkey_patch(self, pre_process, buy_strategy, sell_strategy)

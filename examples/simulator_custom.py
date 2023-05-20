@@ -34,6 +34,25 @@ from tradeforce.market.history import MarketHistory
 from tradeforce.config import Config
 
 CONFIG = {
+    "market_history": {
+        "name": "bitfinex_history",
+        "exchange": "bitfinex",
+        "base_currency": "USD",
+        "candle_interval": "5min",
+        "fetch_init_timeframe_days": 60,
+        "update_mode": "none",
+        "force_source": "local_cache",
+    },
+    "backend": {
+        "dbms": "postgresql",
+        "dbms_host": "docker_db",
+        "dbms_port": 5433,
+        "dbms_connect_db": "postgres",
+        "dbms_user": "postgres",
+        "dbms_pw": "postgres",
+        "local_cache": False,
+        "check_db_sync": False,
+    },
     "trader": {
         "budget": 1000,
         "maker_fee": 0.10,
@@ -48,25 +67,6 @@ CONFIG = {
             "hold_time_days": 4,
             "profit_factor_target_min": 1.01,
         },
-    },
-    "backend": {
-        "dbms": "postgresql",
-        "dbms_host": "docker_db",
-        "dbms_port": 5433,
-        "dbms_connect_db": "postgres",
-        "dbms_user": "postgres",
-        "dbms_pw": "postgres",
-        "local_cache": False,
-        "check_db_sync": False,
-    },
-    "market_history": {
-        "name": "bitfinex_history",
-        "exchange": "bitfinex",
-        "base_currency": "USD",
-        "candle_interval": "5min",
-        "fetch_init_timeframe_days": 60,
-        "update_mode": "none",
-        "force_source": "local_cache",
     },
     "simulation": {
         "subset_size_days": 30,

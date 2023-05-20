@@ -1,6 +1,5 @@
 """
 
-
 Config module containing the Config class for Tradeforce.
 
 Loads config dict or config.yaml file and stores it in a Config class
@@ -134,11 +133,11 @@ class Config:
 
     def __init__(self, root: Tradeforce, config_input: dict | None, config_file: str | None):
         self.log = root.logging.get_logger(__name__)
-        self.config_input: dict = self.load_config(config_input, config_file)
+        self.config_input: dict = self._load_config(config_input, config_file)
 
         # Set all config keys as attributes of the Config class
         # This allows us to access them via self.config.<config_key> in any module
-        self.set_config_as_attr(self.config_input)
+        self._set_config_as_attr(self.config_input)
 
         # ------------
         # Core setup
@@ -153,8 +152,8 @@ class Config:
         self.check_db_consistency = self.config_input.get("check_db_consistency", True)
         """bool: Determines whether to check the in-memory database consistency
 
-        by verifying no missing candles between the start and end timestamps.
-        Useful to disable in hyperparameter search scenarios for performance.
+        by verifying that no missing candles exist between the start and end timestamps.
+        Useful to disable in hyperparameter search scenarios for performance reasons.
 
         Default: ``True``
         """
@@ -248,13 +247,14 @@ class Config:
 
         ``none``: Do not update.
                     Just load data of present DB / cache.
-                    Useful for simulation mode or analysis.
+                    Useful for simulation mode or analysis to speed up
+                    the process and sufficient data is already present.
 
         ``once``: Only update once
                     via REST API. Useful for cases where there
-                    is already data present (DB or local cache)
-                    and we just want to update it before starting
-                    simulations.
+                    is already market data present (DB or local cache)
+                    and it should be updated to current date before
+                    starting the simulation.
 
         ``live``: Update continuously
                     via Websocket. Useful for live trading or
@@ -376,10 +376,8 @@ class Config:
         to a local ``.arrow`` file for faster loading in subsequent runs.
 
         Note:
-            Gets saved on every candle update (:py:attr:`candle_interval`).
-
-        Note:
-            Gets saved into :py:attr:`working_dir`/data.
+            Gets saved on every candle update (:py:attr:`candle_interval`)
+            into :py:attr:`working_dir`/data.
 
         Default: ``True``
         """
@@ -751,7 +749,7 @@ class Config:
     # Config methods
     # ---------------
 
-    def load_config(self, config_input: dict | None, config_file: str | None) -> dict:
+    def _load_config(self, config_input: dict | None, config_file: str | None) -> dict:
         """Load the configuration from a provided input or a config.yaml file.
 
         First check if a configuration dictionary is provided. If not, try to load
@@ -787,7 +785,7 @@ class Config:
         self.log.info("Loading config via %s", config_type)
         return _flatten_dict(self.config_input)
 
-    def set_config_as_attr(self, config_input: dict) -> None:
+    def _set_config_as_attr(self, config_input: dict) -> None:
         """Set all config values as attributes.
 
         Reverse of method to_dict().

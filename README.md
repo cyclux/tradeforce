@@ -99,7 +99,7 @@ Supported features depend on the choice of data backend:
     # Activate environment
     source tradeforce/bin/activate
     ```
-    > **Note** The environment name "tradeforce" is arbitrary and can be changed.
+    > **Note** - The environment name "tradeforce" is arbitrary and can be changed.
 
 2. #### Install via pip
 
@@ -137,7 +137,7 @@ Generally Tradeforce can either be configured via
     sim_result = Tradeforce(config=CONFIG).run_sim()
     ```
 
-    > **Note** | See [simulator_simple_dict.py] for a working example.
+    > **Note** - See [simulator_simple_dict.py] for a working example.
 
 - **YAML file**:
 
@@ -147,7 +147,7 @@ Generally Tradeforce can either be configured via
     sim_result = Tradeforce(config_file="config.yaml").run_sim()
     ```
 
-    > **Note** | See [simulator_simple_yaml.py] and [config.yaml] for a working example.
+    > **Note** - See [simulator_simple_yaml.py] and [config.yaml] for a working example.
 
 ### Shell in container
 
@@ -160,7 +160,7 @@ To connect to the Tradeforce container and open a bash shell run:
 docker exec -it tradeforce bash
 ```
 
-> **Note** | Here "tradeforce" refers to the `container_name` specified in [docker/docker-compose.yml]\
+> **Note** - Here "tradeforce" refers to the `container_name` specified in [docker/docker-compose.yml]\
 > and might defer depending on the deployment option or setup.
 
 ## DISCLAIMER

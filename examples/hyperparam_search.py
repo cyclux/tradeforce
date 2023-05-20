@@ -2,10 +2,10 @@
 
 An example of how to use the hyperparameter search functionality of Tradeforce.
 
-Technically, the hyperparameter search could include on any kind of configuration
+Technically, the hyperparameter search could include any kind of configuration
 option Tradeforce offers. However, the primariy use case is to optimize the
-trade strategy parameters. The example uses the default buy / sell strategy
-functions which introduced following parameters:
+trade strategy parameters. The default buy / sell strategy implementations
+offer following parameters:
 
     - moving_window_hours: Timeframe for moving window to calulate the price signal scores.
     - buy_signal_score: Price signal score within the moving window.
@@ -64,10 +64,15 @@ See README.md for more information about the Tradeforce configuration options.
 from tradeforce import Tradeforce
 
 CONFIG = {
-    "trader": {
-        "budget": 1000,
-        "maker_fee": 0.10,
-        "taker_fee": 0.20,
+    "market_history": {
+        "name": "bitfinex_history",
+        "exchange": "bitfinex",
+        "base_currency": "USD",
+        "candle_interval": "5min",
+        "fetch_init_timeframe_days": 100,
+        "update_mode": "none",
+        "force_source": "local_cache",
+        "check_db_consistency": False,
     },
     "backend": {
         "dbms": "postgresql",
@@ -79,14 +84,10 @@ CONFIG = {
         "local_cache": True,
         "check_db_sync": False,
     },
-    "market_history": {
-        "name": "bitfinex_history",
-        "exchange": "bitfinex",
-        "base_currency": "USD",
-        "candle_interval": "5min",
-        "fetch_init_timeframe_days": 100,
-        "update_mode": "none",
-        "force_source": "local_cache",
+    "trader": {
+        "budget": 1000,
+        "maker_fee": 0.10,
+        "taker_fee": 0.20,
     },
     "simulation": {
         "subset_size_days": 30,

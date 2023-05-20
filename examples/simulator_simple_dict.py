@@ -19,6 +19,24 @@ for more information about the Tradeforce configuration options.
 from tradeforce import Tradeforce
 
 CONFIG = {
+    "market_history": {
+        "name": "bitfinex_history",
+        "exchange": "bitfinex",
+        "base_currency": "USD",
+        "candle_interval": "5min",
+        "fetch_init_timeframe_days": 100,
+        "update_mode": "none",
+        "check_db_sync": False,
+    },
+    "backend": {
+        "dbms": "postgresql",
+        "dbms_host": "docker_db",
+        "dbms_port": 5433,
+        "dbms_connect_db": "postgres",
+        "dbms_user": "postgres",
+        "dbms_pw": "postgres",
+        "local_cache": True,
+    },
     "trader": {
         "budget": 1000,
         "maker_fee": 0.10,
@@ -33,24 +51,6 @@ CONFIG = {
             "hold_time_days": 4,
             "profit_factor_target_min": 1.01,
         },
-    },
-    "backend": {
-        "dbms": "postgresql",
-        "dbms_host": "docker_db",
-        "dbms_port": 5433,
-        "dbms_connect_db": "postgres",
-        "dbms_user": "postgres",
-        "dbms_pw": "postgres",
-        "local_cache": True,
-    },
-    "market_history": {
-        "name": "bitfinex_history",
-        "exchange": "bitfinex",
-        "base_currency": "USD",
-        "candle_interval": "5min",
-        "fetch_init_timeframe_days": 100,
-        "update_mode": "none",
-        "check_db_sync": False,
     },
     "simulation": {
         "subset_size_days": 100,

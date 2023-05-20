@@ -39,6 +39,23 @@ in the past will continue to do so in the future.
 from tradeforce import Tradeforce
 
 CONFIG = {
+    "market_history": {
+        "name": "bitfinex_history",
+        "exchange": "bitfinex",
+        "base_currency": "USD",
+        "candle_interval": "5min",
+        "fetch_init_timeframe_days": 100,
+        "update_mode": "live",
+    },
+    "backend": {
+        "dbms": "postgresql",
+        "dbms_host": "docker_db",
+        "dbms_port": 5433,
+        "dbms_connect_db": "postgres",
+        "dbms_user": "postgres",
+        "dbms_pw": "postgres",
+        "local_cache": False,
+    },
     "trader": {
         "id": 1,
         "run_live": True,
@@ -54,23 +71,6 @@ CONFIG = {
             "hold_time_days": 4,
             "profit_factor_target_min": 1.01,
         },
-    },
-    "backend": {
-        "dbms": "postgresql",
-        "dbms_host": "docker_db",
-        "dbms_port": 5433,
-        "dbms_connect_db": "postgres",
-        "dbms_user": "postgres",
-        "dbms_pw": "postgres",
-        "local_cache": False,
-    },
-    "market_history": {
-        "name": "bitfinex_history",
-        "exchange": "bitfinex",
-        "base_currency": "USD",
-        "candle_interval": "5min",
-        "fetch_init_timeframe_days": 100,
-        "update_mode": "live",
     },
 }
 
