@@ -160,7 +160,7 @@ To connect to the Tradeforce container and open a bash shell run:
 docker exec -it tradeforce bash
 ```
 
-> **Note** - Here "tradeforce" refers to the `container_name` specified in [docker/docker-compose.yml]\
+> **Note** - Here ``tradeforce`` refers to the `container_name` specified in [docker/docker-compose.yml]\
 > and might defer depending on the deployment option or setup.
 
 ## DISCLAIMER
@@ -184,6 +184,7 @@ cd /path/to/tradeforce/Dockerfile
 docker build -t cyclux/tradeforce:latest -t cyclux/tradeforce:0.0.1 --target production .
 docker push -a cyclux/tradeforce
 ```
+> **Note** - Here ``cyclux`` refers to the Docker Hub repo / user name and needs to be changed accordingly.
 
 
 [Docker Desktop]: https://docs.docker.com/get-docker/

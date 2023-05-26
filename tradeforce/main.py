@@ -1,6 +1,34 @@
 """ Module: ``tradeforce`` @ ``main.py``
 
-TODO: Explain run modes.
+The main application class :py:class:`~.Tradeforce` offers methods to run the application in different modes:
+
+- :py:meth:`~.Tradeforce.run`: Run "normal mode". Connects to the exchange APIs (i.e. to fetch history or trade live)
+- :py:meth:`~.Tradeforce.run_sim`: Run simulations (i.e. backtest specific strategies)
+- :py:meth:`~.Tradeforce.run_optuna`: Run hyperparameter search with Optuna
+
+General usage::
+
+    from tradeforce import Tradeforce
+
+    CONFIG = {...}
+
+    # Run "normal mode"
+    Tradeforce(CONFIG).run()
+
+    # Run simulations
+    sim_result = Tradeforce(config=CONFIG).run_sim()
+
+    # Run hyperparameter search with Optuna
+    HYPERPARAM_SEARCH = {...}
+    study = Tradeforce(CONFIG).run_sim_optuna(optuna_config=HYPERPARAM_SEARCH)
+
+.. note::
+    For better understanding and context, please refer to the examples in the `examples`_ folder.
+
+Specifc examples are referenced in the docstrings of the respective methods:
+
+
+.. _examples: https://github.com/cyclux/tradeforce/tree/master/examples
 """
 
 from __future__ import annotations
