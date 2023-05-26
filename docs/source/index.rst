@@ -100,7 +100,9 @@ results within a Jupyter Notebook.
 Tradeforce uses the Optuna framework for hyperparameter optimization. The parameters of a trading
 strategy can be optimized by searching for the "ideal" values within a given search space.
 Usually some kind of performance score is used as objective for optimization. In the default
-implementation this is ``mean profit corrected for variance``, see :py:func:`~.simulator_core.run`.
+implementation this is ``mean profit of subsets corrected for variance``, for details see
+:py:func:`~.simulator_core.run`.
+
 For `examples`_ of Optuna usage, see `hyperparam_search.py`_ and `hyperparam_search_multiprocess.py`_.
 The results of an optimization run (called `Study`) are stored in the Postgres database backend and
 can be analyzed and visualized within a Jupyter Notebook. See `hyperparam_search_result_analysis.ipynb`_.

@@ -36,14 +36,21 @@ VERSION = importlib.metadata.version("tradeforce")
 
 
 class Tradeforce:
-    """The Tradeforce class orchestrates all modules and components
+    """Main application class.
 
-    of the trading framework, providing methods to run the application
-    in different modes and manage its components.
+    The Tradeforce class orchestrates all modules and components,
+    providing methods to run the application in different modes.
 
     Args:
-        config (dict):    A dictionary containing user-defined configuration settings.
-        assets List[str]: A list of asset symbols to be used. If not provided, all assets will be used.
+        config (:obj:`dict`, optional): A dictionary containing user-defined configuration settings.
+                                        Either ``config`` or ``config_file`` has to be provided.
+
+        config_file (:obj:`str`, optional): A path to a ``yaml`` configuration file. Can be used
+                                            instead of passing a ``config`` dictionary.
+
+        assets (:obj:`List[str]`, optional): A list of asset symbols to include. This has to be a
+                                                subset of the assets available in the market history.
+                                                If not provided, all assets will be included.
     """
 
     def __init__(self, config: dict | None = None, config_file: str | None = None, assets: list | None = None) -> None:
@@ -51,11 +58,6 @@ class Tradeforce:
 
         with the provided configuration and asset symbols,
         and register the required modules.
-
-        Args:
-            config: A dictionary containing user-defined configuration settings.
-            assets: A list of asset symbols to be used in the platform.
-                        If not provided, all assets will be used.
         """
         self.log = self._register_logger()
         self.asset_symbols = [] if not assets else assets
@@ -75,7 +77,7 @@ class Tradeforce:
         """Initialize and register the logger.
 
         Returns:
-            The logger instance.
+            Logger instance.
         """
         self.logging = Logger()
         log = self.logging.get_logger(__name__)
@@ -91,9 +93,12 @@ class Tradeforce:
             user_config: An optional dictionary containing user-
                             defined configuration settings.
 
+            config_file: An optional path to a ``yaml``
+                            configuration file.
+
         Returns:
-            Config object: Provides access to config settings
-                            to all modules.
+            Config: Provides access to config settings
+                        to all modules it gets passed to.
         """
         config = Config(root=self, config_input=user_config, config_file=config_file)
 
@@ -108,7 +113,8 @@ class Tradeforce:
         Manages Backend database operations.
 
         Returns:
-            The (BackendMongoDB | BackendSQL) object
+            Backend instance (BackendMongoDB | BackendSQL):
+            Interface to the database backend.
         """
         if self.config.dbms == "postgresql":
             return BackendSQL(root=self)
@@ -126,7 +132,7 @@ class Tradeforce:
         between MarketHistory, ExchangeAPI and Backend
 
         Returns:
-            The MarketUpdater object.
+            MarketUpdater instance.
         """
         return MarketUpdater(root=self)
 
@@ -138,7 +144,7 @@ class Tradeforce:
         process historical market data.
 
         Returns:
-            The MarketHistory object.
+            MarketHistory instance.
         """
         return MarketHistory(root=self)
 
@@ -149,7 +155,7 @@ class Tradeforce:
         and provides methods to interact with the exchange API.
 
         Returns:
-            The ExchangeAPI object.
+            ExchangeAPI instance.
         """
         return ExchangeAPI(root=self)
 
@@ -161,7 +167,7 @@ class Tradeforce:
         private connections.
 
         Returns:
-            The ExchangeWebsocket object.
+            ExchangeWebsocket instance.
         """
         return ExchangeWebsocket(root=self)
 
@@ -172,7 +178,7 @@ class Tradeforce:
         to buy and sell assets based on the provided strategy.
 
         Returns:
-            The Trader object.
+            Trader instance.
         """
         return Trader(root=self)
 
@@ -192,7 +198,7 @@ class Tradeforce:
                     and boolean values as flags.
 
         Returns:
-            The current Tradeforce instance.
+            Current Tradeforce instance.
         """
 
         if tasks.get("load_history", True):
@@ -266,15 +272,19 @@ class Tradeforce:
     # ---------------------
 
     def run(self, load_history: bool = True) -> "Tradeforce":
-        """Run the Tradeforce instance in "normal" mode.
+        """Run Tradeforce in ``normal mode``.
 
-        This method enables following use cases:
+        This run method enables primarily following use cases:
 
         - Dedicated market server:
-            See dedicated_market_server.py in examples.
+            See `dedicated_market_server.py
+            <https://github.com/cyclux/tradeforce/blob/master/examples/dedicated_market_server.py>`_
+            in examples.
 
         - Live trading bot:
-            See live_trader_simple.py in examples.
+            See `live_trader_simple.py
+            <https://github.com/cyclux/tradeforce/blob/master/examples/live_trader_simple.py>`_
+            in examples.
 
         Warning:
             Use at your own risk! Tradeforce is currently in beta, and bugs may occur.
@@ -285,8 +295,9 @@ class Tradeforce:
             Custom strategies are not yet available for the live trader.
 
         - Analysis in a Jupyter notebook:
-            For analysis and visualization of sim results.
-            See hyperparam_search_result_analysis.ipynb
+            For analysis and visualization of simulation results.
+            See `hyperparam_search_result_analysis.ipynb
+            <https://github.com/cyclux/tradeforce/blob/master/examples/hyperparam_search_result_analysis.ipynb>`_
             in examples.
 
         Args:
@@ -334,16 +345,20 @@ class Tradeforce:
         buy_strategy: Callable | None = None,
         sell_strategy: Callable | None = None,
     ) -> dict[str, int | np.ndarray]:
-        """Run the Tradeforce instance in simulation mode.
+        """Run Tradeforce in ``simulation mode``.
 
-        Default strategies are used if no custom ones are provided.
+        Default strategies are used if no custom ones are provided
+        (via parameters :py:obj:`pre_process`, :py:obj:`buy_strategy`, :py:obj:`sell_strategy`).
         For reference, how to define custom strategies, see:
-        examples/simulator_custom.py
+        `simulator_custom.py
+        <https://github.com/cyclux/tradeforce/blob/master/examples/simulator_custom.py>`_
 
         Note:
-            In Jupyter environment we need to async load_history()
-            before running the simulator. For reference, see:
-            examples/hyperparam_search_result_analysis.ipynb
+            In Jupyter environment before running a simulation, the
+            history needs to be loaded via ``async load_history()``.
+            For reference, see:
+            `hyperparam_search_result_analysis.ipynb
+            <https://github.com/cyclux/tradeforce/blob/master/examples/hyperparam_search_result_analysis.ipynb>`_
 
         Args:
             pre_process:   An optional function to pre-process market data.
@@ -351,16 +366,13 @@ class Tradeforce:
             sell_strategy: An optional function to determine sell signals.
 
         Returns:
-            Dictionary containing the simulation results:
+            :py:obj:`dict`: A dictionary containing the following keys:
 
-            - 'score'   (int):      The score calculated as:
-                                        mean(profit subsets) - std(profit subsets).
+            - **score** (:py:obj:`int`): ``mean(profit subsets) - std(profit subsets)``.
 
-            - 'trades'  (np.array): Array representing the trading history,
-                                        including buy and sell events.
+            - **trades** (:py:obj:`np.array`): Trading history, including buy and sell events.
 
-            - 'buy_log' (np.array): Array representing the buy log, containing
-                                        the details of each buy event.
+            - **buy_log** (:py:obj:`np.array`): Buy log, containing the details of each buy event.
         """
         self._prepare_sim(pre_process, buy_strategy, sell_strategy)
 
@@ -374,18 +386,31 @@ class Tradeforce:
         buy_strategy: Callable | None = None,
         sell_strategy: Callable | None = None,
     ) -> optuna.Study:
-        """Run the Tradeforce instance in simulation mode
-            combined with Optuna hyperparameter optimization.
+        """Run Tradeforce in simulation mode
+
+        combined with Optuna hyperparameter optimization.
 
         Default strategies are used if no custom ones are provided.
         For reference, how to define custom strategies, see:
-        examples/simulator_custom.py
+        `simulator_custom.py
+        <https://github.com/cyclux/tradeforce/blob/master/examples/simulator_custom.py>`_
 
         Note:
-            In Jupyter environment before running the simulator the
-            history needs to be loaded via "async load_history()".
+            In Jupyter environment before running a simulation, the
+            history needs to be loaded via ``async load_history()``.
             For reference, see:
-            examples/hyperparam_search_result_analysis.ipynb
+            `hyperparam_search_result_analysis.ipynb
+            <https://github.com/cyclux/tradeforce/blob/master/examples/hyperparam_search_result_analysis.ipynb>`_
+
+        Args:
+            optuna_config: A dictionary containing the Optuna configuration.
+            optuna_study: An optional Optuna study object.
+            pre_process: An optional function to pre-process market data.
+            buy_strategy: An optional function to determine buy signals.
+            sell_strategy: An optional function to determine sell signals.
+
+        Returns:
+            :py:obj:`optuna.Study`: An Optuna study object.
         """
         self._prepare_sim(pre_process, buy_strategy, sell_strategy)
 
@@ -420,7 +445,7 @@ def _monkey_patch(
         pre-process, buy and sell strategy, if provided.
 
     Args:
-        root:          The Tradeforce instance containing the Logger.
+        root:          Tradeforce instance containing the Logger.
 
         pre_process:   A function to be used as pre_process:
                         Prepare data for simulation.
