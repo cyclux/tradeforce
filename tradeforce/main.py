@@ -1,6 +1,6 @@
 """ Module: ``tradeforce`` @ ``main.py``
 
-The main application class :py:class:`~.Tradeforce` offers methods to run the application in different modes:
+The main class :py:class:`~.Tradeforce` offers methods to run the application in different modes:
 
 - :py:meth:`~.Tradeforce.run`: Run "normal mode". Connects to the exchange APIs (i.e. to fetch history or trade live)
 - :py:meth:`~.Tradeforce.run_sim`: Run simulations (i.e. backtest specific strategies)
@@ -23,12 +23,12 @@ General usage::
     study = Tradeforce(CONFIG).run_sim_optuna(optuna_config=HYPERPARAM_SEARCH)
 
 .. note::
-    For better understanding and context, please refer to the examples in the `examples`_ folder.
+    For better understanding and context, please refer to the `usage examples`_ and
+    their respective documentation.
 
-Specifc examples are referenced in the docstrings of the respective methods:
+Specifc example scripts are referenced in the docstrings of the following run methods:
 
-
-.. _examples: https://github.com/cyclux/tradeforce/tree/master/examples
+.. _usage examples: https://github.com/cyclux/tradeforce/tree/master/examples
 """
 
 from __future__ import annotations
@@ -397,6 +397,7 @@ class Tradeforce:
             :py:obj:`dict`: A dictionary containing the following keys:
 
             - **score** (:py:obj:`int`): ``mean(profit subsets) - std(profit subsets)``.
+              See :py:func:`tradeforce.simulator.simulator_core.run` for more details.
 
             - **trades** (:py:obj:`np.array`): Trading history, including buy and sell events.
 

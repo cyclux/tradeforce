@@ -27,17 +27,18 @@ enable scalability to cluster environments.
 
 ### Feature support
 
-Supported features depend on the choice of data backend:
+Supported features depend on the choice of database backend:
 
-|              | Market Server | Simulations | Live Trading | Optuna |
-|--------------|:-------------:|:-----------:|:------------:|:------:|
-| **Postgres** | &#9745;       | &#9745;     | &#9745;      | &#9745;|
-| **MongoDB**  | &#9745;       | &#9745;     | &#9745;      | &#9744;|
-| **Arrow**    | &#9745;       | &#9745;     | &#9744;      | &#9744;|
+|                 | Market Server | Simulations | Live Trading | Optuna |
+|-----------------|:-------------:|:-----------:|:------------:|:------:|
+| **Postgres**    | &#9745;       | &#9745;     | &#9745;      | &#9745;|
+| **MongoDB**     | &#9745;       | &#9745;     | &#9745;      | &#9744;|
+| **Local Cache** | &#9745;       | &#9745;     | &#9744;      | &#9744;|
+
+For a more detailed explanation of the differences see the [Storage] section of the documentation.
 
 >**Note** - The recommended [setup with Docker compose](#docker-recommended) includes\
 > Postgres as backend and is therefore fully featured.
-<!-- TODO: Explain differences and link to documentation -->
 
 ## Architecture
 
@@ -113,9 +114,11 @@ Supported features depend on the choice of data backend:
 
 Tradeforce can be run in different modes depending on the use case:
 
+- `run()`: Run "normal mode" primarily for fetching history (also [dedicated market server]) and [live trading].
 - `run_sim()`: Run single simulation on historical data. See [simulator_simple_dict.py] as an example.
-- `run()`: Run mode primarily for [dedicated market server] and [live trading].
-- `run_optuna()`: Run multiple simulations for hyperparameter optimization via [Optuna]. See [hyperparam_search.py], [hyperparam_search_multiprocess.py] as an example. Also [hyperparam_search_result_analysis.ipynb] for a Jupyter notebook on analyzing the results.
+- `run_optuna()`: Run multiple simulations for hyperparameter optimization via [Optuna]. See [hyperparam_search.py]
+                  and [hyperparam_search_multiprocess.py] as examples. Also [hyperparam_search_result_analysis.ipynb]
+                  for a Jupyter notebook on analyzing the results.
 
 > **Note** - See Documentation: [Run modes] for more details on how to use and configure the different run modes.
 
@@ -209,6 +212,7 @@ docker push -a cyclux/tradeforce
 [Docker Hub]: https://hub.docker.com/r/cyclux/tradeforce/tags
 
 [Documentation]: https://tradeforce.readthedocs.io/en/latest/
+[Storage]: https://tradeforce.readthedocs.io/en/latest/index.html#Storage
 [Configuration Documentation]: https://tradeforce.readthedocs.io/en/latest/config.html
 [Run modes]: https://tradeforce.readthedocs.io/en/latest/run_modes.html
 

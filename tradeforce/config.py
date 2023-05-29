@@ -1,15 +1,21 @@
 """
 
-Config module containing the Config class for Tradeforce.
+The :py:class:`~.Config` handles the loading of the configuration options.
+Either via
 
-Loads config dict or config.yaml file and stores it in a Config class
-which can get passed to all other modules, classes and functions.
+Dictionary (See `simulator_simple_dict.py`_): ::
 
-The Config class handles various settings and configurations for Tradeforce,
-including data handling settings, exchange settings, trader and strategy
-settings, and simulator configurations. It is responsible for loading, updating,
-and storing these settings, as well as providing a method to represent
-the configuration in a dictionary format.
+    from tradeforce import Tradeforce
+    CONFIG = {...}
+    sim_result = Tradeforce(config=CONFIG).run_sim()
+
+or YAML (See `simulator_simple_yaml.py`_): ::
+
+    from tradeforce import Tradeforce
+    sim_result = Tradeforce(config_file="config.yaml").run_sim()
+
+.. _simulator_simple_dict.py: https://github.com/cyclux/tradeforce/blob/master/examples/simulator_simple_dict.py
+.. _simulator_simple_yaml.py: https://github.com/cyclux/tradeforce/blob/master/examples/simulator_simple_yaml.py
 """
 
 
@@ -119,7 +125,7 @@ def _hours_to_increments(hours: int, candle_interval: str) -> int:
 
 
 class Config:
-    """Config object is used to load and store the user config.
+    """Loads and stores the user config.
 
     It gets passed to all other classes and allows us to access them via self.config.<config_key>
     Provides default values to fall back on if param is not specified in user config.

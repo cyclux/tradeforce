@@ -20,7 +20,8 @@ Architecture
   :width: 650
   :alt: Tradeforce architecture diagram
 
-**Exchange APIs**
+Exchange APIs
+"""""""""""""
 
 Technically, Tradeforce could process any type of time series or financial market datasets
 like stock markets. However, for the sake of convenience the Bitfinex API is integrated
@@ -47,12 +48,41 @@ config options on :ref:`config:market_history` and :ref:`config:initial_relevant
   which may include 100+ assets of the market. Also provides methods for subscribing to channels and
   processing wallet and order updates.
 
-**Storage**
+Storage
+"""""""
+
+.. list-table::
+  :widths: 25 25 25 25 25
+  :header-rows: 1
+
+  * -
+    - Market Server
+    - Simulations
+    - Live Trading
+    - Optuna
+  * - **Postgres**
+    - |checked|
+    - |checked|
+    - |checked|
+    - |checked|
+  * - **MongoDB**
+    - |checked|
+    - |checked|
+    - |checked|
+    - |unchecked|
+  * - **Local Cache**
+    - |checked|
+    - |checked|
+    - |unchecked|
+    - |unchecked|
+
+.. |checked|   unicode:: U+2611 .. BALLOT BOX WITH CHECK
+.. |unchecked| unicode:: U+2610 .. BALLOT BOX
 
 For storing historical trading data, Tradeforce currently supports Postgres and MongoDB
 as database backends. However, only Postgres supports the full range of features and
 is therefore the recommended default. MongoDB is supported for historical data
-storage, live trading and standard simulations. Hyperparameter optimization is not
+storage, live trading and standard simulations. However, hyperparameter optimization is not
 suppported because Optuna relies on SQL / Postgres.
 
 - **In-Memory**: Once the market history data is initially fetched from remote API or loaded
@@ -71,7 +101,8 @@ suppported because Optuna relies on SQL / Postgres.
   into memory. This is essential for hyperparameter optimization via Optuna, because the process
   requires to load the data many times.
 
-**Trading Engines**
+Trading Engines
+"""""""""""""""
 
 Tradeforce allows to run trading strategies / algorithms as simulation or in live mode.
 In simulation mode a performance score is returned. Using the Optuna framework, this score
@@ -95,7 +126,8 @@ results within a Jupyter Notebook.
   real-time. It has access to historical market data as well as live updates via Websocket Manager.
   See :py:doc:`run_modes` : :py:meth:`~.run` for more details.
 
-**Hyperparameter Tuning**
+Hyperparameter Tuning
+"""""""""""""""""""""
 
 Tradeforce uses the Optuna framework for hyperparameter optimization. The parameters of a trading
 strategy can be optimized by searching for the "ideal" values within a given search space.

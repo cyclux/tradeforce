@@ -253,7 +253,6 @@ def print_simulation_details(root: Tradeforce, asset_prices: pd.DataFrame, datas
 
 def run(root: Tradeforce, dataset_type: str, train_val_split_idx: int) -> dict[str, int | np.ndarray]:
     """Run the trading simulation
-
     using the configuration provided in the Tradeforce instance. This function is the main entry point
     for simulations. It preprocesses the market history data, converts relevant data structures to
     numpy arrays for usage in Numba, and then performs the trading simulations to calculate the
@@ -264,6 +263,10 @@ def run(root: Tradeforce, dataset_type: str, train_val_split_idx: int) -> dict[s
     The standard deviation is subtracted from the mean profit to penalize simulations with high variance of profit
     among subsets. This prevents overfitting to some specific market conditions which are not representative of the
     overall market (the total sum of subsets).
+
+    Warning:
+        This function is not meant to be used directly.
+        See :doc:`run_modes` for direct usage.
 
     Args:
         ``root``: The Tradeforce instance containing the necessary configuration and market history data.
