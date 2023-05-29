@@ -212,7 +212,7 @@ docker push -a cyclux/tradeforce
 [Docker Hub]: https://hub.docker.com/r/cyclux/tradeforce/tags
 
 [Documentation]: https://tradeforce.readthedocs.io/en/latest/
-[Storage]: https://tradeforce.readthedocs.io/en/latest/index.html#Storage
+[Storage]: https://tradeforce.readthedocs.io/en/latest/index.html#storage
 [Configuration Documentation]: https://tradeforce.readthedocs.io/en/latest/config.html
 [Run modes]: https://tradeforce.readthedocs.io/en/latest/run_modes.html
 
